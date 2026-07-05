@@ -19,7 +19,7 @@
   "devEngines": {
     "packageManager": {
       "name": "npm",
-      "version": "10.9.3"
+      "version": "10.9.8"
     }
   },
   "workspaces": [
