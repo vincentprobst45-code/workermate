@@ -1,0 +1,5 @@
+# Disable Prettier for the entire project
+*
+#! Keep this file tracked
+!.prettierignore
+**
