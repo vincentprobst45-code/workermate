@@ -20,6 +20,7 @@ interface AuthContextType {
   activeTenant: TenantMembership | null;
   accessToken: string | null;
   refreshToken: string | null;
+  isLoading: boolean;
   login: (accessToken: string, refreshToken: string, user: AuthUser, memberships: TenantMembership[]) => void;
   logout: () => void;
   switchTenant: (tenantId: string) => void;
@@ -34,22 +35,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeTenant, setActiveTenant] = useState<TenantMembership | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load from localStorage on mount
   useEffect(() => {
+    console.log('[AuthProvider] Initializing - loading from localStorage...');
     const saved = localStorage.getItem('auth');
     if (saved) {
       try {
         const { user, tenants, activeTenant, accessToken, refreshToken } = JSON.parse(saved);
+        console.log('[AuthProvider] ✅ Auth data loaded from localStorage');
+        console.log('[AuthProvider] User:', user?.email);
+        console.log('[AuthProvider] Tenants count:', tenants?.length);
+        console.log('[AuthProvider] Active tenant:', activeTenant?.tenantName);
+        console.log('[AuthProvider] Token:', accessToken ? '✅ Present' : '❌ Missing');
         setUser(user);
         setTenants(tenants);
         setActiveTenant(activeTenant);
         setAccessToken(accessToken);
         setRefreshToken(refreshToken);
       } catch (e) {
+        console.error('[AuthProvider] ❌ Failed to parse auth from localStorage:', e);
         localStorage.removeItem('auth');
       }
+    } else {
+      console.log('[AuthProvider] ℹ️ No auth data in localStorage (user not logged in)');
     }
+    console.log('[AuthProvider] ✅ Initialization complete - setting isLoading to false');
+    setIsLoading(false);
   }, []);
 
   const login = (accessToken: string, refreshToken: string, user: AuthUser, memberships: TenantMembership[]) => {
@@ -105,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activeTenant,
         accessToken,
         refreshToken,
+        isLoading,
         login,
         logout,
         switchTenant,

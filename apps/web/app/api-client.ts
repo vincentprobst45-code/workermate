@@ -15,20 +15,32 @@ export function useApiClient() {
     options: FetchOptions = {},
     retryCount = 0,
   ): Promise<Response> => {
+    console.log('\n╔════════════════════════════════════════════════════════╗');
+    console.log('║          [useApiClient] SENDING REQUEST               ║');
+    console.log('╚════════════════════════════════════════════════════════╝');
+    console.log(`[useApiClient] Endpoint: ${endpoint}`);
+    console.log(`[useApiClient] Method: ${options.method || 'GET'}`);
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
     // Ajouter le token d'accès
+    console.log(`[useApiClient] Access Token: ${auth.accessToken ? '✅ Present (' + auth.accessToken.substring(0, 20) + '...)' : '❌ MISSING'}`);
     if (auth.accessToken) {
       headers['Authorization'] = `Bearer ${auth.accessToken}`;
     }
 
     // Ajouter le tenant ID si un tenant est sélectionné
+    console.log(`[useApiClient] Active Tenant: ${auth.activeTenant ? '✅ ' + auth.activeTenant.tenantId : '❌ MISSING'}`);
     if (auth.activeTenant) {
       headers['X-Tenant-ID'] = auth.activeTenant.tenantId;
     }
+
+    console.log(`[useApiClient] Headers being sent:`, headers);
+    console.log(`[useApiClient] Full URL: ${API_URL}${endpoint}`);
+    console.log('');
 
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,

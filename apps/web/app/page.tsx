@@ -13,6 +13,9 @@ export default function Home() {
     router.push('/')
   }
 
+  console.log("userlol :" ,user);
+  console.log("tenants :" ,tenants);
+  console.log("activetenant :" ,activeTenant);
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm py-5 px-5 shadow-sm shadow-slate-200/20 sm:px-6">
@@ -111,102 +114,47 @@ export default function Home() {
         </section>
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <article className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Planning</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Visualise ta semaine, tes rendez-vous et tes plages de disponibilité.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700">
-                Priorité
-              </div>
-            </div>
-            <div className="mt-5 space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">Lundi</p>
-                <p className="text-slate-500">3 chantiers programmés</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">Mardi</p>
-                <p className="text-slate-500">2 visites clients</p>
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200">
+          <a href={user ? "/customers" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Clients</p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Accède rapidement à tes contacts, adresses et historiques d’interventions.
+                  Gère tes contacts et historiques.
                 </p>
               </div>
               <div className="rounded-2xl bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-700">
-                +120
+                Gérer →
               </div>
             </div>
-            <div className="mt-5 flex flex-col gap-3 text-sm text-slate-600">
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">M. Dupont</p>
-                <p className="text-slate-500">Cuisine, intervention prévue mercredi</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">SARL Plomberie 75</p>
-                <p className="text-slate-500">A reçu un devis le mois dernier</p>
-              </div>
-            </div>
-          </article>
+          </a>
 
-          <article className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200">
+          <a href={user ? "/projects" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Devis & Factures</p>
+                <p className="text-sm font-semibold text-slate-900">Chantiers</p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Crée, modifie et envoie tes documents clients par mail en quelques clics.
+                  Crée et suis tes projets.
+                </p>
+              </div>
+              <div className="rounded-2xl bg-blue-100 px-3 py-2 text-xs font-medium text-blue-700">
+                Gérer →
+              </div>
+            </div>
+          </a>
+
+          <a href={user ? "/invoices" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Factures</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Gère tes factures et devis.
                 </p>
               </div>
               <div className="rounded-2xl bg-indigo-100 px-3 py-2 text-xs font-medium text-indigo-700">
-                7 documents
+                Gérer →
               </div>
             </div>
-            <div className="mt-5 space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">Devis chantier A</p>
-                <p className="text-slate-500">En attente d’accord client</p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <p className="font-medium text-slate-900">Facture chantier B</p>
-                <p className="text-slate-500">Envoyée, paiement en attente</p>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="mt-8 rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Chantiers</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Suis l’état des chantiers et ajoute des photos avant/après pour chaque intervention.
-              </p>
-            </div>
-            <button className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-              Voir les chantiers
-            </button>
-          </div>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Chantier logement</p>
-              <p className="mt-2 text-sm text-slate-600">Installation de chaudière + photos pré et post intervention.</p>
-            </div>
-            <div className="rounded-3xl bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Réfection salle de bain</p>
-              <p className="mt-2 text-sm text-slate-600">Suivi du chantier et ajout des photos à chaque étape.</p>
-            </div>
-          </div>
+          </a>
         </section>
       </main>
     </div>
