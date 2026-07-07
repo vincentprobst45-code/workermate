@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 export class CreateCustomerDto {
@@ -9,14 +9,21 @@ export class CreateCustomerDto {
 
 @Injectable()
 export class CustomerService {
+  private readonly logger = new Logger(CustomerService.name);
+  private readonly isDebugEnabled = process.env.NODE_ENV !== 'production';
+
   constructor(private prisma: PrismaService) {}
 
+  private debug(message: string) {
+    if (this.isDebugEnabled) {
+      this.logger.debug(message);
+    }
+  }
+
   async create(tenantId: string, dto: CreateCustomerDto) {
-    console.log('[CustomerService] create() called');
-    console.log('[CustomerService] tenantId:', tenantId);
-    console.log('[CustomerService] dto:', dto);
+    this.debug(`create() tenantId=${tenantId}`);
     if (!tenantId) {
-      console.log('[CustomerService] ❌ ERROR: tenantId is undefined!');
+      this.logger.warn('create() called without tenantId');
       throw new Error('tenantId is required');
     }
     const result = await this.prisma.customer.create({
@@ -25,57 +32,53 @@ export class CustomerService {
         tenantId,
       },
     });
-    console.log('[CustomerService] ✅ Customer created:', result.id);
+    this.debug(`Customer created id=${result.id}`);
     return result;
   }
 
   async findAll(tenantId: string) {
-    console.log('[CustomerService] findAll() called');
-    console.log('[CustomerService] tenantId:', tenantId);
+    this.debug(`findAll() tenantId=${tenantId}`);
     if (!tenantId) {
-      console.log('[CustomerService] ❌ ERROR: tenantId is undefined!');
+      this.logger.warn('findAll() called without tenantId');
       throw new Error('tenantId is required');
     }
     const results = await this.prisma.customer.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    console.log(`[CustomerService] ✅ Found ${results.length} customers`);
+    this.debug(`Found ${results.length} customers`);
     return results;
   }
 
   async findOne(tenantId: string, id: string) {
-    console.log('[CustomerService] findOne() called');
-    console.log('[CustomerService] tenantId:', tenantId, 'id:', id);
+    this.debug(`findOne() tenantId=${tenantId} id=${id}`);
     const result = await this.prisma.customer.findFirst({
       where: { id, tenantId },
     });
     if (!result) {
-      console.log('[CustomerService] ❌ Customer not found');
+      this.logger.warn(`Customer not found id=${id} tenantId=${tenantId}`);
     } else {
-      console.log('[CustomerService] ✅ Customer found');
+      this.debug(`Customer found id=${id}`);
     }
     return result;
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateCustomerDto>) {
-    console.log('[CustomerService] update() called');
-    console.log('[CustomerService] tenantId:', tenantId, 'id:', id);
+    this.debug(`update() tenantId=${tenantId} id=${id}`);
     const result = await this.prisma.customer.updateMany({
       where: { id, tenantId },
       data: dto,
     });
-    console.log('[CustomerService] ✅ Updated:', result.count, 'customer(s)');
+    this.debug(`Updated ${result.count} customer(s)`);
     return result;
   }
 
   async delete(tenantId: string, id: string) {
-    console.log('[CustomerService] delete() called');
-    console.log('[CustomerService] tenantId:', tenantId, 'id:', id);
+    this.debug(`delete() tenantId=${tenantId} id=${id}`);
     const result = await this.prisma.customer.deleteMany({
       where: { id, tenantId },
     });
-    console.log('[CustomerService] ✅ Deleted:', result.count, 'customer(s)');
+    this.debug(`Deleted ${result.count} customer(s)`);
     return result;
   }
 }

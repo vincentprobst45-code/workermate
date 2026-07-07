@@ -1,38 +1,45 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger } from '@nestjs/common';
 import { TenantRole } from '@prisma/client';
 import type { AuthenticatedRequest } from '../types/auth-request';
 
 @Injectable()
 export class RequireRoleGuard implements CanActivate {
+  private readonly logger = new Logger(RequireRoleGuard.name);
+  private readonly isDebugEnabled = process.env.NODE_ENV !== 'production';
+
   constructor(private requiredRoles: TenantRole[]) {}
 
+  private debug(message: string) {
+    if (this.isDebugEnabled) {
+      this.logger.debug(message);
+    }
+  }
+
   canActivate(context: ExecutionContext): boolean {
-    console.log('\n[RequireRoleGuard] Checking role permissions...');
+    this.debug('Checking role permissions');
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const membership = request.membership;
 
-    console.log(`[RequireRoleGuard] Required roles: ${this.requiredRoles.join(', ')}`);
-    console.log(`[RequireRoleGuard] User membership: ${membership ? '✅ Present' : '❌ MISSING'}`);
+    this.debug(`Required roles: ${this.requiredRoles.join(', ')}`);
+    this.debug(`Membership present: ${Boolean(membership)}`);
     
     if (!membership) {
-      console.log(`[RequireRoleGuard] ❌ No membership found on request!`);
+      this.logger.warn('Membership missing on request context');
       throw new ForbiddenException(
         `This action requires one of these roles: ${this.requiredRoles.join(', ')}`,
       );
     }
 
-    console.log(`[RequireRoleGuard] User role: ${membership.role}`);
     const hasRequiredRole = this.requiredRoles.includes(membership.role);
-    console.log(`[RequireRoleGuard] Role check: ${hasRequiredRole ? '✅ PASS' : '❌ FAIL'}`);
+    this.debug(`User role=${membership.role}, authorized=${hasRequiredRole}`);
 
     if (!hasRequiredRole) {
-      console.log(`[RequireRoleGuard] ❌ User role "${membership.role}" not in required roles`);
+      this.logger.warn(`Forbidden role ${membership.role}; expected one of: ${this.requiredRoles.join(', ')}`);
       throw new ForbiddenException(
         `This action requires one of these roles: ${this.requiredRoles.join(', ')}`,
       );
     }
 
-    console.log('[RequireRoleGuard] ✅ Authorization check passed\n');
     return true;
   }
 }
