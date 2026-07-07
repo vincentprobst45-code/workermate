@@ -2,8 +2,29 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import { RegisterDto } from './dto/register.dto';
-import * as bcrypt from 'bcryptjs';
-import type { User } from '@prisma/client';
+import type { Prisma, User } from '@prisma/client';
+import type { JwtPayload } from '../common/types/auth-request';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+
+const scrypt = promisify(scryptCallback);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
+  return `${salt}:${derivedKey.toString('hex')}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const [salt, hashHex] = storedHash.split(':');
+  if (!salt || !hashHex) return false;
+
+  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
+  const hashBuffer = Buffer.from(hashHex, 'hex');
+  if (hashBuffer.length !== derivedKey.length) return false;
+
+  return timingSafeEqual(hashBuffer, derivedKey);
+}
 
 @Injectable()
 export class AuthService {
@@ -19,10 +40,10 @@ export class AuthService {
       throw new Error('Email déjà utilisé');
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await hashPassword(password);
 
     // create tenant, user and membership in a transaction
-    const result = await this.prisma.$transaction(async (tx: any) => {
+    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const tenant = await tx.tenant.create({ data: { name: 'Mon Entreprise' } });
       const user = await tx.user.create({ data: { email, password: hashed, firstname, lastname } });
       await tx.membership.create({ data: { userId: user.id, tenantId: tenant.id, role: 'OWNER' } });
@@ -62,11 +83,11 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string): Promise<User | null> {
-    const user = (await this.prisma.user.findUnique({ where: { email } })) as User | null;
+    const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return null;
-    const hashed = (user as any).password as string | undefined;
+    const hashed = user.password;
     if (!hashed) return null;
-    const match = await bcrypt.compare(password, hashed);
+    const match = await verifyPassword(password, hashed);
     if (!match) return null;
     return user;
   }
@@ -105,7 +126,7 @@ export class AuthService {
 
   async refreshAccessToken(refreshToken: string): Promise<any> {
     try {
-      const payload = this.jwtService.verify(refreshToken);
+      const payload = this.jwtService.verify<JwtPayload>(refreshToken);
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
       });
@@ -117,7 +138,7 @@ export class AuthService {
       );
 
       return { accessToken };
-    } catch (err) {
+    } catch {
       throw new Error('Invalid refresh token');
     }
   }

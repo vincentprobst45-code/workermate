@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { TenantRole } from '@prisma/client';
+import type { AuthenticatedRequest } from '../types/auth-request';
 
 @Injectable()
 export class RequireRoleGuard implements CanActivate {
@@ -7,7 +8,7 @@ export class RequireRoleGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     console.log('\n[RequireRoleGuard] Checking role permissions...');
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const membership = request.membership;
 
     console.log(`[RequireRoleGuard] Required roles: ${this.requiredRoles.join(', ')}`);
@@ -34,15 +35,4 @@ export class RequireRoleGuard implements CanActivate {
     console.log('[RequireRoleGuard] ✅ Authorization check passed\n');
     return true;
   }
-}
-
-export function RequireRole(...roles: TenantRole[]) {
-  return (target: any, propertyKey?: string, descriptor?: PropertyDescriptor) => {
-    if (descriptor) {
-      const originalMethod = descriptor.value;
-      descriptor.value = function(...args: any[]) {
-        return originalMethod.apply(this, args);
-      };
-    }
-  };
 }

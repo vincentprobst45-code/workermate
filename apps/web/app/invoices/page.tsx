@@ -21,28 +21,35 @@ export default function InvoicesPage() {
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
 
   useEffect(() => {
-    console.log('[InvoicesPage] useEffect triggered - isLoading:', isLoading);
-    if (isLoading) {
-      console.log('[InvoicesPage] ⏳ Auth is still loading, waiting...');
-      return;
-    }
-    console.log('[InvoicesPage] ✅ Auth ready, fetching invoices');
-    fetchInvoices();
-  }, [isLoading]);
+    if (isLoading) return;
 
-  async function fetchInvoices() {
-    try {
-      setLoading(true);
-      const res = await api.get('/invoices');
-      if (!res.ok) throw new Error('Erreur');
-      const data = await res.json();
-      setInvoices(data);
-    } catch (err) {
-      setError('Erreur lors de la récupération des factures');
-    } finally {
-      setLoading(false);
-    }
-  }
+    let cancelled = false;
+
+    const loadInvoices = async () => {
+      try {
+        const res = await api.get('/invoices');
+        if (!res.ok) throw new Error('Erreur');
+        const data = await res.json();
+        if (!cancelled) {
+          setInvoices(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Erreur lors de la récupération des factures');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadInvoices();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, api]);
 
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +59,7 @@ export default function InvoicesPage() {
       const data = await res.json();
       setInvoices([data, ...invoices]);
       setNewInvoice({ number: '', amount: 0, description: '' });
-    } catch (err) {
+    } catch {
       setError('Erreur lors de l\'ajout');
     }
   }
@@ -63,7 +70,7 @@ export default function InvoicesPage() {
       const res = await api.delete(`/invoices/${id}`);
       if (!res.ok) throw new Error('Erreur');
       setInvoices(invoices.filter((i) => i.id !== id));
-    } catch (err) {
+    } catch {
       setError('Erreur lors de la suppression');
     }
   }

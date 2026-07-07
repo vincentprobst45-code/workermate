@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { createContext, useState, useContext, ReactNode } from 'react';
 
 interface AuthUser {
   id: string;
@@ -30,40 +30,62 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [tenants, setTenants] = useState<TenantMembership[]>([]);
-  const [activeTenant, setActiveTenant] = useState<TenantMembership | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    console.log('[AuthProvider] Initializing - loading from localStorage...');
-    const saved = localStorage.getItem('auth');
-    if (saved) {
-      try {
-        const { user, tenants, activeTenant, accessToken, refreshToken } = JSON.parse(saved);
-        console.log('[AuthProvider] ✅ Auth data loaded from localStorage');
-        console.log('[AuthProvider] User:', user?.email);
-        console.log('[AuthProvider] Tenants count:', tenants?.length);
-        console.log('[AuthProvider] Active tenant:', activeTenant?.tenantName);
-        console.log('[AuthProvider] Token:', accessToken ? '✅ Present' : '❌ Missing');
-        setUser(user);
-        setTenants(tenants);
-        setActiveTenant(activeTenant);
-        setAccessToken(accessToken);
-        setRefreshToken(refreshToken);
-      } catch (e) {
-        console.error('[AuthProvider] ❌ Failed to parse auth from localStorage:', e);
-        localStorage.removeItem('auth');
-      }
-    } else {
-      console.log('[AuthProvider] ℹ️ No auth data in localStorage (user not logged in)');
+  const [initialAuth] = useState(() => {
+    if (typeof window === 'undefined') {
+      return {
+        user: null as AuthUser | null,
+        tenants: [] as TenantMembership[],
+        activeTenant: null as TenantMembership | null,
+        accessToken: null as string | null,
+        refreshToken: null as string | null,
+      };
     }
-    console.log('[AuthProvider] ✅ Initialization complete - setting isLoading to false');
-    setIsLoading(false);
-  }, []);
+
+    const saved = localStorage.getItem('auth');
+    if (!saved) {
+      return {
+        user: null as AuthUser | null,
+        tenants: [] as TenantMembership[],
+        activeTenant: null as TenantMembership | null,
+        accessToken: null as string | null,
+        refreshToken: null as string | null,
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(saved) as {
+        user: AuthUser | null;
+        tenants: TenantMembership[];
+        activeTenant: TenantMembership | null;
+        accessToken: string | null;
+        refreshToken: string | null;
+      };
+
+      return {
+        user: parsed.user,
+        tenants: parsed.tenants ?? [],
+        activeTenant: parsed.activeTenant ?? null,
+        accessToken: parsed.accessToken ?? null,
+        refreshToken: parsed.refreshToken ?? null,
+      };
+    } catch {
+      localStorage.removeItem('auth');
+      return {
+        user: null as AuthUser | null,
+        tenants: [] as TenantMembership[],
+        activeTenant: null as TenantMembership | null,
+        accessToken: null as string | null,
+        refreshToken: null as string | null,
+      };
+    }
+  });
+
+  const [user, setUser] = useState<AuthUser | null>(initialAuth.user);
+  const [tenants, setTenants] = useState<TenantMembership[]>(initialAuth.tenants);
+  const [activeTenant, setActiveTenant] = useState<TenantMembership | null>(initialAuth.activeTenant);
+  const [accessToken, setAccessToken] = useState<string | null>(initialAuth.accessToken);
+  const [refreshToken, setRefreshToken] = useState<string | null>(initialAuth.refreshToken);
+  const [isLoading] = useState(false);
 
   const login = (accessToken: string, refreshToken: string, user: AuthUser, memberships: TenantMembership[]) => {
     const firstTenant = memberships[0] || null;

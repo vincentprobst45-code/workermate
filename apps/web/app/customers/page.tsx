@@ -21,45 +21,17 @@ export default function CustomersPage() {
   const [success, setSuccess] = useState('');
   const [newCustomer, setNewCustomer] = useState({ firstname: '', lastname: '', company: '' });
 
-  useEffect(() => {
-    console.log('[CustomersPage] useEffect triggered - isLoading:', isLoading);
-    if (isLoading) {
-      console.log('[CustomersPage] ⏳ Auth is still loading, waiting...');
-      return; // Ne rien faire tant que auth n'est pas prêt
-    }
-    console.log('[CustomersPage] ✅ Auth ready, fetching customers');
-    fetchCustomers();
-  }, [isLoading]); // ← Dépendance cruciale !
-
-  async function fetchCustomers() {
-    try {
-      setLoading(true);
-      const res = await api.get('/customers');
-      console.log(res)
-      if (!res.ok) throw new Error('Erreur');
-      const data = await res.json();
-      console.log(data)
-      setCustomers(data);
-    } catch (err) {
-      setError('Erreur lors de la récupération des clients');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
     try {
       const res = await api.post('/customers', newCustomer);
-      console.log(res)
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
-      console.log(data)
       setCustomers([data, ...customers]);
       setNewCustomer({ firstname: '', lastname: '', company: '' });
-      setError('')
-      setSuccess('Client ajouté avec succès')
-    } catch (err) {
+      setError('');
+      setSuccess('Client ajouté avec succès');
+    } catch {
       setError('Erreur lors de l\'ajout');
     }
   }
@@ -70,12 +42,43 @@ export default function CustomersPage() {
       const res = await api.delete(`/customers/${id}`);
       if (!res.ok) throw new Error('Erreur');
       setCustomers(customers.filter((c) => c.id !== id));
-    } catch (err) {
+    } catch {
       setError('Erreur lors de la suppression');
     }
   }
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
 
-  console.log("lolcustomers")
+    let cancelled = false;
+
+    const loadCustomers = async () => {
+      try {
+        const res = await api.get('/customers');
+        if (!res.ok) throw new Error('Erreur');
+        const data = await res.json();
+        if (!cancelled) {
+          setCustomers(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Erreur lors de la récupération des clients');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadCustomers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, api]);
+
 
   return (
     <ProtectedRoute>

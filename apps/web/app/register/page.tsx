@@ -31,7 +31,7 @@ export default function RegisterPage() {
       const data = await res.json()
       login(data.accessToken, data.refreshToken, data.user, data.memberships)
       router.push("/")
-    } catch (err) {
+    } catch {
       setError("Erreur réseau")
     } finally {
       setLoading(false)

@@ -1,6 +1,7 @@
 {
   "name": "workermate",
   "private": true,
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",

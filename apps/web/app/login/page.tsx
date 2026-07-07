@@ -22,27 +22,19 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
-        console.log("pasok")
-        console.log(res)
         const data = await res.json()
-        console.log(data)
         setError(data.message || "Erreur lors de la connexion")
         return
       }
-        console.log("oklol")
-        console.log(res)
       const data = await res.json()
-        console.log(data)
       login(data.accessToken, data.refreshToken, data.user, data.memberships)
       router.push("/")
-    } catch (err) {
+    } catch {
       setError("Erreur réseau")
     } finally {
       setLoading(false)
     }
   }
-
-  console.log("lollogin")
 
   return (
     <div className="min-h-screen bg-slate-50 py-10">

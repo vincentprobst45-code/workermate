@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/commo
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma.service';
+import type { AuthenticatedRequest, JwtPayload } from '../types/auth-request';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
@@ -11,6 +12,7 @@ export class TenantMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
+    const authReq = req as AuthenticatedRequest;
     console.log('\n╔════════════════════════════════════════════════════════╗');
     console.log('║         [TenantMiddleware] REQUEST START              ║');
     console.log('╚════════════════════════════════════════════════════════╝');
@@ -41,7 +43,7 @@ export class TenantMiddleware implements NestMiddleware {
     try {
       // Step 2: Verify JWT token
       console.log('\n[Step 2] Verifying JWT token...');
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<JwtPayload>(token);
       console.log(`[Step 2] ✅ Token valid. User ID: ${payload.sub}`);
 
       // Step 3: Fetch user from database
@@ -85,9 +87,9 @@ export class TenantMiddleware implements NestMiddleware {
 
       // Step 6: Attach to request object
       console.log(`\n[Step 6] Attaching user and membership to request object...`);
-      (req as any).user = user;
-      (req as any).membership = membership;
-      (req as any).tenant = membership.tenant;
+      authReq.user = user;
+      authReq.membership = membership;
+      authReq.tenant = membership.tenant;
       console.log('[Step 6] ✅ Attached successfully');
 
       console.log('\n╔════════════════════════════════════════════════════════╗');
@@ -95,12 +97,14 @@ export class TenantMiddleware implements NestMiddleware {
       console.log('╚════════════════════════════════════════════════════════╝\n');
       
       next();
-    } catch (err) {
+    } catch (err: unknown) {
       console.log('\n╔════════════════════════════════════════════════════════╗');
       console.log('║         [TenantMiddleware] ❌ ERROR                    ║');
       console.log('╚════════════════════════════════════════════════════════╝');
-      console.log(`Error type: ${err.constructor.name}`);
-      console.log(`Error message: ${err.message}`);
+      const errorType = err instanceof Error ? err.constructor.name : typeof err;
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.log(`Error type: ${errorType}`);
+      console.log(`Error message: ${errorMessage}`);
       console.log('');
       
       if (err instanceof UnauthorizedException) throw err;

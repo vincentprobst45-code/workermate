@@ -20,28 +20,35 @@ export default function ProjectsPage() {
   const [newProject, setNewProject] = useState({ name: '', description: '' });
 
   useEffect(() => {
-    console.log('[ProjectsPage] useEffect triggered - isLoading:', isLoading);
-    if (isLoading) {
-      console.log('[ProjectsPage] ⏳ Auth is still loading, waiting...');
-      return;
-    }
-    console.log('[ProjectsPage] ✅ Auth ready, fetching projects');
-    fetchProjects();
-  }, [isLoading]);
+    if (isLoading) return;
 
-  async function fetchProjects() {
-    try {
-      setLoading(true);
-      const res = await api.get('/projects');
-      if (!res.ok) throw new Error('Erreur');
-      const data = await res.json();
-      setProjects(data);
-    } catch (err) {
-      setError('Erreur lors de la récupération des chantiers');
-    } finally {
-      setLoading(false);
-    }
-  }
+    let cancelled = false;
+
+    const loadProjects = async () => {
+      try {
+        const res = await api.get('/projects');
+        if (!res.ok) throw new Error('Erreur');
+        const data = await res.json();
+        if (!cancelled) {
+          setProjects(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Erreur lors de la récupération des chantiers');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, api]);
 
   async function handleAddProject(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +58,7 @@ export default function ProjectsPage() {
       const data = await res.json();
       setProjects([data, ...projects]);
       setNewProject({ name: '', description: '' });
-    } catch (err) {
+    } catch {
       setError('Erreur lors de l\'ajout');
     }
   }
@@ -62,7 +69,7 @@ export default function ProjectsPage() {
       const res = await api.delete(`/projects/${id}`);
       if (!res.ok) throw new Error('Erreur');
       setProjects(projects.filter((p) => p.id !== id));
-    } catch (err) {
+    } catch {
       setError('Erreur lors de la suppression');
     }
   }
