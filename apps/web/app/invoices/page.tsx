@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
-import { useAuth } from '../auth.context';
 import { ProtectedRoute } from '../protected-route';
 
 interface Invoice {
@@ -14,15 +13,12 @@ interface Invoice {
 
 export default function InvoicesPage() {
   const api = useApiClient();
-  const { isLoading } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
 
   useEffect(() => {
-    if (isLoading) return;
-
     let cancelled = false;
 
     const loadInvoices = async () => {
@@ -49,7 +45,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoading, api]);
+  }, [api]);
 
   async function handleAddInvoice(e: React.FormEvent) {
     e.preventDefault();

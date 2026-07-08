@@ -17,7 +17,8 @@ export class InvoiceController {
   @Get()
   async findAll(@Req() req: AuthenticatedRequest) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.invoiceService.findAll(tenantId);
+    const result = this.invoiceService.findAll(tenantId);
+    return result;
   }
 
   @Get(':id')

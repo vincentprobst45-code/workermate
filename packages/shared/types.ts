@@ -1,0 +1,1 @@
+export type TenantRole = "OWNER" | "ADMIN" | "MEMBER";

@@ -3,8 +3,19 @@ import type { Request } from 'express';
 import { UnauthorizedException } from '@nestjs/common';
 
 export interface JwtPayload {
-  sub: string;
+  sub?: string;
   email?: string;
+  user?: {
+    id: string;
+    firstname: string;
+    lastname: string;
+    email: string;
+  };
+  activeTenant?: {
+    id: string;
+    name: string;
+    role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  };
   iat?: number;
   exp?: number;
 }

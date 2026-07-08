@@ -1,21 +1,21 @@
 'use client'
 import { useAuth } from './auth.context'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function Home() {
-  const { user, tenants, activeTenant, logout, switchTenant } = useAuth()
-  const router = useRouter()
+  const { user, activeTenant } = useAuth()
   const [openDropdown, setOpenDropdown] = useState(false)
 
-  const handleLogout = () => {
-    logout()
-    router.push('/')
+  const handleLogout = async () => {
+    await fetch('http://localhost:4000/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    window.location.assign('/')
   }
+  console.log(user)
 
-  console.log("userlol :" ,user);
-  console.log("tenants :" ,tenants);
-  console.log("activetenant :" ,activeTenant);
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm py-5 px-5 shadow-sm shadow-slate-200/20 sm:px-6">
@@ -38,32 +38,14 @@ export default function Home() {
                     className="rounded-lg px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 transition"
                   >
                     {activeTenant?.tenantName || 'Sélectionner'}
-                    {tenants.length > 1 && (
-                      <span className="ml-2 inline-block">▼</span>
-                    )}
+                    <span className="ml-2 inline-block">▼</span>
                   </button>
                   
-                  {openDropdown && tenants.length > 1 && (
+                  {openDropdown && (
                     <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg z-10">
-                      {tenants.map((tenant) => (
-                        <button
-                          key={tenant.tenantId}
-                          onClick={() => {
-                            switchTenant(tenant.tenantId)
-                            setOpenDropdown(false)
-                          }}
-                          className={`w-full text-left px-4 py-2 hover:bg-slate-100 transition text-sm ${
-                            activeTenant?.tenantId === tenant.tenantId
-                              ? 'bg-slate-100 font-medium text-slate-900'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          {tenant.tenantName}
-                          {tenant.role && (
-                            <span className="ml-2 text-xs text-slate-500">({tenant.role})</span>
-                          )}
-                        </button>
-                      ))}
+                      <p className="px-4 py-2 text-sm text-slate-600">
+                        Changement de tenant bientôt disponible.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -114,7 +96,7 @@ export default function Home() {
         </section>
 
         <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <a href={user ? "/customers" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
+          <a href="/customers" className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Clients</p>
@@ -128,7 +110,7 @@ export default function Home() {
             </div>
           </a>
 
-          <a href={user ? "/projects" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
+          <a href="/projects" className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Chantiers</p>
@@ -142,7 +124,7 @@ export default function Home() {
             </div>
           </a>
 
-          <a href={user ? "/invoices" : "/login"} className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
+          <a href="/invoices" className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Factures</p>

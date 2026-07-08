@@ -1,11 +1,7 @@
 "use client"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "../auth.context"
 
 export default function RegisterPage() {
-  const router = useRouter()
-  const { login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [firstname, setFirstname] = useState("")
@@ -21,6 +17,7 @@ export default function RegisterPage() {
       const res = await fetch("http://localhost:4000/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password, firstname, lastname }),
       })
       if (!res.ok) {
@@ -28,9 +25,8 @@ export default function RegisterPage() {
         setError(data.message || "Erreur lors de l'inscription")
         return
       }
-      const data = await res.json()
-      login(data.accessToken, data.refreshToken, data.user, data.memberships)
-      router.push("/")
+      await res.json()
+      window.location.assign("/")
     } catch {
       setError("Erreur réseau")
     } finally {

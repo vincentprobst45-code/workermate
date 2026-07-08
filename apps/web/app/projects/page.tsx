@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
-import { useAuth } from '../auth.context';
 import { ProtectedRoute } from '../protected-route';
 
 interface Project {
@@ -13,15 +12,12 @@ interface Project {
 
 export default function ProjectsPage() {
   const api = useApiClient();
-  const { isLoading } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [newProject, setNewProject] = useState({ name: '', description: '' });
 
   useEffect(() => {
-    if (isLoading) return;
-
     let cancelled = false;
 
     const loadProjects = async () => {
@@ -48,7 +44,7 @@ export default function ProjectsPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoading, api]);
+  }, [api]);
 
   async function handleAddProject(e: React.FormEvent) {
     e.preventDefault();

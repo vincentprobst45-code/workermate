@@ -37,16 +37,16 @@ export class CustomerService {
   }
 
   async findAll(tenantId: string) {
-    this.debug(`findAll() tenantId=${tenantId}`);
-    if (!tenantId) {
-      this.logger.warn('findAll() called without tenantId');
-      throw new Error('tenantId is required');
-    }
+    // this.debug(`findAll() tenantId=${tenantId}`);
+    // if (!tenantId) {
+    //   this.logger.warn('findAll() called without tenantId');
+    //   throw new Error('tenantId is required');
+    // }
     const results = await this.prisma.customer.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    this.debug(`Found ${results.length} customers`);
+    // this.debug(`Found ${results.length} customers`);
     return results;
   }
 

@@ -19,16 +19,19 @@ export class InvoiceService {
   }
 
   async findAll(tenantId: string) {
-    return this.prisma.invoice.findMany({
+    const results = await this.prisma.invoice.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
+    return results;
   }
 
   async findOne(tenantId: string, id: string) {
-    return this.prisma.invoice.findFirst({
+    const results = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
     });
+    return results
+
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateInvoiceDto>) {

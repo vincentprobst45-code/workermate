@@ -1,3 +1,4 @@
+/*
 'use client';
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "./auth.context";
@@ -30,6 +31,30 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
+}
+*/
+
+
+import { getSession } from "./lib/auth";
+import { AuthProvider } from "./auth.context";
+import "./globals.css";
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getSession();
+
+  return (
+    <html lang="fr">
+      <body>
+        <AuthProvider session={session}>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

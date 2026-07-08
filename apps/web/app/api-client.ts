@@ -1,4 +1,5 @@
 import { useAuth } from './auth.context';
+import { useCallback, useMemo } from 'react';
 
 const API_URL = 'http://localhost:4000';
 
@@ -8,75 +9,60 @@ interface FetchOptions extends RequestInit {
 
 // Hook pour utiliser le client API avec accès au contexte
 export function useApiClient() {
-  const auth = useAuth();
+  const session = useAuth();
+  const tenantId = session.activeTenant?.tenantId;
 
-  const request = async (
+  const executeRequest = useCallback(async (
     endpoint: string,
     options: FetchOptions = {},
-    retryCount = 0,
   ): Promise<Response> => {
-    console.log('\n╔════════════════════════════════════════════════════════╗');
-    console.log('║          [useApiClient] SENDING REQUEST               ║');
-    console.log('╚════════════════════════════════════════════════════════╝');
-    console.log(`[useApiClient] Endpoint: ${endpoint}`);
-    console.log(`[useApiClient] Method: ${options.method || 'GET'}`);
-    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
-    // Ajouter le token d'accès
-    console.log(`[useApiClient] Access Token: ${auth.accessToken ? '✅ Present (' + auth.accessToken.substring(0, 20) + '...)' : '❌ MISSING'}`);
-    if (auth.accessToken) {
-      headers['Authorization'] = `Bearer ${auth.accessToken}`;
+    if (tenantId) {
+      headers['X-Tenant-ID'] = tenantId;
     }
-
-    // Ajouter le tenant ID si un tenant est sélectionné
-    console.log(`[useApiClient] Active Tenant: ${auth.activeTenant ? '✅ ' + auth.activeTenant.tenantId : '❌ MISSING'}`);
-    if (auth.activeTenant) {
-      headers['X-Tenant-ID'] = auth.activeTenant.tenantId;
-    }
-
-    console.log(`[useApiClient] Headers being sent:`, headers);
-    console.log(`[useApiClient] Full URL: ${API_URL}${endpoint}`);
-    console.log('');
 
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
-    // Si 401 et on a un refresh token, essayer de le rafraîchir
-    if (response.status === 401 && auth.refreshToken && retryCount === 0) {
+    return response;
+  }, [tenantId]);
+
+  const request = useCallback(async (
+    endpoint: string,
+    options: FetchOptions = {},
+    retryCount = 0,
+  ): Promise<Response> => {
+    const response = await executeRequest(endpoint, options);
+
+    if (response.status === 401 && retryCount === 0) {
       try {
         const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: auth.refreshToken }),
+          credentials: 'include',
         });
 
         if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          auth.setAccessToken(data.accessToken);
-
-          // Réessayer la requête originale avec le nouveau token
-          return request(endpoint, options, retryCount + 1);
-        } else {
-          // Le refresh a échoué, déconnecter l'utilisateur
-          auth.logout();
-          throw new Error('Session expired, please login again');
+          return executeRequest(endpoint, options);
         }
+
+        throw new Error('Session expired, please login again');
       } catch (err) {
-        auth.logout();
         throw err;
       }
     }
 
     return response;
-  };
+  }, [executeRequest]);
 
-  return {
+  return useMemo(() => ({
     get: (endpoint: string, options?: FetchOptions) =>
       request(endpoint, { ...options, method: 'GET' }),
     post: (endpoint: string, body?: unknown, options?: FetchOptions) =>
@@ -85,5 +71,5 @@ export function useApiClient() {
       request(endpoint, { ...options, method: 'PUT', body: JSON.stringify(body) }),
     delete: (endpoint: string, options?: FetchOptions) =>
       request(endpoint, { ...options, method: 'DELETE' }),
-  };
+  }), [request]);
 }

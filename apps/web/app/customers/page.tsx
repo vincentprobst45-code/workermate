@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
-import { useAuth } from '../auth.context';
 import { ProtectedRoute } from '../protected-route';
 
 interface Customer {
@@ -14,7 +13,6 @@ interface Customer {
 
 export default function CustomersPage() {
   const api = useApiClient();
-  const { isLoading } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,15 +40,13 @@ export default function CustomersPage() {
       const res = await api.delete(`/customers/${id}`);
       if (!res.ok) throw new Error('Erreur');
       setCustomers(customers.filter((c) => c.id !== id));
+      setError('');
+      setSuccess('Client supprimé avec succès');
     } catch {
       setError('Erreur lors de la suppression');
     }
   }
   useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-
     let cancelled = false;
 
     const loadCustomers = async () => {
@@ -77,7 +73,7 @@ export default function CustomersPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoading, api]);
+  }, [api]);
 
 
   return (

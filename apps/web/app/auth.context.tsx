@@ -1,3 +1,4 @@
+/*
 'use client';
 import { createContext, useState, useContext, ReactNode } from 'react';
 
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const saved = localStorage.getItem('auth');
     if (!saved) {
+      console.log("passaved")
       return {
         user: null as AuthUser | null,
         tenants: [] as TenantMembership[],
@@ -53,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      console.log("trysaved")
       const parsed = JSON.parse(saved) as {
         user: AuthUser | null;
         tenants: TenantMembership[];
@@ -61,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: string | null;
       };
 
+      console.log("goreturuser")
       return {
         user: parsed.user,
         tenants: parsed.tenants ?? [],
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: parsed.refreshToken ?? null,
       };
     } catch {
+      console.log("atchonsaipaspourquoi")
       localStorage.removeItem('auth');
       return {
         user: null as AuthUser | null,
@@ -158,4 +163,31 @@ export function useAuth() {
     throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
+}
+*/
+
+'use client';
+
+import { createContext, useContext } from 'react';
+import { Session } from './lib/auth.types';
+import { EMPTY_SESSION } from './lib/session';
+
+const AuthContext = createContext<Session>(EMPTY_SESSION);
+
+export function AuthProvider({
+    session,
+    children,
+}: {
+  session: Session;
+    children: React.ReactNode;
+}) {
+    return (
+        <AuthContext.Provider value={session}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+  return useContext(AuthContext);
 }

@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma.service';
 import type { AuthenticatedRequest, JwtPayload } from '../types/auth-request';
+import { ACCESS_TOKEN_COOKIE } from '../../auth/auth.constants';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
@@ -37,7 +38,9 @@ export class TenantMiddleware implements NestMiddleware {
       this.debug(`Authorization header prefix: ${authHeader.substring(0, 20)}...`);
     }
 
-    const token = authHeader?.split(' ')[1];
+    const bearerToken = authHeader?.split(' ')[1];
+    const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE] as string | undefined;
+    const token = bearerToken ?? cookieToken;
     this.debug(`Bearer token extracted: ${Boolean(token)}`);
 
     if (!token) {
@@ -49,22 +52,28 @@ export class TenantMiddleware implements NestMiddleware {
       // Step 2: Verify JWT token
       this.debug('Verifying JWT token');
       const payload = this.jwtService.verify<JwtPayload>(token);
-      this.debug(`Token valid for userId=${payload.sub}`);
+      const userId = payload.sub ?? payload.user?.id;
+      if (!userId) {
+        throw new UnauthorizedException('Invalid access token payload');
+      }
+      this.debug(`Token valid for userId=${userId}`);
 
       // Step 3: Fetch user from database
-      this.debug(`Loading user from database id=${payload.sub}`);
+      this.debug(`Loading user from database id=${userId}`);
       const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
+        where: { id: userId },
       });
 
       if (!user) {
-        this.logger.warn(`User not found for id=${payload.sub}`);
+        this.logger.warn(`User not found for id=${userId}`);
         throw new UnauthorizedException('User not found');
       }
       this.debug(`User found email=${user.email}`);
 
       // Step 4: Extract X-Tenant-ID header
-      const tenantId = req.headers['x-tenant-id'] as string;
+      const tenantIdFromHeader = req.headers['x-tenant-id'] as string | undefined;
+      const tenantIdFromToken = payload.activeTenant?.id;
+      const tenantId = tenantIdFromHeader ?? tenantIdFromToken;
       this.debug(`Tenant header present: ${Boolean(tenantId)}`);
 
       if (!tenantId) {
