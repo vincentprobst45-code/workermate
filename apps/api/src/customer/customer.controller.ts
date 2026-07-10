@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, Logger } from '@nestjs/common';
-import { CustomerService, CreateCustomerDto } from './customer.service';
+import { CustomerService  } from './customer.service';
+import { CreateCustomerDto } from './create-customer.dto'
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
 

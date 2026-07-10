@@ -11,6 +11,9 @@ model Tenant {
   name      String
   createdAt DateTime  @default(now())
 
+  addressId String?
+  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
   memberships Membership[]
   customers   Customer[]
   projects    Project[]
@@ -24,6 +27,10 @@ model User {
   firstname  String?
   lastname   String?
   activeTenantId String?
+
+  addressId String?
+  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
   createdAt  DateTime     @default(now())
 
   memberships Membership[]
@@ -41,28 +48,192 @@ model Membership {
   @@id([userId, tenantId])
 }
 
-model Customer {
-  id        String   @id @default(uuid())
-  firstname String
-  lastname  String?
-  company   String?
+model Address {
+  id String @id @default(cuid())
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  // Adresse
+  street1 String
+  street2 String?
 
-  createdAt DateTime @default(now())
-}
+  postalCode String
+  city       String
+  region     String?
+  countryCode String @default("FR")
 
-model Project {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
+  // Coordonnées GPS (optionnel)
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
 
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  // Informations complémentaires
+  accessCode String?
+  floor      String?
+  apartment  String?
+  note       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  customers Customer[]
+  projects Project[]
+  tenants Tenant[]
+  users User[]
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+
+  // Relation
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Identité
+  firstName String?
+  lastName  String?
+  company   String?
+
+  // Contact
+  email     String?
+  phone     String?
+  mobile    String?
+
+
+  // Addresse de facturation
+  addressId String?
+  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+
+  // Professionnels
+  siret     String?
+  vatNumber String?
+
+  // Divers
+  notes     String?
+
+  // Relations
+  projects    Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@index([tenantId])
+  @@index([lastName])
+  @@index([company])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId    String
+  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  addressId   String?
+  address     Address?  @relation(fields: [addressId], references: [id])
+
+  reference   String   @unique
+
+  title       String
+  description String?
+
+  status      ProjectStatus @default(DRAFT)
+
+  startDate   DateTime?
+  endDate     DateTime?
+
+  estimatedDuration Int?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  archivedAt DateTime?
+
+  items ProjectItem[]
+
+  documents Document[]
+
+  @@index([tenantId])
+  @@index([customerId])
+}
+
+model ProjectItem {
+
+  id String @id @default(cuid())
+
+  projectId String
+  project Project @relation(fields:[projectId], references:[id], onDelete:Cascade)
+
+  type ProjectItemType
+
+  position Int
+
+  title String
+
+  description String?
+
+  quantity Decimal @db.Decimal(10,2) @default(1)
+
+  unit String?
+
+  unitPrice Decimal @db.Decimal(10,2)
+
+  vatRate Decimal @db.Decimal(4,2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model Document {
+
+  id String @id @default(cuid())
+
+  projectId String
+  project Project @relation(fields:[projectId], references:[id], onDelete:Cascade)
+
+  type DocumentType
+
+  reference String @unique
+
+  status DocumentStatus
+
+  issuedAt DateTime?
+
+  dueAt DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  items DocumentItem[]
+}
+
+model DocumentItem {
+
+  id String @id @default(cuid())
+
+  documentId String
+  document Document @relation(fields:[documentId], references:[id], onDelete:Cascade)
+
+  position Int
+
+  type ProjectItemType
+
+  title String
+
+  description String?
+
+  quantity Decimal @db.Decimal(10,2)
+
+  unit String?
+
+  unitPrice Decimal @db.Decimal(10,2)
+
+  vatRate Decimal @db.Decimal(4,2)
 }
 
 model Invoice {
@@ -83,4 +254,35 @@ enum TenantRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum ProjectStatus {
+  DRAFT
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectItemType {
+  LABOR
+  MATERIAL
+  EQUIPMENT
+  TRAVEL
+  SERVICE
+  OTHER
+
+}
+
+enum DocumentType {
+  ESTIMATE
+  INVOICE
+  OTHER
+}
+
+enum DocumentStatus {
+  NOTREADY
+  READY
+  SENT
+  VALIDATED
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import { RegisterDto } from './dto/register.dto';
@@ -62,6 +62,17 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
+
+
+
+  private readonly logger = new Logger(AuthService.name);
+  private readonly isDebugEnabled = process.env.NODE_ENV !== 'production';
+
+  private debug(message: string) {
+    if (this.isDebugEnabled) {
+      this.logger.debug(message);
+    }
+  }
 
   private buildSession(user: User, tenants: SessionTenant[]): SessionData {
     if (!tenants.length) {
@@ -160,6 +171,9 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string): Promise<User | null> {
+
+    // this.debug(`Incoming request ${req.method} ${req.path}`);
+    this.debug('Go validateUser');
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return null;
     const hashed = user.password;

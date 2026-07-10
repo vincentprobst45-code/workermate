@@ -1,11 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-
-export class CreateCustomerDto {
-  firstname!: string;
-  lastname?: string;
-  company?: string;
-}
+import { CreateCustomerDto } from './create-customer.dto'
+import { CreateAddressDto } from 'src/address/create-address.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CustomerService {
@@ -20,33 +17,73 @@ export class CustomerService {
     }
   }
 
+  private hasAddress(address?: CreateAddressDto ): boolean {
+    if (!address) {
+      return false;
+    }
+
+    return Object.values(address).some(
+      (value) => typeof value === 'string' && value.trim() !== '',
+    );
+  }
+
   async create(tenantId: string, dto: CreateCustomerDto) {
     this.debug(`create() tenantId=${tenantId}`);
     if (!tenantId) {
       this.logger.warn('create() called without tenantId');
       throw new Error('tenantId is required');
     }
-    const result = await this.prisma.customer.create({
-      data: {
-        ...dto,
-        tenantId,
+  const { addressId, address, ...customerData } = dto;
+
+  if (addressId && this.hasAddress(address)) {
+    throw new BadRequestException(
+      'Vous devez fournir soit addressId, soit une nouvelle adresse.',
+    );
+  }
+
+  const data: Prisma.CustomerCreateInput = {
+    ...customerData,
+    tenant: {
+      connect: {
+        id: tenantId,
       },
-    });
+    },
+  };
+
+  if (addressId) {
+    data.address = {
+      connect: {
+        id: addressId,
+      },
+    };
+  } else if (this.hasAddress(address)) {
+    if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
+  throw new BadRequestException("Rue, code postal et ville obligatoires.");
+}
+
+    data.address = {
+      create: {
+        street1: address.street1?.trim(),
+        street2: address.street2?.trim(),
+        postalCode: address.postalCode?.trim(),
+        city: address.city?.trim(),
+        countryCode: address.countryCode?.trim(),
+      },
+    };
+  }
+    const result = await this.prisma.customer.create({ data });
+
     this.debug(`Customer created id=${result.id}`);
     return result;
   }
 
   async findAll(tenantId: string) {
-    // this.debug(`findAll() tenantId=${tenantId}`);
-    // if (!tenantId) {
-    //   this.logger.warn('findAll() called without tenantId');
-    //   throw new Error('tenantId is required');
-    // }
+    
     const results = await this.prisma.customer.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    // this.debug(`Found ${results.length} customers`);
+
     return results;
   }
 

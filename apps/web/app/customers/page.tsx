@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
+import AddressForm from '../components/AddressForm';
 
 interface Customer {
   id: string;
@@ -17,20 +18,37 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [newCustomer, setNewCustomer] = useState({ firstname: '', lastname: '', company: '' });
+  const [newCustomer, setNewCustomer] = useState({ firstName: '', lastName: '', company: '', 
+    email: '', phone: '', mobile: '',
+    siret: '', vatNumber: '', notes: ''});
+  const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
+    , postalCode: '', city: '', region: '', countryCode: ''
+    , latitude: '', longitude: ''
+    , accessCode: '', floor: '', apartment: '', note: ''
+   });
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const res = await api.post('/customers', newCustomer);
+      const customerToAdd = { ...newCustomer, address: newAddress }
+      const res = await api.post('/customers', customerToAdd);
+      console.log(res.status)
+      console.log(res.statusText)
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
       setCustomers([data, ...customers]);
-      setNewCustomer({ firstname: '', lastname: '', company: '' });
+      setNewCustomer({ firstName: '', lastName: '', company: '', 
+        email: '', phone: '', mobile: '',
+        siret: '', vatNumber: '', notes: ''});
+      setNewAddress({ street1: '', street2: ''
+       , postalCode: '', city: '', region: '', countryCode: ''
+       , latitude: '', longitude: ''
+       , accessCode: '', floor: '', apartment: '', note: ''
+      });
       setError('');
       setSuccess('Client ajouté avec succès');
-    } catch {
-      setError('Erreur lors de l\'ajout');
+    } catch (error) {
+      setError(`Erreur lors de l\'ajout ${error}`);
     }
   }
 
@@ -90,21 +108,58 @@ export default function CustomersPage() {
             <input
               className="border px-3 py-2 rounded"
               placeholder="Prénom"
-              value={newCustomer.firstname}
-              onChange={(e) => setNewCustomer({ ...newCustomer, firstname: e.target.value })}
+              value={newCustomer.firstName}
+              onChange={(e) => setNewCustomer({ ...newCustomer, firstName: e.target.value })}
               required
             />
             <input
               className="border px-3 py-2 rounded"
               placeholder="Nom"
-              value={newCustomer.lastname}
-              onChange={(e) => setNewCustomer({ ...newCustomer, lastname: e.target.value })}
+              value={newCustomer.lastName}
+              onChange={(e) => setNewCustomer({ ...newCustomer, lastName: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
               placeholder="Entreprise"
               value={newCustomer.company}
               onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
+            />
+            <AddressForm address={newAddress} onChange={setNewAddress} />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.email}
+              onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.phone}
+              onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.mobile}
+              onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.siret}
+              onChange={(e) => setNewCustomer({ ...newCustomer, siret: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.vatNumber}
+              onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Entreprise"
+              value={newCustomer.notes}
+              onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
             />
           </div>
           <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">

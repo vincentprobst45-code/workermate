@@ -1,7 +1,8 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
-import { ProjectService, CreateProjectDto } from './project.service';
+import { ProjectService } from './project.service';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
+import { CreateProjectDto } from './create-project.dto';
 
 @Controller('projects')
 export class ProjectController {
@@ -9,7 +10,7 @@ export class ProjectController {
 
   @Post()
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
-  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateProjectDto) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateProjectDto ) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.projectService.create(tenantId, dto);
   }
