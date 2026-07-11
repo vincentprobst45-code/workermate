@@ -12,10 +12,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@schedule-x/calendar": "^4.6.1",
+    "@schedule-x/events-service": "^4.6.1",
+    "@schedule-x/react": "^4.1.0",
+    "@schedule-x/theme-default": "^4.6.1",
+    "@schedule-x/translations": "^4.6.1",
     "jsonwebtoken": "^9.0.3",
     "next": "16.2.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-big-calendar": "^1.20.0",
+    "react-dom": "19.2.4",
+    "temporal-polyfill": "^1.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -24,6 +31,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-big-calendar": "^1.16.3",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",

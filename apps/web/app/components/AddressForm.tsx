@@ -10,7 +10,7 @@ function AddressForm({ address, onChange }){
 
     return(<div>
         
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 py-2 gap-3">
             <input
               className="border px-3 py-2 rounded"
               placeholder="Rue ligne 1"
@@ -49,21 +49,9 @@ function AddressForm({ address, onChange }){
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Latitude"
-              value={address.latitude}
-              onChange={(e) => onChange({ ...address, latitude: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Longitude"
-              value={address.longitude}
-              onChange={(e) => onChange({ ...address, longitude: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Code d'accès"
-              value={address.accessCode}
-              onChange={(e) => onChange({ ...address, accessCode: e.target.value })}
+              placeholder="Appartement"
+              value={address.apartment}
+              onChange={(e) => onChange({ ...address, apartment: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
@@ -73,15 +61,31 @@ function AddressForm({ address, onChange }){
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Appartement"
-              value={address.apartment}
-              onChange={(e) => onChange({ ...address, apartment: e.target.value })}
+              placeholder="Code d'accès"
+              value={address.accessCode}
+              onChange={(e) => onChange({ ...address, accessCode: e.target.value })}
             />
-            <input
-              className="border px-3 py-2 rounded"
+          </div>
+            <textarea
+              className="border px-3 py-2 rounded md:w-1/2 w-1/1 h-64 align-text-top
+;
+"
               placeholder="Notes additionelles"
               value={address.note}
               onChange={(e) => onChange({ ...address, note: e.target.value })}
+            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 py-2 gap-3">
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Latitude"
+              value={address.latitude}
+              onChange={(e) => onChange({ ...address, latitude: e.target.value })}
+            />
+            <input
+              className="border px-3 py-2 rounded"
+              placeholder="Longitude"
+              value={address.longitude}
+              onChange={(e) => onChange({ ...address, longitude: e.target.value })}
             />
           </div>
     </div>)

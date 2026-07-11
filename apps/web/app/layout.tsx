@@ -41,6 +41,7 @@ export default function RootLayout({
 import { getSession } from "./lib/auth";
 import { AuthProvider } from "./auth.context";
 import "./globals.css";
+import Header from "./components/Header";
 
 export default async function RootLayout({
   children,
@@ -53,6 +54,7 @@ export default async function RootLayout({
     <html lang="fr">
       <body>
         <AuthProvider session={session}>
+          <Header />
           {children}
         </AuthProvider>
       </body>

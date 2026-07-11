@@ -65,6 +65,7 @@ export default function CustomersPage() {
     }
   }
   useEffect(() => {
+    console.log("effect")
     let cancelled = false;
 
     const loadCustomers = async () => {
@@ -124,40 +125,44 @@ export default function CustomersPage() {
               value={newCustomer.company}
               onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
             />
-            <AddressForm address={newAddress} onChange={setNewAddress} />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="email"
               value={newCustomer.email}
               onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="téléphone"
               value={newCustomer.phone}
               onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="téléphone 2"
               value={newCustomer.mobile}
               onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
             />
+          </div>
+          <h3 className="px-3 py-4">Adresse :</h3>
+            <AddressForm address={newAddress} onChange={setNewAddress} />
+          <h3 className="px-3 py-4">Entreprise :</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="Numéro Siret"
               value={newCustomer.siret}
               onChange={(e) => setNewCustomer({ ...newCustomer, siret: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="Numéro TVA"
               value={newCustomer.vatNumber}
               onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
             />
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
+              placeholder="Notes additionnelles"
               value={newCustomer.notes}
               onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
             />

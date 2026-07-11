@@ -18,6 +18,7 @@ model Tenant {
   customers   Customer[]
   projects    Project[]
   invoices    Invoice[]
+  calendarevents CalendarEvent[]
 }
 
 model User {
@@ -34,6 +35,9 @@ model User {
   createdAt  DateTime     @default(now())
 
   memberships Membership[]
+  createdCustomers Customer[] @relation("CustomerCreator")
+  createdProjects    Project[] @relation("ProjectCreator")
+  createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
 }
 
 model Membership {
@@ -78,6 +82,7 @@ model Address {
   projects Project[]
   tenants Tenant[]
   users User[]
+  calendarevents CalendarEvent[]
 }
 
 model Customer {
@@ -86,6 +91,9 @@ model Customer {
   // Relation
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User? @relation("CustomerCreator", fields: [createdById], references: [id])
 
   // Identité
   firstName String?
@@ -112,6 +120,7 @@ model Customer {
 
   // Relations
   projects    Project[]
+  calendarevents CalendarEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
@@ -121,11 +130,47 @@ model Customer {
   @@index([company])
 }
 
+model CalendarEvent {
+  id          String   @id @default(cuid())
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  customerId   String?
+  customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  addressId   String?
+  address     Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User? @relation("CalendarEventCreator", fields: [createdById], references: [id])
+
+  title       String
+  description String?
+
+  startDate   DateTime
+  endDate     DateTime
+
+  color     String?
+
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt
+
+}
+
 model Project {
   id          String   @id @default(cuid())
 
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User? @relation("ProjectCreator", fields: [createdById], references: [id])
 
   customerId    String
   customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -152,8 +197,8 @@ model Project {
   archivedAt DateTime?
 
   items ProjectItem[]
-
   documents Document[]
+  calendarevents CalendarEvent[]
 
   @@index([tenantId])
   @@index([customerId])
