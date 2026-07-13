@@ -55,6 +55,7 @@ export function useApiClient() {
 
         throw new Error('Session expired, please login again');
       } catch (err) {
+        console.log(err)
         throw err;
       }
     }

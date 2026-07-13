@@ -42,13 +42,26 @@ export class CalendarEventService {
   }
 
   const data: Prisma.CalendarEventCreateInput = {
-    ...calendarEventData,
+    title: calendarEventData.title,
+    description: calendarEventData.description,
+    startDate: new Date(calendarEventData.startDate),
+    endDate: new Date(calendarEventData.endDate),
+    color: calendarEventData.color,
     tenant: {
       connect: {
         id: tenantId,
       },
     },
   };
+
+  // const data: Prisma.CalendarEventCreateInput = {
+  //   ...calendarEventData,
+  //   tenant: {
+  //     connect: {
+  //       id: tenantId,
+  //     },
+  //   },
+  // };
 
   if (addressId) {
     data.address = {
