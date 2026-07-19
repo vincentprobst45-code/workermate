@@ -4,7 +4,6 @@ import {
   IsOptional,
   IsString,
   ValidateNested,
-  IsUUID,
 } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
 
@@ -37,7 +36,7 @@ export class CreateCustomerDto {
 
   // Adresse existante
   @IsOptional()
-  @IsUUID('4', { message: 'addressId must be a valid UUID' })
+  @IsString({ message: 'addressId must be a string' })
   addressId?: string;
 
   // Nouvelle adresse

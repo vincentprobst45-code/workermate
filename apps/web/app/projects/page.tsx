@@ -5,22 +5,23 @@ import { ProtectedRoute } from '../protected-route';
 
 interface Project {
   id: string;
-  name: string;
+  title: string;
   description?: string;
   createdAt: string;
 }
+
 
 export default function ProjectsPage() {
   const api = useApiClient();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newProject, setNewProject] = useState({ name: '', description: '' });
+  const [newProject, setNewProject] = useState({ title: '', description: '' });
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadProjects = async () => {
+    async function loadProjects() {
       try {
         const res = await api.get('/projects');
         if (!res.ok) throw new Error('Erreur');
@@ -53,7 +54,7 @@ export default function ProjectsPage() {
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
       setProjects([data, ...projects]);
-      setNewProject({ name: '', description: '' });
+      setNewProject({ title: '', description: '' });
     } catch {
       setError('Erreur lors de l\'ajout');
     }
@@ -82,9 +83,9 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               className="border px-3 py-2 rounded"
-              placeholder="Nom du chantier"
-              value={newProject.name}
-              onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+              placeholder="Titre du chantier"
+              value={newProject.title}
+              onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
               required
             />
             <input
@@ -106,7 +107,7 @@ export default function ProjectsPage() {
             {projects.map((project) => (
               <div key={project.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
                 <div>
-                  <p className="font-semibold">{project.name}</p>
+                  <p className="font-semibold">{project.title}</p>
                   {project.description && <p className="text-sm text-slate-600">{project.description}</p>}
                 </div>
                 <button

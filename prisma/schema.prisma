@@ -137,15 +137,19 @@ model CalendarEvent {
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   
   customerId   String?
+  customerName String?
   customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   addressId   String?
+  addressName String?
   address     Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
 
   projectId   String?
+  projectName String?
   project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   createdById String?
+  createdByName String?
   createdBy   User? @relation("CalendarEventCreator", fields: [createdById], references: [id])
 
   title       String
@@ -172,8 +176,8 @@ model Project {
   createdById String?
   createdBy   User? @relation("ProjectCreator", fields: [createdById], references: [id])
 
-  customerId    String
-  customer      Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   addressId   String?
   address     Address?  @relation(fields: [addressId], references: [id])

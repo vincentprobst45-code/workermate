@@ -20,9 +20,10 @@ export class CalendarEventController {
   @Post()
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateCalendarEventDto) {
-    const tenantId = requireTenantContext(req).tenant.id;
+    const context = requireTenantContext(req);
+    const tenantId = context.tenant.id;
     this.debug(`Creating customer for tenantId=${tenantId}`);
-    return this.calendarEventService.create(tenantId, dto);
+    return this.calendarEventService.create(tenantId, dto, context.user);
   }
 
   @Get()

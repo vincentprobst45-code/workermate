@@ -4,7 +4,6 @@ import {
   IsString,
   IsDate,
   ValidateNested,
-  IsUUID,
 } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
 
@@ -32,7 +31,7 @@ export class CreateCalendarEventDto {
 
   // Adresse existante
   @IsOptional()
-  @IsUUID('4', { message: 'addressId must be a valid UUID' })
+  @IsString({ message: 'addressId must be a string' })
   addressId?: string;
 
   // Nouvelle adresse
@@ -40,4 +39,12 @@ export class CreateCalendarEventDto {
   @ValidateNested({ message: 'address must be a valid object' })
   @Type(() => CreateAddressDto)
   address?: CreateAddressDto;
+
+  @IsOptional()
+  @IsString({ message: 'projectId must be a string' })
+  projectId? : string;
+
+  @IsOptional()
+  @IsString({ message: 'customerId must be a string' })
+  customerId?: string;
 }

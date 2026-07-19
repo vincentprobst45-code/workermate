@@ -28,25 +28,28 @@ export class ProjectService {
   async create(tenantId: string, dto: CreateProjectDto ) {
 
     const { addressId, address, ...projectData } = dto;
+    const year = new Date().getFullYear();
+    const reference = `CH-${year}-${projectData.title}`;
 
-const data: Prisma.ProjectCreateInput = {
-  ...projectData,
-  tenant: {
-    connect: { id: tenantId },
-  },
-  customer: {
-    connect: { id: dto.customerId },
-  },
-};
+    const data: Prisma.ProjectCreateInput = {
+      ...projectData,
+      reference,
+      tenant: {
+        connect: { id: tenantId },
+      },
+      // customer: {
+      //   connect: { id: dto.customerId },
+      // },
+    };
 
-if (addressId) {
-  data.address = {
-    connect: { id: addressId },
-  };
-} else if (this.hasAddress(address)) {
-    if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
-  throw new BadRequestException("Rue, code postal et ville obligatoires.");
-}
+    if (addressId) {
+      data.address = {
+        connect: { id: addressId },
+      };
+    } else if (this.hasAddress(address)) {
+        if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
+      throw new BadRequestException("Rue, code postal et ville obligatoires.");
+    }
 
   data.address = {
       create: {

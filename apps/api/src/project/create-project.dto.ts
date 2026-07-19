@@ -5,7 +5,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -14,13 +13,12 @@ import { ProjectStatus } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 
 export class CreateProjectDto {
-  // Relation obligatoire
-  @IsUUID()
-  customerId!: string;
+  @IsString()
+  customerId?: string;
 
   // Adresse existante
   @IsOptional()
-  @IsUUID()
+  @IsString()
   addressId?: string;
 
   // Nouvelle adresse
