@@ -257,7 +257,8 @@ function BigCalendar() {
       const basePayload = { ...newCalendarEvent, projectId: selectedProject };
       const calendarEventToAdd = addressMode === 'existing'
         ? { ...basePayload, addressId: selectedAddressId }
-        : { ...basePayload, address: newAddress };
+        : addressMode === 'new' ? { ...basePayload, address: newAddress }
+        : {...basePayload};
       console.log("calendareventToAdd ::", calendarEventToAdd)
       const res = await api.post('/calendarevents', calendarEventToAdd);
       console.log(res.status)

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
 import AddressForm from '../components/AddressForm';
+import SelectExistingAddress from '../components/SelectExistingAddress';
 
 interface Customer {
   id: string;
@@ -11,6 +12,8 @@ interface Customer {
   company?: string;
   createdAt: string;
 }
+
+type AddressMode = 'new' | 'existing' | 'none';
 
 export default function CustomersPage() {
   const api = useApiClient();
@@ -26,11 +29,21 @@ export default function CustomersPage() {
     , latitude: '', longitude: ''
     , accessCode: '', floor: '', apartment: '', note: ''
    });
+  const [addressMode, setAddressMode] = useState<AddressMode>('new');
+  const [selectedAddressId, setSelectedAddressId] = useState('');
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const customerToAdd = { ...newCustomer, address: newAddress }
+
+      if (addressMode === 'existing' && !selectedAddressId) {
+        setError('Veuillez sélectionner une adresse existante');
+        return;
+      }
+
+      const customerToAdd = addressMode === 'new' ? { ...newCustomer, address: newAddress }
+                          : addressMode === 'existing' ? { ...newCustomer, addressId: selectedAddressId }
+                          : {...newCustomer }
       const res = await api.post('/customers', customerToAdd);
       console.log(res.status)
       console.log(res.statusText)
@@ -45,6 +58,8 @@ export default function CustomersPage() {
        , latitude: '', longitude: ''
        , accessCode: '', floor: '', apartment: '', note: ''
       });
+      setAddressMode('new');
+      setSelectedAddressId('');
       setError('');
       setSuccess('Client ajouté avec succès');
     } catch (error) {
@@ -145,7 +160,34 @@ export default function CustomersPage() {
             />
           </div>
           <h3 className="px-3 py-4">Adresse :</h3>
-            <AddressForm address={newAddress} onChange={setNewAddress} />
+            <div className="flex gap-2 px-3 pb-3">
+              <button
+                type="button"
+                className={`border py-2 px-3 rounded ${addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => setAddressMode('new')}
+              >
+                Nouvelle adresse
+              </button>
+              <button
+                type="button"
+                className={`border py-2 px-3 rounded ${addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => setAddressMode('existing')}
+              >
+                Utiliser une adresse existante
+              </button>
+              <button
+                type="button"
+                className={`border py-2 px-3 rounded ${addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => setAddressMode('none')}
+              >
+                {`Ne pas ajouter d'adresse`}
+              </button>
+            </div>
+            {addressMode === 'new' ? (
+              <AddressForm address={newAddress} onChange={setNewAddress} />
+            ) : addressMode === 'existing' ? (
+              <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
+            ) : <span></span>}
           <h3 className="px-3 py-4">Entreprise :</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
