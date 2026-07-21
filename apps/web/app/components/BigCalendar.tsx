@@ -10,6 +10,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import { useApiClient } from '../api-client';
 import { useEffect, useState } from 'react'
 import AddressForm from './AddressForm'
+import SelectExistingAddress from './SelectExistingAddress'
 
 // import { loadProjects } from '../projects/page'
 
@@ -106,24 +107,24 @@ interface Project {
   createdAt: string;
 }
 
-interface AddressOption {
-  id: string;
-  street1?: string;
-  street2?: string;
-  postalCode?: string;
-  city?: string;
-  countryCode?: string;
-}
+// interface AddressOption {
+//   id: string;
+//   street1?: string;
+//   street2?: string;
+//   postalCode?: string;
+//   city?: string;
+//   countryCode?: string;
+// }
 
-type AddressMode = 'new' | 'existing';
+type AddressMode = 'new' | 'existing' | 'none';
 
-function formatAddressLabel(address: AddressOption): string {
-  const line1 = [address.street1, address.street2].filter(Boolean).join(' ');
-  const line2 = [address.postalCode, address.city].filter(Boolean).join(' ');
-  const line3 = address.countryCode ?? '';
-  const label = [line1, line2, line3].filter(Boolean).join(' - ');
-  return label || address.id;
-}
+// function formatAddressLabel(address: AddressOption): string {
+//   const line1 = [address.street1, address.street2].filter(Boolean).join(' ');
+//   const line2 = [address.postalCode, address.city].filter(Boolean).join(' ');
+//   const line3 = address.countryCode ?? '';
+//   const label = [line1, line2, line3].filter(Boolean).join(' - ');
+//   return label || address.id;
+// }
 
 function BigCalendar() {
   const api = useApiClient();
@@ -147,10 +148,10 @@ function BigCalendar() {
   const [projectsListOpen, setProjectsListOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState("")
   const [addressMode, setAddressMode] = useState<AddressMode>('new');
-  const [addressOptions, setAddressOptions] = useState<AddressOption[]>([]);
+  // const [addressOptions, setAddressOptions] = useState<AddressOption[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [addressesLoading, setAddressesLoading] = useState(false);
-  const [addressesError, setAddressesError] = useState('');
+  // const [addressesLoading, setAddressesLoading] = useState(false);
+  // const [addressesError, setAddressesError] = useState('');
 
   function handleSelectedProject(e: React.ChangeEvent<HTMLSelectElement>){
     setSelectedProject(e.target.value);
@@ -211,40 +212,40 @@ function BigCalendar() {
     }
   }, [api,projectsListOpen, projectsLoading]);
 
-  useEffect(() => {
-    if (!showAddEventModal || addressMode !== 'existing' || addressOptions.length > 0) {
-      return;
-    }
+  // useEffect(() => {
+  //   if (!showAddEventModal || addressMode !== 'existing' || addressOptions.length > 0) {
+  //     return;
+  //   }
 
-    let cancelled = false;
+  //   let cancelled = false;
 
-    async function loadAddresses() {
-      setAddressesLoading(true);
-      setAddressesError('');
-      try {
-        const res = await api.get('/addresses');
-        if (!res.ok) throw new Error('Erreur');
-        const data: AddressOption[] = await res.json();
-        if (!cancelled) {
-          setAddressOptions(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setAddressesError('Erreur lors de la récupération des adresses');
-        }
-      } finally {
-        if (!cancelled) {
-          setAddressesLoading(false);
-        }
-      }
-    }
+  //   async function loadAddresses() {
+  //     setAddressesLoading(true);
+  //     setAddressesError('');
+  //     try {
+  //       const res = await api.get('/addresses');
+  //       if (!res.ok) throw new Error('Erreur');
+  //       const data: AddressOption[] = await res.json();
+  //       if (!cancelled) {
+  //         setAddressOptions(data);
+  //       }
+  //     } catch {
+  //       if (!cancelled) {
+  //         setAddressesError('Erreur lors de la récupération des adresses');
+  //       }
+  //     } finally {
+  //       if (!cancelled) {
+  //         setAddressesLoading(false);
+  //       }
+  //     }
+  //   }
 
-    void loadAddresses();
+  //   void loadAddresses();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [api, showAddEventModal, addressMode, addressOptions.length]);
+  //   return () => {
+  //     cancelled = true;
+  //   };
+  // }, [api, showAddEventModal, addressMode, addressOptions.length]);
 
   async function handleAddCalendarEvent(e: React.FormEvent) {
     e.preventDefault();
@@ -255,10 +256,9 @@ function BigCalendar() {
       }
 
       const basePayload = { ...newCalendarEvent, projectId: selectedProject };
-      const calendarEventToAdd = addressMode === 'existing'
-        ? { ...basePayload, addressId: selectedAddressId }
-        : addressMode === 'new' ? { ...basePayload, address: newAddress }
-        : {...basePayload};
+      const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, addressId: selectedAddressId }
+                                : addressMode === 'new' ? { ...basePayload, address: newAddress }
+                                : {...basePayload};
       console.log("calendareventToAdd ::", calendarEventToAdd)
       const res = await api.post('/calendarevents', calendarEventToAdd);
       console.log(res.status)
@@ -457,31 +457,39 @@ function BigCalendar() {
                       >
                         Utiliser une adresse existante
                       </button>
+                      <button
+                        type="button"
+                        className={`border py-2 px-3 rounded ${addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                        onClick={() => setAddressMode('none')}
+                      >
+                        {`Ne pas ajouter d'adresse`}
+                      </button>
                     </div>
 
                     {addressMode === 'new' ? (
                       <AddressForm address={newAddress} onChange={setNewAddress} />
+                    ) : addressMode === 'existing' ? (
+                      <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
                     ) : (
-                      <div className="px-3 pb-3">
-                        {addressesLoading ? (
-                          <p>Chargement des adresses...</p>
-                        ) : (
-                          <select
-                            className="border px-3 py-2 rounded w-full"
-                            value={selectedAddressId}
-                            onChange={(e) => setSelectedAddressId(e.target.value)}
-                            required
-                          >
-                            <option value="">--Veuillez choisir une adresse--</option>
-                            {addressOptions.map((address) => (
-                              <option key={address.id} value={address.id}>
-                                {formatAddressLabel(address)}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {addressesError && <p className="text-red-700 mt-2">{addressesError}</p>}
-                      </div>
+                    <span></span>
+                      // <div className="px-3 pb-3">
+                      //   {addressesLoading ? (
+                      //     <p>Chargement des adresses...</p>
+                          // <select
+                          //   className="border px-3 py-2 rounded w-full"
+                          //   value={selectedAddressId}
+                          //   onChange={(e) => setSelectedAddressId(e.target.value)}
+                          //   required
+                          // >
+                          //   <option value="">--Veuillez choisir une adresse--</option>
+                          //   {addressOptions.map((address) => (
+                          //     <option key={address.id} value={address.id}>
+                          //       {formatAddressLabel(address)}
+                          //     </option>
+                          //   ))}
+                          // </select>
+                      // </div>
+                      // {addressesError && <p className="text-red-700 mt-2">{addressesError}</p>}
                     )}
                     <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
                       Ajouter
