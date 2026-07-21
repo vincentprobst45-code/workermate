@@ -7,9 +7,26 @@ import SelectExistingAddress from '../components/SelectExistingAddress';
 
 interface Customer {
   id: string;
-  firstname: string;
-  lastname?: string;
+
+  tenantId: string;
+
+  createdById?: string;
+
+  firstName: string;
+  lastName?: string;
   company?: string;
+  
+  email?: string;
+  phone?: string;
+  mobile?: string;
+
+  addressId?: string;
+
+  siret?: string;
+  vatNumber?: string;
+
+  notes?:string;
+  
   createdAt: string;
 }
 
@@ -31,6 +48,8 @@ export default function CustomersPage() {
    });
   const [addressMode, setAddressMode] = useState<AddressMode>('new');
   const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);(null)
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
@@ -221,10 +240,13 @@ export default function CustomersPage() {
         ) : (
           <div className="grid gap-4">
             {customers.map((customer) => (
-              <div key={customer.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
+              <div key={customer.id} 
+                className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center"
+                onClick={() => {setShowCustomerDetails(true);setSelectedCustomer(customer)}}
+              >
                 <div>
                   <p className="font-semibold">
-                    {customer.firstname} {customer.lastname}
+                    {customer.firstName} {customer.lastName}
                   </p>
                   {customer.company && <p className="text-sm text-slate-600">{customer.company}</p>}
                 </div>
@@ -238,6 +260,51 @@ export default function CustomersPage() {
             ))}
           </div>
         )}
+        
+  {showCustomerDetails && selectedCustomer && (
+  <div
+    className="fixed inset-0 bg-black/40 flex items-center justify-center z-9"
+    onClick={() => {
+      setShowCustomerDetails(false);
+      setSelectedCustomer(null);
+    }}
+  >
+    <div
+      className="bg-white rounded-lg p-6"
+      onClick={(e) => {e.stopPropagation();console.log(selectedCustomer);console.log("lenom", selectedCustomer.lastName)}}
+    >
+      
+      <p>{selectedCustomer.id}</p>
+      <p>{selectedCustomer.tenantId}</p>
+      <p>{selectedCustomer.createdById}</p>
+
+      <p>{selectedCustomer.lastName}</p>
+      <p>{selectedCustomer.firstName}</p>
+      <p>{selectedCustomer.company}</p>
+      
+      <p>{selectedCustomer.email}</p>
+      <p>{selectedCustomer.phone}</p>
+      <p>{selectedCustomer.mobile}</p>
+      
+      <p>{selectedCustomer.addressId}</p>
+      
+      <p>{selectedCustomer.siret}</p>
+      <p>{selectedCustomer.vatNumber}</p>
+      
+      <p>{selectedCustomer.notes}</p>
+      
+      <p>{selectedCustomer.createdAt}</p>
+      <button
+        onClick={() => {
+          setShowCustomerDetails(false);
+          setSelectedCustomer(null);
+        }}
+      >
+        Fermer
+      </button>
+    </div>
+  </div>
+)}
       </main>
     </ProtectedRoute>
   );
