@@ -20,9 +20,10 @@ export class CustomerController {
   @Post()
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateCustomerDto) {
-    const tenantId = requireTenantContext(req).tenant.id;
+    const context = requireTenantContext(req);
+    const tenantId = context.tenant.id;
     this.debug(`Creating customer for tenantId=${tenantId}`);
-    return this.customerService.create(tenantId, dto);
+    return this.customerService.create(tenantId, dto, context.user );
   }
 
   @Get()

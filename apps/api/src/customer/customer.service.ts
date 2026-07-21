@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCustomerDto } from './create-customer.dto'
 import { CreateAddressDto } from 'src/address/create-address.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class CustomerService {
@@ -27,7 +27,7 @@ export class CustomerService {
     );
   }
 
-  async create(tenantId: string, dto: CreateCustomerDto) {
+  async create(tenantId: string, dto: CreateCustomerDto, user?: User) {
     this.debug(`create() tenantId=${tenantId}`);
     if (!tenantId) {
       this.logger.warn('create() called without tenantId');
@@ -49,6 +49,20 @@ export class CustomerService {
       },
     },
   };
+
+  if (user?.id) {
+    data.createdBy = {
+      connect: {
+        id: user.id,
+      },
+    };
+    
+    // const fullName = [user.firstname, user.lastname]
+    //   .filter((value): value is string => Boolean(value && value.trim()))
+    //   .map((value) => value.trim())
+    //   .join(' ');
+    // data.createdByName = fullName || user.email;
+  }
 
   if (addressId) {
     data.address = {
