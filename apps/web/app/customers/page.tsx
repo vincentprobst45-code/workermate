@@ -5,6 +5,12 @@ import { ProtectedRoute } from '../protected-route';
 import AddressForm from '../components/AddressForm';
 import SelectExistingAddress from '../components/SelectExistingAddress';
 
+interface AddressOneLine{
+  street1?: string;
+  postalCode?: string;
+  city?: string;
+}
+
 interface Customer {
   id: string;
 
@@ -21,6 +27,7 @@ interface Customer {
   mobile?: string;
 
   addressId?: string;
+  address?: AddressOneLine;
 
   siret?: string;
   vatNumber?: string;
@@ -274,9 +281,9 @@ export default function CustomersPage() {
       onClick={(e) => {e.stopPropagation();console.log(selectedCustomer);console.log("lenom", selectedCustomer.lastName)}}
     >
       
-      <p>{selectedCustomer.id}</p>
-      <p>{selectedCustomer.tenantId}</p>
-      <p>{selectedCustomer.createdById}</p>
+      <p>id : {selectedCustomer.id}</p>
+      <p>tenantid : {selectedCustomer.tenantId}</p>
+      <p>createdById : {selectedCustomer.createdById}</p>
 
       <p>{selectedCustomer.lastName}</p>
       <p>{selectedCustomer.firstName}</p>
@@ -287,13 +294,14 @@ export default function CustomersPage() {
       <p>{selectedCustomer.mobile}</p>
       
       <p>{selectedCustomer.addressId}</p>
+      <p>{`${selectedCustomer.address?.street1} ${selectedCustomer.address?.postalCode} ${selectedCustomer.address?.city}`}</p>
       
       <p>{selectedCustomer.siret}</p>
       <p>{selectedCustomer.vatNumber}</p>
       
       <p>{selectedCustomer.notes}</p>
       
-      <p>{selectedCustomer.createdAt}</p>
+      <p>createdAt : {selectedCustomer.createdAt}</p>
       <button
         onClick={() => {
           setShowCustomerDetails(false);

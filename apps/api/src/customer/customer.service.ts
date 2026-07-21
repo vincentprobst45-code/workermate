@@ -96,6 +96,31 @@ export class CustomerService {
     const results = await this.prisma.customer.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        company: true,
+        email: true,
+        phone: true,
+        mobile: true,
+        siret: true,
+        vatNumber: true,
+        notes:true,
+
+        tenantId:true,
+        createdById:true,
+        createdAt:true,
+
+  
+        address: {
+          select: {
+            street1: true,
+            postalCode: true,
+            city: true,
+          },
+        },
+      },
     });
 
     return results;
@@ -104,7 +129,33 @@ export class CustomerService {
   async findOne(tenantId: string, id: string) {
     this.debug(`findOne() tenantId=${tenantId} id=${id}`);
     const result = await this.prisma.customer.findFirst({
-      where: { id, tenantId },
+      where: {
+         id, tenantId 
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        company: true,
+        email: true,
+        phone: true,
+        mobile: true,
+        siret: true,
+        vatNumber: true,
+        notes:true,
+
+        tenantId:true,
+        createdById:true,
+        createdAt:true,
+
+        address: {
+          select: {
+            street1: true,
+            postalCode: true,
+            city: true,
+          },
+        },
+      },
     });
     if (!result) {
       this.logger.warn(`Customer not found id=${id} tenantId=${tenantId}`);
