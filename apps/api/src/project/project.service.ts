@@ -27,12 +27,25 @@ export class ProjectService {
 
   async create(tenantId: string, dto: CreateProjectDto ) {
 
-    const { addressId, address, ...projectData } = dto;
+    const { addressId, address, projectItems, ...projectData } = dto;
     const year = new Date().getFullYear();
     const reference = `CH-${year}-${projectData.title}`;
 
     const data: Prisma.ProjectCreateInput = {
-      ...projectData,
+      title: projectData.title,
+      description: projectData.description,
+      startDate: projectData.startDate
+        ? new Date(projectData.startDate)
+        : undefined,
+      endDate: projectData.endDate
+        ? new Date(projectData.endDate)
+        : undefined,
+      // startDate: projectData.startDate && new Date(projectData.startDate),
+      // endDate: projectData.endDate && new Date(projectData.endDate),
+      status: projectData.status
+        ? projectData.status
+        : 'DRAFT',
+      // ...projectData,
       reference,
       tenant: {
         connect: { id: tenantId },
@@ -41,6 +54,30 @@ export class ProjectService {
       //   connect: { id: dto.customerId },
       // },
     };
+
+    // ProjectItems
+    // if (projectItems?.length) {
+    //   data.items = {
+    //     create: projectItems,
+    //   };
+    // }
+    if (projectItems?.length) {
+      data.items = {
+        create: projectItems.map((item) => ({
+          type: item.type,
+          position: item.position,
+
+          title: item.title,
+          description: item.description,
+
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+
+          vatRate: item.vatRate,
+        })),
+      };
+    }
 
     if (addressId) {
       data.address = {
@@ -60,7 +97,7 @@ export class ProjectService {
         countryCode: address.countryCode?.trim(),
       },
   };
-}
+}console.log(JSON.stringify(projectItems, null, 2));
     const result = await this.prisma.project.create({ data });
 
     // this.debug(`Project created id=${result.id}`);
@@ -81,6 +118,11 @@ export class ProjectService {
   async findOne(tenantId: string, id: string) {
     return this.prisma.project.findFirst({
       where: { id, tenantId },
+      include: {
+        items: true,
+        address: true,
+        customer: true,
+      },
     });
   }
 

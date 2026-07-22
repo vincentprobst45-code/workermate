@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
+  IsArray,
+  IsDate,
   IsEnum,
   IsInt,
   IsOptional,
@@ -11,6 +12,7 @@ import {
 
 import { ProjectStatus } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
+import { CreateProjectItemDto } from 'src/projectitem/create-project-item.dto';
 
 export class CreateProjectDto {
   @IsString()
@@ -43,12 +45,20 @@ export class CreateProjectDto {
   status?: ProjectStatus;
 
   @IsOptional()
-  @IsDateString()
-  startDate?: string;
+  // @IsDateString()
+  @IsDate({ message: 'startdate must be a date' })
+  startDate?: Date;
 
   @IsOptional()
-  @IsDateString()
-  endDate?: string;
+  // @IsDateString()
+  @IsDate({ message: 'startdate must be a date' })
+  endDate?: Date;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProjectItemDto)
+  projectItems?: CreateProjectItemDto[];
 
   @IsOptional()
   @IsInt()

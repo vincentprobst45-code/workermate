@@ -5,15 +5,15 @@ import { ProtectedRoute } from '../protected-route';
 import AddressForm from '../components/AddressForm';
 import SelectExistingAddress from '../components/SelectExistingAddress';
 import { Decimal } from '@prisma/client/runtime/library';
-import { ProjectItemType } from '@prisma/client';
+import { ProjectItemType, ProjectStatus } from '@prisma/client';
 
-enum ProjectStatus {
-  DRAFT,
-  PLANNED,
-  IN_PROGRESS,
-  COMPLETED,
-  CANCELLED,
-}
+// enum ProjectStatus {
+//   DRAFT,
+//   PLANNED,
+//   IN_PROGRESS,
+//   COMPLETED,
+//   CANCELLED,
+// }
 
 interface Project {
   id: string;
@@ -33,7 +33,7 @@ interface Project {
   addressId? : string;
   createdById? : string;
 
-  createdAt: string;
+  // createdAt: string;
 }
 
 export function createEmptyProject(): Project {
@@ -47,7 +47,7 @@ export function createEmptyProject(): Project {
     startDate: '',
     endDate: '',
 
-    status: 1,
+    status: 'DRAFT',
 
     projectItems: [],
     
@@ -55,7 +55,7 @@ export function createEmptyProject(): Project {
     addressId: '',
     createdById: '',
 
-    createdAt : '',
+    // createdAt : '',
   };
 }
 
@@ -80,8 +80,8 @@ interface ProjectItem{
   unitPrice: number;
   vatRate: number;
 
-  createdAt: string;
-  updatedAt: string;
+  // createdAt: string;
+  // updatedAt: string;
 }
 
 const projectItemTypeOptions = [
@@ -149,8 +149,8 @@ export default function ProjectsPage() {
       vatRate: 20,
 
 
-      createdAt : '',
-      updatedAt: '',
+      // createdAt : '',
+      // updatedAt: '',
     };
   }
 
@@ -182,12 +182,19 @@ export default function ProjectsPage() {
       cancelled = true;
     };
   }, [api]);
+  
+  console.log(projects)
 
   async function handleAddProject(e: React.FormEvent) {
     e.preventDefault();
     try {
-      setNewProject({...newProject, projectItems:projectItems})
-      const res = await api.post('/projects', newProject);
+
+      let projectToAdd = addressMode === 'new' ? { ...newProject, address: newAddress }
+                          : addressMode === 'existing' ? { ...newProject, addressId: selectedAddressId }
+                          : {...newProject }
+      projectToAdd = projectItems.length > 0 ? {...projectToAdd, projectItems: projectItems} : projectToAdd
+      // setNewProject({...newProject, projectItems:projectItems})
+      const res = await api.post('/projects', projectToAdd);
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
       setProjects([data, ...projects]);
@@ -210,7 +217,6 @@ export default function ProjectsPage() {
   }
 
 
-  console.log(projects)
 
   return (
     <ProtectedRoute>
@@ -260,7 +266,6 @@ export default function ProjectsPage() {
             {projectItems.map((projectItem,i) => {
               return(
               <div key={i} className='p-6 mt-6 border-2 flex flex-wrap gap-4 items-center'>
-                <p>{projectItem.title}</p>
                 <label htmlFor='title'>Titre : </label>
                 <input name="title"
                   className="border px-3 py-2 rounded"
@@ -326,7 +331,7 @@ export default function ProjectsPage() {
                   }}
                 />
                 <label htmlFor='unit'>Unité : </label>
-                <input type="number" name="unit"
+                <input name="unit"
                   className="border px-3 py-2 rounded"
                   placeholder="unité"
                   value={projectItem.unit}
