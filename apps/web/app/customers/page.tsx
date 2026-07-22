@@ -57,6 +57,7 @@ export default function CustomersPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [showCustomerDetails, setShowCustomerDetails] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);(null)
+  const [showAddCustomerForm, setShowAddCustomerForm] = useState(false)
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
@@ -146,7 +147,15 @@ export default function CustomersPage() {
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
         {success && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">{success}</div>}
 
-        <form onSubmit={handleAddCustomer} className="mb-8 p-5 bg-white rounded-lg shadow">
+        <button
+          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
+                    rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
+                    hover:bg-blue-600 active:bg-blue-900' 
+          onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}>
+            {showAddCustomerForm ? ("fermer") : ("Ajouter un client")}
+        </button>
+        {showAddCustomerForm &&
+        <form onSubmit={handleAddCustomer} className="border-2 mb-8 p-5 bg-white rounded-lg shadow-l">
           <h3 className="font-semibold mb-4">Ajouter un client</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
@@ -241,19 +250,27 @@ export default function CustomersPage() {
             Ajouter
           </button>
         </form>
-
+        }
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <div className="grid gap-4">
+          <section className="grid gap-4">
+            <p>Cliquez sur un client pour obtenir les détails</p>
             {customers.map((customer) => (
               <div key={customer.id} 
-                className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center"
+                className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg 
+                            shadow flex justify-between items-center border-2 border-gray-700"
                 onClick={() => {setShowCustomerDetails(true);setSelectedCustomer(customer)}}
               >
                 <div>
                   <p className="font-semibold">
                     {customer.firstName} {customer.lastName}
+                  </p>
+                  <p className="font-semibold">
+                    {customer.mobile} {customer.email}
+                  </p>
+                  <p className="font-semibold">
+                    {customer.address?.street1} {customer.address?.postalCode} {customer.address?.city}
                   </p>
                   {customer.company && <p className="text-sm text-slate-600">{customer.company}</p>}
                 </div>
@@ -265,7 +282,7 @@ export default function CustomersPage() {
                 </button>
               </div>
             ))}
-          </div>
+          </section>
         )}
         
   {showCustomerDetails && selectedCustomer && (
@@ -280,6 +297,17 @@ export default function CustomersPage() {
       className="bg-white rounded-lg p-6"
       onClick={(e) => {e.stopPropagation();console.log(selectedCustomer);console.log("lenom", selectedCustomer.lastName)}}
     >
+      <div className='pb-4 flex space-between items-center'>
+      <h3 className='inline-block text-2xl'><strong>Détails client</strong></h3>
+      <button className='border-2 rounded-md px-3 py-2 ml-auto inline-block'
+        onClick={() => {
+          setShowCustomerDetails(false);
+          setSelectedCustomer(null);
+        }}
+      >
+        Fermer X
+      </button>
+      </div>
       
       <p>id : {selectedCustomer.id}</p>
       <p>tenantid : {selectedCustomer.tenantId}</p>
@@ -302,14 +330,6 @@ export default function CustomersPage() {
       <p>{selectedCustomer.notes}</p>
       
       <p>createdAt : {selectedCustomer.createdAt}</p>
-      <button
-        onClick={() => {
-          setShowCustomerDetails(false);
-          setSelectedCustomer(null);
-        }}
-      >
-        Fermer
-      </button>
     </div>
   </div>
 )}
