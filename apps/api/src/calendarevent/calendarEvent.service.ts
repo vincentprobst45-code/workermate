@@ -63,19 +63,6 @@ export class CalendarEventService {
     }
   const {  addressMode, addressId, address, projectId, customerId, ...calendarEventData } = dto;
 
-  this.logger.debug("lodebut");
-  this.logger.debug(calendarEventData);
-  this.logger.debug(addressId);
-  this.logger.debug(address);
-  this.logger.debug("lolfind");
-
-
-  // if (addressId && this.hasAddress(address)) {
-  //   throw new BadRequestException(
-  //     'Vous devez fournir soit addressId, soit une nouvelle adresse.',
-  //   );
-  // }
-
   const data: Prisma.CalendarEventCreateInput = {
     title: calendarEventData.title,
     description: calendarEventData.description,
