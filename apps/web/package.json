@@ -18,7 +18,7 @@
     "@schedule-x/theme-default": "^4.6.1",
     "@schedule-x/translations": "^4.6.1",
     "jsonwebtoken": "^9.0.3",
-    "next": "16.2.10",
+    "next": "16.2.6",
     "react": "19.2.4",
     "react-big-calendar": "^1.20.0",
     "react-dom": "19.2.4",
