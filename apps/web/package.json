@@ -22,7 +22,8 @@
     "react": "19.2.4",
     "react-big-calendar": "^1.20.0",
     "react-dom": "19.2.4",
-    "temporal-polyfill": "^1.0.1"
+    "temporal-polyfill": "^1.0.1",
+    "@workermate/shared": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

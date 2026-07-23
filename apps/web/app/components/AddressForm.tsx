@@ -1,13 +1,57 @@
 'use client';
 import { useState } from 'react';
 
-function AddressForm({ address, onChange }){
+export type AddAddressFormData = {
+  street1: string;
+  street2: string;
+  postalCode: string;
+  city: string;
+
+  region: string;
+  countryCode: string;
+
+  latitude: string;
+  longitude: string;
+
+  accessCode: string;
+  floor: string;
+  apartment: string;
+  note: string;
+};
+
+type AddressFormProps = {
+  address: AddAddressFormData;
+  onChange: (address: AddAddressFormData) => void;
+};
+
+export function createEmptyAddress(): AddAddressFormData {
+  return {
+  street1:    '',
+  street2:    '',
+  postalCode: '',
+  city:       '',
+
+  region:     '',
+  countryCode:'',
+
+  latitude:   '',
+  longitude:  '',
+
+  accessCode: '',
+  floor:      '',
+  apartment:  '',
+  note:       '',
+  };
+}
+
+function AddressForm({ address , onChange }: AddressFormProps){
   // const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
   //   , postalCode: '', city: '', region: '', countryCode: ''
   //   , latitude: '', longitude: ''
   //   , accessCode: '', floor: '', apartment: '', note: ''
   //  });
 
+    console.log("AddressForm")
     return(<div>
         
           <div className="grid grid-cols-1 sm:grid-cols-3 py-2 gap-3">

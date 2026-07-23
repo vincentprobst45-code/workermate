@@ -9,8 +9,10 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 
 import { useApiClient } from '../api-client';
 import { useEffect, useState } from 'react'
-import AddressForm from './AddressForm'
+import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm'
 import SelectExistingAddress from './SelectExistingAddress'
+
+import AddCalendarEventForm,{ type AddCalendarEventFormData, createEmptyCalendarEvent } from './AddCalendarEventForm'
 
 // import { loadProjects } from '../projects/page'
 
@@ -27,6 +29,8 @@ const localizer = dayjsLocalizer(dayjs)
 //         end: new Date('2026-07-11T13:00:00.000Z'),
 //     }
 // ]
+
+
 
 interface CalendarEvent {
   id: string;
@@ -46,6 +50,8 @@ interface CalendarEvent {
   addressName?: string;
   createdById?: string;
   createdByName?: string;
+
+  address? : AddAddressFormData
 }
 
 interface CalendarEventApi {
@@ -64,23 +70,24 @@ interface CalendarEventApi {
   createdById?: string;
 }
 
-export function createEmptyCalendarEvent(): CalendarEventApi {
-  return {
-    id: '',
-    title: '',
-    startDate: '',
-    endDate: '',
+// export function createEmptyCalendarEvent(): CalendarEventApi {
+//   return {
+//     id: '',
+//     title: '',
+//     startDate: '',
+//     endDate: '',
 
-    description: '',
-    color:'',
-    notes:'',
+//     description: '',
+//     color:'',
+//     notes:'',
     
-    customerId: '',
-    projectId: '',
-    addressId: '',
-    createdById: '',
-  };
-}
+//     addressId: '',
+    
+//     customerId: '',
+//     projectId: '',
+//     createdById: '',
+//   };
+// }
 
 export function toCalendarEvent(dto: CalendarEventApi): CalendarEvent {
     return {
@@ -135,12 +142,13 @@ function BigCalendar() {
   const [view, setView] = useState<View>('week');
   const [date, setDate] = useState(new Date());
   const [showAddEventModal,setShowAddEventModal] = useState(false)
-  const [newCalendarEvent, setNewCalendarEvent] = useState<CalendarEventApi>(createEmptyCalendarEvent());
-  const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
-    , postalCode: '', city: '', region: '', countryCode: ''
-    , latitude: '', longitude: ''
-    , accessCode: '', floor: '', apartment: '', note: ''
-   });
+  // const [newCalendarEvent, setNewCalendarEvent] = useState<CalendarEventApi>(createEmptyCalendarEvent());
+  const [newCalendarEvent, setNewCalendarEvent] = useState<AddCalendarEventFormData>(createEmptyCalendarEvent());
+  // const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
+  //   , postalCode: '', city: '', region: '', countryCode: ''
+  //   , latitude: '', longitude: ''
+  //   , accessCode: '', floor: '', apartment: '', note: ''
+  //  });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [projectsLite, setProjectsLite] = useState<Project[]>([]);
@@ -177,7 +185,7 @@ function BigCalendar() {
     // };
     
   useEffect(() => {
-    console.log("lavidmamere")
+    console.log("go get /projects")
     if(projectsListOpen && projectsLoading)
     {
       let cancelled = false;
@@ -256,11 +264,11 @@ function BigCalendar() {
       }
 
       const basePayload = { ...newCalendarEvent, projectId: selectedProject };
-      const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, addressId: selectedAddressId }
-                                : addressMode === 'new' ? { ...basePayload, address: newAddress }
-                                : {...basePayload};
-      console.log("calendareventToAdd ::", calendarEventToAdd)
-      const res = await api.post('/calendarevents', calendarEventToAdd);
+      // const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, address: undefined }
+      //                           : addressMode === 'new' ? { ...basePayload, addressId: undefined }
+      //                           : {...basePayload, address:undefined,addressId:undefined};
+      // console.log("calendareventToAdd ::", calendarEventToAdd)
+      const res = await api.post('/calendarevents', basePayload);
       console.log(res.status)
       console.log(res.statusText)
       if (!res.ok) throw new Error('Erreur');
@@ -275,19 +283,60 @@ function BigCalendar() {
       // setCalendarEvents([event, ...calendarEvents]);
       setCalendarEvents([toCalendarEvent(data), ...calendarEvents]);
       setNewCalendarEvent(createEmptyCalendarEvent());
-      setNewAddress({ street1: '', street2: ''
-       , postalCode: '', city: '', region: '', countryCode: ''
-       , latitude: '', longitude: ''
-       , accessCode: '', floor: '', apartment: '', note: ''
-      });
-      setAddressMode('new');
-      setSelectedAddressId('');
+      // setNewAddress({ street1: '', street2: ''
+      //  , postalCode: '', city: '', region: '', countryCode: ''
+      //  , latitude: '', longitude: ''
+      //  , accessCode: '', floor: '', apartment: '', note: ''
+      // });
+      setAddressMode('none');
+      // setSelectedAddressId('');
       setError('');
       setSuccess('Client ajouté avec succès');
     } catch (error) {
       setError(`Erreur lors de l\'ajout ${error}`);
     }
   }
+  // async function handleAddCalendarEvent(e: React.FormEvent) {
+  //   e.preventDefault();
+  //   try {
+  //     if (addressMode === 'existing' && !selectedAddressId) {
+  //       setError('Veuillez sélectionner une adresse existante');
+  //       return;
+  //     }
+
+  //     const basePayload = { ...newCalendarEvent, projectId: selectedProject };
+  //     const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, addressId: selectedAddressId }
+  //                               : addressMode === 'new' ? { ...basePayload, address: newAddress }
+  //                               : {...basePayload};
+  //     console.log("calendareventToAdd ::", calendarEventToAdd)
+  //     const res = await api.post('/calendarevents', calendarEventToAdd);
+  //     console.log(res.status)
+  //     console.log(res.statusText)
+  //     if (!res.ok) throw new Error('Erreur');
+  //     const data = await res.json();
+  //     console.log("data",data)
+  //     // const event:CalendarEvent = {
+  //     //   id: data.id,
+  //     //   title: data.title,
+  //     //   start: new Date(data.startDate),
+  //     //   end: new Date(data.endDate),
+  //     // }
+  //     // setCalendarEvents([event, ...calendarEvents]);
+  //     setCalendarEvents([toCalendarEvent(data), ...calendarEvents]);
+  //     setNewCalendarEvent(createEmptyCalendarEvent());
+  //     setNewAddress({ street1: '', street2: ''
+  //      , postalCode: '', city: '', region: '', countryCode: ''
+  //      , latitude: '', longitude: ''
+  //      , accessCode: '', floor: '', apartment: '', note: ''
+  //     });
+  //     setAddressMode('new');
+  //     setSelectedAddressId('');
+  //     setError('');
+  //     setSuccess('Client ajouté avec succès');
+  //   } catch (error) {
+  //     setError(`Erreur lors de l\'ajout ${error}`);
+  //   }
+  // }
 
     const scrollTo = new Date()
     scrollTo.setHours(7, 0, 0, 0)
@@ -360,6 +409,8 @@ function BigCalendar() {
 
     console.log("copen : ",projectsListOpen)
 
+    console.log("BIGCLAENDAR")
+
     return(
         <div className='py-8 my-8' style={{ display: loading ? "none" : "block" }}>
 
@@ -378,7 +429,8 @@ function BigCalendar() {
                 <div className=' border absolute bg-red-200 overflow-scroll h-4/5' onClick={(e) => e.stopPropagation()}>
                   <form onSubmit={handleAddCalendarEvent} className="mb-8 p-5 bg-white rounded-lg shadow">
                     <h3>Ajouter un événement</h3>
-                    <div className='py-3'>
+                    <AddCalendarEventForm calendarEvent={newCalendarEvent} onChange={setNewCalendarEvent}/>
+                    {/* <div className='py-3'>
                       <input
                         className="border px-3 py-2 rounded"
                         placeholder="Titre"
@@ -421,7 +473,7 @@ function BigCalendar() {
                       value={newCalendarEvent.notes}
                       onChange={(e) => setNewCalendarEvent({ ...newCalendarEvent, notes: e.target.value })}
                       required
-                    />
+                    /> */}
                     <button type="button" className="border py-2 px-2" onClick={() => {setProjectsListOpen(true)}}>
                       Associer à un chantier*
                     </button>
@@ -441,7 +493,7 @@ function BigCalendar() {
                       )}
                       </div>) : (<div></div>)
                     }
-                    <h3 className="px-3 py-4">Adresse :</h3>
+                    {/* <h3 className="px-3 py-4">Adresse :</h3>
                     <div className="flex gap-2 px-3 pb-3">
                       <button
                         type="button"
@@ -493,7 +545,7 @@ function BigCalendar() {
                     )}
                     <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
                       Ajouter
-                    </button>
+                    </button> */}
                   </form>
                 </div>
               </div>}

@@ -1,0 +1,9 @@
+{
+  "name": "@workermate/shared",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./address": "./src/address.ts"
+  }
+}
