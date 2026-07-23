@@ -6,6 +6,7 @@ import AddressForm from '../components/AddressForm';
 import SelectExistingAddress from '../components/SelectExistingAddress';
 import { Decimal } from '@prisma/client/runtime/library';
 import { ProjectItemType, ProjectStatus } from '@prisma/client';
+import AddProjectForm from '../components/AddProjectForm';
 
 // enum ProjectStatus {
 //   DRAFT,
@@ -124,35 +125,35 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newProject, setNewProject] = useState<Project>(createEmptyProject());
-  const [addressMode, setAddressMode] = useState<AddressMode>('new');
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
-    , postalCode: '', city: '', region: '', countryCode: ''
-    , latitude: '', longitude: ''
-    , accessCode: '', floor: '', apartment: '', note: ''
-   });
-   const [projectItems, setProjectItems] = useState<ProjectItem[]>([])
+  // const [newProject, setNewProject] = useState<Project>(createEmptyProject());
+  // const [addressMode, setAddressMode] = useState<AddressMode>('new');
+  // const [selectedAddressId, setSelectedAddressId] = useState('');
+  // const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
+  //   , postalCode: '', city: '', region: '', countryCode: ''
+  //   , latitude: '', longitude: ''
+  //   , accessCode: '', floor: '', apartment: '', note: ''
+  //  });
+  //  const [projectItems, setProjectItems] = useState<ProjectItem[]>([])
 
    
-  function createEmptyProjectItem(): ProjectItem {
-    return {
-      id: '',
-      position: projectItems.length,
-      type: 'LABOR',
+  // function createEmptyProjectItem(): ProjectItem {
+  //   return {
+  //     id: '',
+  //     position: projectItems.length,
+  //     type: 'LABOR',
 
-      title: '',
-      description: '',
-      quantity: 1,
-      unit: 'm2',
-      unitPrice: 0,
-      vatRate: 20,
+  //     title: '',
+  //     description: '',
+  //     quantity: 1,
+  //     unit: 'm2',
+  //     unitPrice: 0,
+  //     vatRate: 20,
 
 
-      // createdAt : '',
-      // updatedAt: '',
-    };
-  }
+  //     // createdAt : '',
+  //     // updatedAt: '',
+  //   };
+  // }
 
   useEffect(() => {
     let cancelled = false;
@@ -185,25 +186,25 @@ export default function ProjectsPage() {
   
   console.log(projects)
 
-  async function handleAddProject(e: React.FormEvent) {
-    e.preventDefault();
-    try {
+  // async function handleAddProject(e: React.FormEvent) {
+  //   e.preventDefault();
+  //   try {
 
-      let projectToAdd = addressMode === 'new' ? { ...newProject, address: newAddress }
-                          : addressMode === 'existing' ? { ...newProject, addressId: selectedAddressId }
-                          : {...newProject }
-      projectToAdd = projectItems.length > 0 ? {...projectToAdd, projectItems: projectItems} : projectToAdd
-      // setNewProject({...newProject, projectItems:projectItems})
-      const res = await api.post('/projects', projectToAdd);
-      if (!res.ok) throw new Error('Erreur');
-      const data = await res.json();
-      setProjects([data, ...projects]);
-      setNewProject(createEmptyProject());
-      setAddressMode('new');
-    } catch {
-      setError('Erreur lors de l\'ajout');
-    }
-  }
+  //     let projectToAdd = addressMode === 'new' ? { ...newProject, address: newAddress }
+  //                         : addressMode === 'existing' ? { ...newProject, addressId: selectedAddressId }
+  //                         : {...newProject }
+  //     projectToAdd = projectItems.length > 0 ? {...projectToAdd, projectItems: projectItems} : projectToAdd
+  //     // setNewProject({...newProject, projectItems:projectItems})
+  //     const res = await api.post('/projects', projectToAdd);
+  //     if (!res.ok) throw new Error('Erreur');
+  //     const data = await res.json();
+  //     setProjects([data, ...projects]);
+  //     setNewProject(createEmptyProject());
+  //     setAddressMode('new');
+  //   } catch {
+  //     setError('Erreur lors de l\'ajout');
+  //   }
+  // }
 
   async function handleDelete(id: string) {
     if (!confirm('Confirmer la suppression?')) return;
@@ -225,7 +226,9 @@ export default function ProjectsPage() {
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
-        <form onSubmit={handleAddProject} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
+        <AddProjectForm onCreated={(data)=> {setProjects([data, ...projects])}} />
+          
+        {/* <form onSubmit={handleAddProject} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
@@ -426,7 +429,7 @@ export default function ProjectsPage() {
           <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
             Ajouter
           </button>
-        </form>
+        </form> */}
 
         {loading ? (
           <p>Chargement...</p>
