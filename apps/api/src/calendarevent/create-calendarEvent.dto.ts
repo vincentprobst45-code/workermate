@@ -7,6 +7,8 @@ import {
 } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
 
+type AddressMode = 'new' | 'existing' | 'none';
+
 export class CreateCalendarEventDto {
   @IsString({ message: 'title must be a string' })
   title!: string;
@@ -28,6 +30,8 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @IsString({ message: 'notes must be a string' })
   notes?: string;
+
+  addressMode!: AddressMode;
 
   // Adresse existante
   @IsOptional()

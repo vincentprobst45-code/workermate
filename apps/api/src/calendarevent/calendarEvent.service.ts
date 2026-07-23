@@ -61,13 +61,20 @@ export class CalendarEventService {
       this.logger.warn('create() called without tenantId');
       throw new Error('tenantId is required');
     }
-  const { addressId, address, projectId, customerId, ...calendarEventData } = dto;
+  const {  addressMode, addressId, address, projectId, customerId, ...calendarEventData } = dto;
 
-  if (addressId && this.hasAddress(address)) {
-    throw new BadRequestException(
-      'Vous devez fournir soit addressId, soit une nouvelle adresse.',
-    );
-  }
+  this.logger.debug("lodebut");
+  this.logger.debug(calendarEventData);
+  this.logger.debug(addressId);
+  this.logger.debug(address);
+  this.logger.debug("lolfind");
+
+
+  // if (addressId && this.hasAddress(address)) {
+  //   throw new BadRequestException(
+  //     'Vous devez fournir soit addressId, soit une nouvelle adresse.',
+  //   );
+  // }
 
   const data: Prisma.CalendarEventCreateInput = {
     title: calendarEventData.title,
@@ -75,6 +82,7 @@ export class CalendarEventService {
     startDate: new Date(calendarEventData.startDate),
     endDate: new Date(calendarEventData.endDate),
     color: calendarEventData.color,
+    notes: calendarEventData.notes,
     tenant: {
       connect: {
         id: tenantId,
@@ -154,43 +162,93 @@ export class CalendarEventService {
   //   },
   // };
 
-  if (addressId) {
-    const existingAddress = await this.prisma.address.findFirst({
-      where: this.tenantScopedAddressWhere(tenantId, addressId),
-      select: {
-        id: true,
-        street1: true,
-        postalCode: true,
-        city: true,
-      },
-    });
+  if(addressMode === 'existing') {
+    if(addressId == undefined || addressId == null) {
+      throw new BadRequestException(
+        "Id d'adresse existante invalide.",
+      );
+    } else if(addressId) {
+      const existingAddress = await this.prisma.address.findFirst({
+        where: this.tenantScopedAddressWhere(tenantId, addressId),
+        select: {
+          id: true,
+          street1: true,
+          postalCode: true,
+          city: true,
+        },
+      });
 
-    if (!existingAddress) {
-      throw new BadRequestException('Adresse introuvable pour ce tenant.');
+      if (!existingAddress) {
+        throw new BadRequestException('Adresse introuvable pour ce tenant.');
+      }
+
+      data.address = {
+        connect: {
+          id: existingAddress.id,
+        },
+      };
     }
+  } else if (addressMode === 'new') {
+      if(address == undefined || address == null) {
+        throw new BadRequestException(
+          'Nouvelle addresse invalide.',
+        );
+      }
 
-    data.address = {
-      connect: {
-        id: existingAddress.id,
-      },
-    };
-    data.addressName = this.formatAddressName(existingAddress);
-  } else if (this.hasAddress(address)) {
-    if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
-  throw new BadRequestException("Rue, code postal et ville obligatoires.");
-}
+      if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
+        throw new BadRequestException("Rue, code postal et ville obligatoires.");
+      }
 
-    data.address = {
-      create: {
-        street1: address.street1?.trim(),
-        street2: address.street2?.trim(),
-        postalCode: address.postalCode?.trim(),
-        city: address.city?.trim(),
-        countryCode: address.countryCode?.trim(),
-      },
-    };
-    data.addressName = this.formatAddressName(address);
+      data.address = {
+        create: {
+          street1: address.street1?.trim(),
+          street2: address.street2?.trim(),
+          postalCode: address.postalCode?.trim(),
+          city: address.city?.trim(),
+          countryCode: address.countryCode?.trim(),
+        },
+      };
+      data.addressName = this.formatAddressName(address);
   }
+
+  // if (addressId) {
+  //   const existingAddress = await this.prisma.address.findFirst({
+  //     where: this.tenantScopedAddressWhere(tenantId, addressId),
+  //     select: {
+  //       id: true,
+  //       street1: true,
+  //       postalCode: true,
+  //       city: true,
+  //     },
+  //   });
+
+  //   if (!existingAddress) {
+  //     throw new BadRequestException('Adresse introuvable pour ce tenant.');
+  //   }
+
+  //   data.address = {
+  //     connect: {
+  //       id: existingAddress.id,
+  //     },
+  //   };
+  //   data.addressName = this.formatAddressName(existingAddress);
+  // } else if (this.hasAddress(address)) {
+  //   if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
+  //     throw new BadRequestException("Rue, code postal et ville obligatoires.");
+  //   }
+
+  //   data.address = {
+  //     create: {
+  //       street1: address.street1?.trim(),
+  //       street2: address.street2?.trim(),
+  //       postalCode: address.postalCode?.trim(),
+  //       city: address.city?.trim(),
+  //       countryCode: address.countryCode?.trim(),
+  //     },
+  //   };
+  //   data.addressName = this.formatAddressName(address);
+  // }
+
     const result = await this.prisma.calendarEvent.create({ data });
 
     this.debug(`CalendarEvent created id=${result.id}`);
