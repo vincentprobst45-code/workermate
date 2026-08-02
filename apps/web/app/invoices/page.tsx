@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
+import { ProjectItemType, ProjectStatus } from '@prisma/client';
 
 interface Invoice {
   id: string;
@@ -11,12 +12,94 @@ interface Invoice {
   createdAt: string;
 }
 
+interface ProjectItem{
+  id: string;
+  position: number;
+  type: ProjectItemType;
+
+  title: string;
+  description?: string;
+  quantity : number;
+  unit?: string;
+  unitPrice: number;
+  vatRate: number;
+
+  // createdAt: string;
+  // updatedAt: string;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  description?: string;
+
+  reference: string;
+
+  startDate?: string;   
+  endDate?: string;     
+
+  status: ProjectStatus;
+
+  projectItems?: ProjectItem[];
+
+  customerId? : string;
+  addressId? : string;
+  createdById? : string;
+
+  // createdAt: string;
+}
+
 export default function InvoicesPage() {
   const api = useApiClient();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [projectsLoading, setProjectLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  const [projectsPerPages, setProjectsPerPages] = useState(2)
+  const [projectsCurrentPage, setProjectCurrentPage] = useState(0)
+  const projectsIndexesToDisplay = [projectsCurrentPage*projectsPerPages,(projectsCurrentPage+1)*projectsPerPages-1]
+  const projectsNumberOfPages = projects?.length / projectsPerPages +1
+
+  if(projectsNumberOfPages > 1){
+    for(let i=0;i < projectsNumberOfPages ; i++){
+      const projectsPageSelectors = 
+        <div>
+          
+        </div>
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProjects() {
+      try {
+        const res = await api.get('/projects');
+        if (!res.ok) throw new Error('Erreur');
+        const data = await res.json();
+        if (!cancelled) {
+          setProjects(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Erreur lors de la récupération des chantiers');
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectLoading(false);
+        }
+      }
+    };
+
+    void loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +158,32 @@ export default function InvoicesPage() {
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
         <h2 className="text-2xl font-semibold mb-6">Gestion des Factures</h2>
+        <h3>Projets</h3>
+        {loading ? (
+          <p>Chargement...</p>
+        ) : (
+          <div>
+            <div className="grid gap-4">
+              {projects.map((project,index) => (
+                <div key={project.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">{project.title}</p>
+                    {project.description && <p className="text-sm text-slate-600">{project.description}</p>}
+                  </div>
+                  <button
+                    onClick={() => handleDelete(project.id)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div>
+            </div>
+
+          </div>
+        )}
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 

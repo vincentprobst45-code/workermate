@@ -2,11 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
-import AddressForm from '../components/AddressForm';
-import SelectExistingAddress from '../components/SelectExistingAddress';
-import { Decimal } from '@prisma/client/runtime/library';
-import { ProjectItemType, ProjectStatus } from '@prisma/client';
 import AddProjectForm from '../components/AddProjectForm';
+import ProjectsList, { type Project } from '../components/ProjectsList';
 
 // enum ProjectStatus {
 //   DRAFT,
@@ -15,27 +12,6 @@ import AddProjectForm from '../components/AddProjectForm';
 //   COMPLETED,
 //   CANCELLED,
 // }
-
-interface Project {
-  id: string;
-  title: string;
-  description?: string;
-
-  reference: string;
-
-  startDate?: string;   
-  endDate?: string;     
-
-  status: ProjectStatus;
-
-  projectItems?: ProjectItem[];
-
-  customerId? : string;
-  addressId? : string;
-  createdById? : string;
-
-  // createdAt: string;
-}
 
 export function createEmptyProject(): Project {
   return {
@@ -56,75 +32,17 @@ export function createEmptyProject(): Project {
     addressId: '',
     createdById: '',
 
-    // createdAt : '',
+    createdAt : '',
   };
 }
-
-// enum ProjectItemType {
-//   LABOR,
-//   MATERIAL,
-//   EQUIPMENT,
-//   TRAVEL,
-//   SERVICE,
-//   OTHER,
-// }
-
-interface ProjectItem{
-  id: string;
-  position: number;
-  type: ProjectItemType;
-
-  title: string;
-  description?: string;
-  quantity : number;
-  unit?: string;
-  unitPrice: number;
-  vatRate: number;
-
-  // createdAt: string;
-  // updatedAt: string;
-}
-
-const projectItemTypeOptions = [
-  {
-    value: ProjectItemType.LABOR,
-    label: 'Travaux',
-  },
-  {
-    value: ProjectItemType.MATERIAL,
-    label: 'Matériel',
-  },
-  {
-    value: ProjectItemType.EQUIPMENT,
-    label: 'Équipement',
-  },
-  {
-    value: ProjectItemType.TRAVEL,
-    label: 'Déplacement',
-  },
-  {
-    value: ProjectItemType.SERVICE,
-    label: 'Service',
-  },
-  {
-    value: ProjectItemType.OTHER,
-    label: 'Autre',
-  },
-];
-
-interface AddressOneLine{
-  street1?: string;
-  postalCode?: string;
-  city?: string;
-}
-
-type AddressMode = 'new' | 'existing' | 'none';
 
 export default function ProjectsPage() {
   const api = useApiClient();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAddProjectForm, setShowAddProjectForm] = useState(false)
+  const [projectFormWasOpened, setProjectFormWasOpened] = useState(false)
   // const [newProject, setNewProject] = useState<Project>(createEmptyProject());
   // const [addressMode, setAddressMode] = useState<AddressMode>('new');
   // const [selectedAddressId, setSelectedAddressId] = useState('');
@@ -217,8 +135,6 @@ export default function ProjectsPage() {
     }
   }
 
-
-
   return (
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
@@ -226,8 +142,25 @@ export default function ProjectsPage() {
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
-        <AddProjectForm onCreated={(data)=> {setProjects([data, ...projects])}} />
-          
+        <button
+          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
+                    rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
+                    hover:bg-blue-600 active:bg-blue-900' 
+          onClick={() => {setShowAddProjectForm(!showAddProjectForm);setProjectFormWasOpened(true);}}>
+            {showAddProjectForm ? ("Fermer") : projectFormWasOpened ? ("Ouvrir") : ("Ajouter un projet")}
+        </button>
+        {projectFormWasOpened &&
+        <button
+          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
+                    rounded-sm mx-4 my-2 py-2 px-3 float-right bg-red-400
+                    hover:bg-red-600 active:bg-red-900' 
+          onClick={() => {setShowAddProjectForm(false);setProjectFormWasOpened(false);}}>
+            Effacer le formulaire
+        </button>
+        }
+        {projectFormWasOpened &&
+        <AddProjectForm show={showAddProjectForm} onCreated={(data)=> {setProjects((currentProjects) => [data, ...currentProjects])}} />
+        }
         {/* <form onSubmit={handleAddProject} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -434,22 +367,7 @@ export default function ProjectsPage() {
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <div className="grid gap-4">
-            {projects.map((project) => (
-              <div key={project.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">{project.title}</p>
-                  {project.description && <p className="text-sm text-slate-600">{project.description}</p>}
-                </div>
-                <button
-                  onClick={() => handleDelete(project.id)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
+          <ProjectsList projects={projects} onDelete={handleDelete} />
         )}
       </main>
     </ProtectedRoute>

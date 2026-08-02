@@ -2,42 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
-import AddressForm from '../components/AddressForm';
-import SelectExistingAddress from '../components/SelectExistingAddress';
-
-interface AddressOneLine{
-  street1?: string;
-  postalCode?: string;
-  city?: string;
-}
-
-interface Customer {
-  id: string;
-
-  tenantId: string;
-
-  createdById?: string;
-
-  firstName: string;
-  lastName?: string;
-  company?: string;
-  
-  email?: string;
-  phone?: string;
-  mobile?: string;
-
-  addressId?: string;
-  address?: AddressOneLine;
-
-  siret?: string;
-  vatNumber?: string;
-
-  notes?:string;
-  
-  createdAt: string;
-}
-
-type AddressMode = 'new' | 'existing' | 'none';
+import AddCustomerForm from '../components/AddCustomerForm';
+import CustomersList, { type Customer } from '../components/CustomersList';
 
 export default function CustomersPage() {
   const api = useApiClient();
@@ -45,54 +11,8 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [newCustomer, setNewCustomer] = useState({ firstName: '', lastName: '', company: '', 
-    email: '', phone: '', mobile: '',
-    siret: '', vatNumber: '', notes: ''});
-  const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
-    , postalCode: '', city: '', region: '', countryCode: ''
-    , latitude: '', longitude: ''
-    , accessCode: '', floor: '', apartment: '', note: ''
-   });
-  const [addressMode, setAddressMode] = useState<AddressMode>('new');
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [showCustomerDetails, setShowCustomerDetails] = useState(false)
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);(null)
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false)
-
-  async function handleAddCustomer(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-
-      if (addressMode === 'existing' && !selectedAddressId) {
-        setError('Veuillez sélectionner une adresse existante');
-        return;
-      }
-
-      const customerToAdd = addressMode === 'new' ? { ...newCustomer, address: newAddress }
-                          : addressMode === 'existing' ? { ...newCustomer, addressId: selectedAddressId }
-                          : {...newCustomer }
-      const res = await api.post('/customers', customerToAdd);
-      console.log(res.status)
-      console.log(res.statusText)
-      if (!res.ok) throw new Error('Erreur');
-      const data = await res.json();
-      setCustomers([data, ...customers]);
-      setNewCustomer({ firstName: '', lastName: '', company: '', 
-        email: '', phone: '', mobile: '',
-        siret: '', vatNumber: '', notes: ''});
-      setNewAddress({ street1: '', street2: ''
-       , postalCode: '', city: '', region: '', countryCode: ''
-       , latitude: '', longitude: ''
-       , accessCode: '', floor: '', apartment: '', note: ''
-      });
-      setAddressMode('new');
-      setSelectedAddressId('');
-      setError('');
-      setSuccess('Client ajouté avec succès');
-    } catch (error) {
-      setError(`Erreur lors de l\'ajout ${error}`);
-    }
-  }
+  const [customerFormWasOpened, setCustomerFormWasOpened] = useState(false)
 
   async function handleDelete(id: string) {
     if (!confirm('Confirmer la suppression?')) return;
@@ -136,9 +56,6 @@ export default function CustomersPage() {
     };
   }, [api]);
 
-
-  console.log(customers)
-
   return (
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
@@ -151,188 +68,35 @@ export default function CustomersPage() {
           className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
                     rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
                     hover:bg-blue-600 active:bg-blue-900' 
-          onClick={() => setShowAddCustomerForm(!showAddCustomerForm)}>
-            {showAddCustomerForm ? ("fermer") : ("Ajouter un client")}
+          onClick={() => {setShowAddCustomerForm(!showAddCustomerForm);setCustomerFormWasOpened(true)}}>
+            {showAddCustomerForm ? ("Fermer") : customerFormWasOpened ? ("Ouvrir") : ("Ajouter un client")}
         </button>
-        {showAddCustomerForm &&
-        <form onSubmit={handleAddCustomer} className="border-2 mb-8 p-5 bg-white rounded-lg shadow-l">
-          <h3 className="font-semibold mb-4">Ajouter un client</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Prénom"
-              value={newCustomer.firstName}
-              onChange={(e) => setNewCustomer({ ...newCustomer, firstName: e.target.value })}
-              required
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Nom"
-              value={newCustomer.lastName}
-              onChange={(e) => setNewCustomer({ ...newCustomer, lastName: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Entreprise"
-              value={newCustomer.company}
-              onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="email"
-              value={newCustomer.email}
-              onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="téléphone"
-              value={newCustomer.phone}
-              onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="téléphone 2"
-              value={newCustomer.mobile}
-              onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
-            />
-          </div>
-          <h3 className="px-3 py-4">Adresse :</h3>
-            <div className="flex gap-2 px-3 pb-3">
-              <button
-                type="button"
-                className={`border py-2 px-3 rounded ${addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => setAddressMode('new')}
-              >
-                Nouvelle adresse
-              </button>
-              <button
-                type="button"
-                className={`border py-2 px-3 rounded ${addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => setAddressMode('existing')}
-              >
-                Utiliser une adresse existante
-              </button>
-              <button
-                type="button"
-                className={`border py-2 px-3 rounded ${addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => setAddressMode('none')}
-              >
-                {`Ne pas ajouter d'adresse`}
-              </button>
-            </div>
-            {addressMode === 'new' ? (
-              <AddressForm address={newAddress} onChange={setNewAddress} />
-            ) : addressMode === 'existing' ? (
-              <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
-            ) : <span></span>}
-          <h3 className="px-3 py-4">Entreprise :</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Numéro Siret"
-              value={newCustomer.siret}
-              onChange={(e) => setNewCustomer({ ...newCustomer, siret: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Numéro TVA"
-              value={newCustomer.vatNumber}
-              onChange={(e) => setNewCustomer({ ...newCustomer, vatNumber: e.target.value })}
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Notes additionnelles"
-              value={newCustomer.notes}
-              onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
-            />
-          </div>
-          <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
-            Ajouter
-          </button>
-        </form>
+        {customerFormWasOpened &&
+        <button
+          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
+                    rounded-sm mx-4 my-2 py-2 px-3 float-right bg-red-400
+                    hover:bg-red-600 active:bg-red-900' 
+          onClick={() => {setShowAddCustomerForm(false);setCustomerFormWasOpened(false);}}>
+            Effacer le formulaire
+        </button>
         }
+        {customerFormWasOpened && (<div>
+          {!showAddCustomerForm && 
+          <button onClick={() => {setShowAddCustomerForm(!showAddCustomerForm)}} 
+          className='pointer p-2 border-2 text-center '>
+            Formulaire en pause...
+          </button>}
+          <AddCustomerForm
+            show={showAddCustomerForm}
+            onCreated={(data) => setCustomers((currentCustomers) => [data, ...currentCustomers])}
+          />
+          </div>
+        )}
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <section className="grid gap-4">
-            <p>Cliquez sur un client pour obtenir les détails</p>
-            {customers.map((customer) => (
-              <div key={customer.id} 
-                className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg 
-                            shadow flex justify-between items-center border-2 border-gray-700"
-                onClick={() => {setShowCustomerDetails(true);setSelectedCustomer(customer)}}
-              >
-                <div>
-                  <p className="font-semibold">
-                    {customer.firstName} {customer.lastName}
-                  </p>
-                  <p className="font-semibold">
-                    {customer.mobile} {customer.email}
-                  </p>
-                  <p className="font-semibold">
-                    {customer.address?.street1} {customer.address?.postalCode} {customer.address?.city}
-                  </p>
-                  {customer.company && <p className="text-sm text-slate-600">{customer.company}</p>}
-                </div>
-                <button
-                  onClick={() => handleDelete(customer.id)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </section>
+          <CustomersList customers={customers} onDelete={handleDelete} />
         )}
-        
-  {showCustomerDetails && selectedCustomer && (
-  <div
-    className="fixed inset-0 bg-black/40 flex items-center justify-center z-9"
-    onClick={() => {
-      setShowCustomerDetails(false);
-      setSelectedCustomer(null);
-    }}
-  >
-    <div
-      className="bg-white rounded-lg p-6"
-      onClick={(e) => {e.stopPropagation();console.log(selectedCustomer);console.log("lenom", selectedCustomer.lastName)}}
-    >
-      <div className='pb-4 flex space-between items-center'>
-      <h3 className='inline-block text-2xl'><strong>Détails client</strong></h3>
-      <button className='border-2 rounded-md px-3 py-2 ml-auto inline-block'
-        onClick={() => {
-          setShowCustomerDetails(false);
-          setSelectedCustomer(null);
-        }}
-      >
-        Fermer X
-      </button>
-      </div>
-      
-      <p>id : {selectedCustomer.id}</p>
-      <p>tenantid : {selectedCustomer.tenantId}</p>
-      <p>createdById : {selectedCustomer.createdById}</p>
-
-      <p>{selectedCustomer.lastName}</p>
-      <p>{selectedCustomer.firstName}</p>
-      <p>{selectedCustomer.company}</p>
-      
-      <p>{selectedCustomer.email}</p>
-      <p>{selectedCustomer.phone}</p>
-      <p>{selectedCustomer.mobile}</p>
-      
-      <p>{selectedCustomer.addressId}</p>
-      <p>{`${selectedCustomer.address?.street1} ${selectedCustomer.address?.postalCode} ${selectedCustomer.address?.city}`}</p>
-      
-      <p>{selectedCustomer.siret}</p>
-      <p>{selectedCustomer.vatNumber}</p>
-      
-      <p>{selectedCustomer.notes}</p>
-      
-      <p>createdAt : {selectedCustomer.createdAt}</p>
-    </div>
-  </div>
-)}
       </main>
     </ProtectedRoute>
   );

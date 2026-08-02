@@ -111,6 +111,7 @@ export class CustomerService {
         tenantId:true,
         createdById:true,
         createdAt:true,
+        addressId:true,
 
   
         address: {

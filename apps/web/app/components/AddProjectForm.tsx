@@ -9,6 +9,15 @@ type ProjectStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCEL
 type ProjectItemType = 'LABOR' | 'MATERIAL' | 'EQUIPMENT' | 'TRAVEL' | 'SERVICE' | 'OTHER';
 
 type AddressMode = 'new' | 'existing' | 'none';
+type CustomerMode = 'existing' | 'none';
+
+interface CustomerOption {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  addressId?: string;
+}
 
 interface ProjectItem{
   id: string;
@@ -68,6 +77,8 @@ export type AddProjectFormData = {
 
     notes: string;
 
+    customerMode: CustomerMode;
+    customerId: string;
     addressMode: AddressMode;
     addressId: string;
     address: AddAddressFormData;
@@ -94,6 +105,8 @@ export function createEmptyProject(): AddProjectFormData {
 
     notes: '',
     
+    customerMode: 'none',
+    customerId: '',
     addressMode: 'none',
     addressId: '',
     address: createEmptyAddress(),
@@ -129,14 +142,48 @@ interface Project {
 
 type AddProjectFormProps = {
   onCreated : (project: Project) => void;
+  show : boolean;
 };
 
-export default function AddProjectForm({ onCreated }: AddProjectFormProps){
+export default function AddProjectForm({ onCreated, show }: AddProjectFormProps){
     const api = useApiClient();
     const [newProject, setNewProject] = useState<AddProjectFormData>(createEmptyProject());
-
+    const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
+    const [customersLoading, setCustomersLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [addressError, setAddressError] = useState('');
+    const [addressSuccess, setAddressSuccess] = useState('');
+
+    useEffect(() => {
+      let cancelled = false;
+
+      async function loadCustomers() {
+        setCustomersLoading(true);
+        try {
+          const res = await api.get('/customers');
+          if (!res.ok) throw new Error('Erreur');
+          const data: CustomerOption[] = await res.json();
+          if (!cancelled) {
+            setCustomerOptions(data);
+          }
+        } catch {
+          if (!cancelled) {
+            setCustomerOptions([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setCustomersLoading(false);
+          }
+        }
+      }
+
+      void loadCustomers();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [api]);
 
     function createEmptyProjectItem(): ProjectItem {
       return {
@@ -157,6 +204,32 @@ export default function AddProjectForm({ onCreated }: AddProjectFormProps){
       };
     }
 
+    function handleUseCustomerAddress() {
+      if (!newProject.customerId) {
+        setAddressError('Veuillez sélectionner un client existant');
+        return;
+      }
+
+      const selectedCustomer = customerOptions.find((customer) => customer.id === newProject.customerId);
+      const customerAddressId = selectedCustomer?.addressId ?? '';
+
+      setNewProject((currentProject) => ({
+        ...currentProject,
+        customerMode: 'existing',
+        customerId: currentProject.customerId,
+        addressMode: customerAddressId ? 'existing' : 'none',
+        addressId: customerAddressId,
+      }));
+
+      if (!customerAddressId) {
+        setAddressError('Ce client n\'a pas d\'adresse enregistrée');
+        setAddressSuccess('')
+      } else {
+        setAddressError('');
+        setAddressSuccess("Addresse du client sélectionnée")
+      }
+    }
+
     async function handleAddProject(e: React.FormEvent) {
       e.preventDefault();
       try {
@@ -165,12 +238,10 @@ export default function AddProjectForm({ onCreated }: AddProjectFormProps){
           return;
         }
 
-        // let projectToAdd = addressMode === 'new' ? { ...newProject, address: newAddress }
-        //                     : addressMode === 'existing' ? { ...newProject, addressId: selectedAddressId }
-        //                     : {...newProject }
-        // projectToAdd = projectItems.length > 0 ? {...projectToAdd, projectItems: projectItems} : projectToAdd
-        // setNewProject({...newProject, projectItems:projectItems})
-        const res = await api.post('/projects', newProject);
+        const res = await api.post('/projects', {
+          ...newProject,
+          customerId: newProject.customerId || undefined,
+        });
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
         // setProjects([data, ...projects]);
@@ -183,7 +254,7 @@ export default function AddProjectForm({ onCreated }: AddProjectFormProps){
     }
 
     return(
-        <form onSubmit={handleAddProject} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
+        <form onSubmit={handleAddProject} className={`mb-8 p-5 bg-white rounded-lg shadow border-2 ${!show && "hidden"}`}>
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
@@ -376,42 +447,109 @@ export default function AddProjectForm({ onCreated }: AddProjectFormProps){
             </div>
           </div>
           <div className='border-2 rounded-md p-4 m-4'>
+            <h3 className="py-2 text-xl font-bold">Associer à un client :</h3>
+            {error && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{error}</div>}
+            {success && <div className="mb-3 rounded bg-green-100 p-3 text-green-700">{success}</div>}
+            <div className="flex flex-wrap gap-2 px-3 pb-3">
+              <button
+                type="button"
+                className={`border py-2 px-3 rounded ${newProject.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => setNewProject({ ...newProject, customerMode: 'existing' })}
+              >
+                Utiliser un client existant
+              </button>
+              <button
+                type="button"
+                className={`border py-2 px-3 rounded ${newProject.customerMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => { 
+                  setNewProject({ ...newProject, customerMode: 'none', customerId: '', addressMode: 'none'});
+                  setAddressSuccess('')
+                }}
+              >
+                Ne pas ajouter de client
+              </button>
+            </div>
+            {newProject.customerMode === 'existing' ? (
+              <div className="px-3 pb-3">
+                <label className="mb-2 block text-sm font-medium">Client existant</label>
+                <select
+                  className="w-full rounded border px-3 py-2"
+                  value={newProject.customerId}
+                  onChange={(e) => {
+                    const customerId = e.target.value;
+                    setNewProject((currentProject) => ({ ...currentProject, customerId, addressMode: 'none' }));
+                    setAddressError('');
+                    setAddressSuccess('');
+                  }}
+                >
+                  <option value="">-- Veuillez choisir un client --</option>
+                  {customerOptions.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {[customer.firstName, customer.lastName, customer.company].filter(Boolean).join(' ') || customer.id}
+                    </option>
+                  ))}
+                </select>
+                {customersLoading ? (
+                  <p className="mt-2 text-sm text-slate-500">Chargement des clients...</p>
+                ) : customerOptions.length === 0 ? (
+                  <p className="mt-2 text-sm text-slate-500">Aucun client disponible pour le moment.</p>
+                ) : null}
+              </div>
+            ) : null}
             <h3 className="py-2 text-xl font-bold">Associer à une adresse :</h3>
-            <div className="flex gap-2 px-3 pb-3">
+            {addressError && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{addressError}</div>}
+            {addressSuccess && <div className="mb-3 rounded bg-green-100 p-3 text-green-700">{addressSuccess}</div>}
+            <div className="flex flex-wrap gap-2 px-3 pb-3">
               <button
                 type="button"
                 className={`border py-2 px-3 rounded ${newProject.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => {setNewProject({ ...newProject, addressMode: 'new' })}}
+                onClick={() => {
+                  setNewProject({ ...newProject, addressMode: 'new' });
+                  setAddressSuccess('')
+                }}
               >
                 Nouvelle adresse
               </button>
               <button
                 type="button"
                 className={`border py-2 px-3 rounded ${newProject.addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                // onClick={() => setAddressMode('existing')}
                 onClick={() => {setNewProject({ ...newProject, addressMode: 'existing' })}}
               >
                 Utiliser une adresse existante
               </button>
               <button
                 type="button"
+                className="rounded border border-slate-300 disabled:bg-slate-100 px-3 py-2 
+                    bg-blue-400 hover:bg-blue-600 active:bg-blue-900 text-white disabled:text-black
+                    text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleUseCustomerAddress}
+                disabled={!newProject.customerId}
+              >
+                Sélectionner l&apos;adresse du client
+              </button>
+              <button
+                type="button"
                 className={`border py-2 px-3 rounded ${newProject.addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => {setNewProject({ ...newProject, addressMode: 'none' })}}
+                onClick={() => {
+                  setNewProject({ ...newProject, addressMode: 'none' });
+                  setAddressSuccess('')
+                }}
               >
                 {`Ne pas ajouter d'adresse`}
               </button>
             </div>
             {newProject.addressMode === 'new' ? (
-            //   <AddressForm address={newAddress} onChange={setNewAddress} />
                 <AddressForm 
                     address={newProject.address} 
                     onChange={(address) => {setNewProject({ ...newProject, address})}}
                 />
             ) : newProject.addressMode === 'existing' ? (
-            //   <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
                 <SelectExistingAddress 
                     selectedAddressId={newProject.addressId} 
-                    onAddressChange={(addressId) => {setNewProject({ ...newProject, addressId})}} 
+                    onAddressChange={(addressId) => {
+                      setNewProject({ ...newProject, addressId});
+                      setAddressSuccess('Addresse sélectionnée')
+                    }} 
                 />
             ) : <span></span>}
           </div>
