@@ -112,6 +112,11 @@ export class ProjectService {
     return this.prisma.project.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
+      include: {
+        items: true,
+        address: true,
+        customer: true,
+      },
     });
   }
 

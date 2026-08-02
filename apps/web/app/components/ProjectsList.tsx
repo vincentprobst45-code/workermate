@@ -23,7 +23,7 @@ export interface Project {
 	startDate?: string;
 	endDate?: string;
 	status: ProjectStatus;
-	projectItems?: ProjectItem[];
+	items?: ProjectItem[];
 	customerId?: string;
 	addressId?: string;
 	createdById?: string;
@@ -32,7 +32,7 @@ export interface Project {
 
 interface ProjectsListProps {
 	projects: Project[];
-	onDelete: (id: string) => void | Promise<void>;
+	onDelete: ((id: string) => void | Promise<void>) | null ;
 }
 
 export default function ProjectsList({ projects, onDelete }: ProjectsListProps) {
@@ -43,7 +43,10 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 	const [sortBy, setSortBy] = useState<'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc'>('createdAtDesc');
 	const [statusFilter, setStatusFilter] = useState<'ALL' | ProjectStatus>('ALL');
 	const [futureOnly, setFutureOnly] = useState(false);
-
+    const totalPrice = selectedProject?.items?.reduce(
+      (total, item) => total + item.unitPrice * item.quantity,
+      0
+    );
 	const now = new Date();
 
 	const filteredProjects = projects.filter((project) => {
@@ -89,6 +92,9 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 	const firstItemIndex = (effectiveCurrentPage - 1) * projectsPerPage;
 	const currentProjects = sortedProjects.slice(firstItemIndex, firstItemIndex + projectsPerPage);
 	const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
+
+
+    console.log("lesprojets" , projects)
 
 	return (
 		<>
@@ -179,15 +185,17 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 							<p className="font-semibold">{project.title}</p>
 							{project.description && <p className="text-sm text-slate-600">{project.description}</p>}
 						</div>
+                        {onDelete &&
 						<button
 							onClick={(e) => {
 								e.stopPropagation();
-								void onDelete(project.id);
+								onDelete?.(project.id);
 							}}
 							className="text-red-600 hover:text-red-800"
 						>
 							Supprimer
 						</button>
+                        }
 					</div>
 				))}
 			</div>
@@ -266,13 +274,14 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 
 						<div className="mt-4">
 							<p className="font-semibold">Étapes projet</p>
-							{selectedProject.projectItems && selectedProject.projectItems.length > 0 ? (
+							{selectedProject.items && selectedProject.items.length > 0 ? (
 								<ul className="list-disc pl-5 mt-2 space-y-1">
-									{selectedProject.projectItems.map((item) => (
+									{selectedProject.items.map((item) => (
 										<li key={item.id}>
-											{item.position}. {item.title} ({item.type}) - {item.quantity} {item.unit || ''}
+											{item.position}. {item.title} ({item.type}) - {item.quantity} {item.unit || ''} - {item.unitPrice} € par unité - {item.unitPrice*item.quantity} € au total
 										</li>
 									))}
+                                    <li>Total : {totalPrice} €</li>
 								</ul>
 							) : (
 								<p className="text-sm text-slate-600 mt-1">Aucune étape.</p>
