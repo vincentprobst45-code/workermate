@@ -33,10 +33,10 @@ function Header(){
           </Link>
           
           <nav>
-            <Link className='px-2' href="tenant">Entreprise</Link>
-            <Link className='px-2' href="customers">Clients</Link>
-            <Link className='px-2' href="projects">Chantiers</Link>
-            <Link className='px-2' href="invoices">Factures</Link>
+            <Link className='px-2' href="/tenant">Entreprise</Link>
+            <Link className='px-2' href="/customers">Clients</Link>
+            <Link className='px-2' href="/projects">Chantiers</Link>
+            <Link className='px-2' href="/invoices">Factures</Link>
           </nav>
 
           <div className="flex items-center gap-3">

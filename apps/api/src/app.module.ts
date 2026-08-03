@@ -11,6 +11,7 @@ import { InvoiceModule } from './invoice/invoice.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { CalendarEventModule } from './calendarevent/calendarEvent.module';
 import { AddressModule } from './address/address.module';
+import { TenantModule } from './tenant/tenant.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AddressModule } from './address/address.module';
     CalendarEventModule,
     AddressModule,
     InvoiceModule,
+    TenantModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],
@@ -32,6 +34,6 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantMiddleware)
-      .forRoutes('customers', 'projects', 'invoices', 'calendarevents', 'addresses');
+      .forRoutes('customers', 'projects', 'invoices', 'calendarevents', 'addresses', 'tenants');
   }
 }
