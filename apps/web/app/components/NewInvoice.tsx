@@ -1,111 +1,80 @@
 'use client';
 
-import { ProjectItemType } from '@prisma/client';
+import type { InvoicePdpStatus, InvoiceStatus, PaymentMethod } from '@prisma/client';
 import styles from './NewInvoice.module.css';
 
-export interface InvoiceAddress {
-	street1?: string;
-	street2?: string;
-	postalCode?: string;
-	city?: string;
-	countryCode?: string;
-}
-
-export interface InvoiceCustomer {
-	firstName?: string;
-	lastName?: string;
-	company?: string;
-	email?: string;
-	phone?: string;
-	mobile?: string;
-	address?: InvoiceAddress;
-}
-
-export interface InvoiceCompany {
-	companyName: string;
-	siret?: string;
-	vatNumber?: string;
-	email?: string;
-	phone?: string;
-	address?: InvoiceAddress;
-}
-
-export interface InvoiceProjectItem {
+export interface InvoiceItem {
 	id: string;
+	invoiceId: string;
 	position: number;
-	type: ProjectItemType;
 	title: string;
-	description?: string;
+	description: string;
 	quantity: number;
 	unit?: string;
 	unitPrice: number;
 	vatRate: number;
+	total: number;
 }
 
-export interface InvoiceProjectDetails {
-	id?: string;
-	title: string;
-	reference?: string;
-	description?: string;
-	startDate?: string;
-	endDate?: string;
-	notes?: string;
-	customer?: InvoiceCustomer;
-	projectAddress?: InvoiceAddress;
-	projectItems: InvoiceProjectItem[];
-}
-
-interface Project {
-  id: string;
-  title: string;
-  description?: string;
-
-  reference: string;
-
-  startDate?: string;   
-  endDate?: string;     
-
-  status: ProjectStatus;
-
-  projectItems?: ProjectItem[];
-
-  customerId? : string;
-  addressId? : string;
-  createdById? : string;
-
-  // createdAt: string;
-}
-
-interface ProjectItem{
-  id: string;
-  position: number;
-  type: ProjectItemType;
-
-  title: string;
-  description?: string;
-  quantity : number;
-  unit?: string;
-  unitPrice: number;
-  vatRate: number;
-
-  // createdAt: string;
-  // updatedAt: string;
-}
-
-export interface InvoiceMeta {
-	invoiceNumber: string;
-	issueDate?: string;
+export interface Invoice {
+	id: string;
+	tenantId: string;
+	customerId: string;
+	projectId?: string;
+	number: string;
+	issueDate: string;
 	dueDate?: string;
+	projectReference: string;
+	projectTitle: string;
+	tenantName: string;
+	tenantStreet1: string;
+	tenantStreet2?: string;
+	tenantPostalCode: string;
+	tenantCity: string;
+	tenantSiretNumber: string;
+	tenantVatNumber: string;
+	tenantEmail: string;
+	tenantPhoneNumber: string;
+	tenantIban?: string;
+	tenantBic?: string;
+	customerFirstName: string;
+	customerLastName: string;
+	customerStreet1: string;
+	customerStreet2?: string;
+	customerPostalCode: string;
+	customerCity: string;
+	customerEmail?: string;
+	customerPhoneNumber?: string;
+	customerVatNumber?: string;
+	projectStartDate?: string;
+	projectEndDate?: string;
+	projectAddress?: string;
+	projectPostalCode?: string;
+	projectCity?: string;
+	status: InvoiceStatus;
+	currency: string;
+	subtotal: number;
+	vatAmount: number;
+	total: number;
+	paymentTerms?: string;
+	legalMentions?: string;
+	notes?: string;
+	depositAmount?: number;
+	discountAmount?: number;
+	paidAt?: string;
+	paymentMethod?: PaymentMethod;
+	pdfFileId?: string;
+	pdpStatus: InvoicePdpStatus;
+	pdpMessageId?: string;
+	quoteId?: string;
+	quoteNumber?: string;
+	createdAt: string;
+	updatedAt: string;
+	items?: InvoiceItem[];
 }
 
 interface NewInvoiceProps {
-	project: InvoiceProjectDetails;
-	company: InvoiceCompany;
-	invoice: InvoiceMeta;
-	currency?: string;
-	locale?: string;
-	paymentTerms?: string;
-	footerNote?: string;
+	invoice: Invoice;
 }
 
 function formatDate(value?: string, locale = 'fr-FR'): string {
@@ -122,43 +91,31 @@ function formatMoney(value: number, locale = 'fr-FR', currency = 'EUR'): string 
 	}).format(value);
 }
 
-function formatAddress(address?: InvoiceAddress): string {
-	if (!address) return '-';
-	const line1 = [address.street1, address.street2].filter(Boolean).join(', ');
-	const line2 = [address.postalCode, address.city].filter(Boolean).join(' ');
-	const line3 = address.countryCode || '';
-	return [line1, line2, line3].filter(Boolean).join(' | ') || '-';
+function formatAddress(street1?: string, street2?: string, postalCode?: string, city?: string): string {
+	const line1 = [street1, street2].filter(Boolean).join(', ');
+	const line2 = [postalCode, city].filter(Boolean).join(' ');
+	return [line1, line2].filter(Boolean).join(' | ') || '-';
 }
 
 export default function NewInvoice({
-	project,
-	company,
 	invoice,
-	currency = 'EUR',
-	locale = 'fr-FR',
-	paymentTerms = 'Paiement a 30 jours fin de mois.',
-	footerNote = 'Merci pour votre confiance.',
 }: NewInvoiceProps) {
-	const lines = (project.projectItems || []).slice().sort((a, b) => a.position - b.position);
+	const locale = 'fr-FR';
+	const currency = invoice.currency || 'EUR';
+	const lines = (invoice.items || []).slice().sort((a, b) => a.position - b.position);
 
 	const computedLines = lines.map((line) => {
 		const totalExclTax = line.quantity * line.unitPrice;
 		const vatAmount = totalExclTax * (line.vatRate / 100);
-		const totalInclTax = totalExclTax + vatAmount;
 
 		return {
 			...line,
 			totalExclTax,
 			vatAmount,
-			totalInclTax,
 		};
 	});
 
-	const totalExclTax = computedLines.reduce((sum, line) => sum + line.totalExclTax, 0);
-	const totalVat = computedLines.reduce((sum, line) => sum + line.vatAmount, 0);
-	const totalInclTax = totalExclTax + totalVat;
-
-	const customerFullName = [project.customer?.firstName, project.customer?.lastName]
+	const customerFullName = [invoice.customerFirstName, invoice.customerLastName]
 		.filter(Boolean)
 		.join(' ')
 		.trim();
@@ -169,38 +126,38 @@ export default function NewInvoice({
 			<header className={`${styles.invoiceHeader} ${styles.keepTogether}`}>
 				<div>
 					<h1 className={styles.invoiceTitle}>FACTURE</h1>
-					<p className={styles.invoiceMuted}>Numero: {invoice.invoiceNumber}</p>
+					<p className={styles.invoiceMuted}>Numero: {invoice.number}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(invoice.issueDate, locale)}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(invoice.dueDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Reference chantier: {project.reference || '-'}</p>
-					<p className={styles.invoiceMuted}>Chantier: {project.title}</p>
+					<p className={styles.invoiceMuted}>Reference chantier: {invoice.projectReference || '-'}</p>
+					<p className={styles.invoiceMuted}>Chantier: {invoice.projectTitle}</p>
 				</div>
 
 				<div className={styles.rightBlock}>
-					<h2 className={styles.invoiceSectionTitle}>{company.companyName}</h2>
-					<p className={styles.invoiceMuted}>{formatAddress(company.address)}</p>
-					<p className={styles.invoiceMuted}>SIRET: {company.siret || '-'}</p>
-					<p className={styles.invoiceMuted}>TVA: {company.vatNumber || '-'}</p>
-					<p className={styles.invoiceMuted}>Email: {company.email || '-'}</p>
-					<p className={styles.invoiceMuted}>Tel: {company.phone || '-'}</p>
+					<h2 className={styles.invoiceSectionTitle}>{invoice.tenantName}</h2>
+					<p className={styles.invoiceMuted}>{formatAddress(invoice.tenantStreet1, invoice.tenantStreet2, invoice.tenantPostalCode, invoice.tenantCity)}</p>
+					<p className={styles.invoiceMuted}>SIRET: {invoice.tenantSiretNumber || '-'}</p>
+					<p className={styles.invoiceMuted}>TVA: {invoice.tenantVatNumber || '-'}</p>
+					<p className={styles.invoiceMuted}>Email: {invoice.tenantEmail || '-'}</p>
+					<p className={styles.invoiceMuted}>Tel: {invoice.tenantPhoneNumber || '-'}</p>
 				</div>
 			</header>
 
 			<section className={`${styles.invoiceParty} ${styles.keepTogether}`}>
 				<div>
 					<h3 className={styles.invoiceSectionTitle}>Client</h3>
-					<p className={styles.invoiceMuted}>{project.customer?.company || customerFullName || '-'}</p>
 					<p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
-					<p className={styles.invoiceMuted}>{formatAddress(project.customer?.address)}</p>
-					<p className={styles.invoiceMuted}>Email: {project.customer?.email || '-'}</p>
-					<p className={styles.invoiceMuted}>Tel: {project.customer?.phone || project.customer?.mobile || '-'}</p>
+					<p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
+					<p className={styles.invoiceMuted}>{formatAddress(invoice.customerStreet1, invoice.customerStreet2, invoice.customerPostalCode, invoice.customerCity)}</p>
+					<p className={styles.invoiceMuted}>Email: {invoice.customerEmail || '-'}</p>
+					<p className={styles.invoiceMuted}>Tel: {invoice.customerPhoneNumber || '-'}</p>
 				</div>
 
 				<div className={styles.rightBlock}>
 					<h3 className={styles.invoiceSectionTitle}>Infos chantier</h3>
-					<p className={styles.invoiceMuted}>Debut: {formatDate(project.startDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Fin: {formatDate(project.endDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(project.projectAddress)}</p>
+					<p className={styles.invoiceMuted}>Debut: {formatDate(invoice.projectStartDate, locale)}</p>
+					<p className={styles.invoiceMuted}>Fin: {formatDate(invoice.projectEndDate, locale)}</p>
+					<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(invoice.projectAddress, undefined, invoice.projectPostalCode, invoice.projectCity)}</p>
 				</div>
 			</section>
 
@@ -210,7 +167,6 @@ export default function NewInvoice({
 						<tr className={styles.invoiceTableHeadRow}>
 							<th className={styles.invoiceTableHeadCell}>#</th>
 							<th className={styles.invoiceTableHeadCell}>Designation</th>
-							<th className={styles.invoiceTableHeadCell}>Type</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>Qte</th>
 							<th className={styles.invoiceTableHeadCell}>Unite</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>PU HT</th>
@@ -226,7 +182,6 @@ export default function NewInvoice({
 									<p>{line.title}</p>
 									{line.description && <p className={styles.invoiceSubtext}>{line.description}</p>}
 								</td>
-								<td className={styles.invoiceTableCell}>{line.type}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
 								<td className={styles.invoiceTableCell}>{line.unit || '-'}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
@@ -242,23 +197,35 @@ export default function NewInvoice({
 				<div className={styles.invoiceTotalsBox}>
 					<div className={styles.invoiceTotalLine}>
 						<span>Total HT</span>
-						<strong>{formatMoney(totalExclTax, locale, currency)}</strong>
+						<strong>{formatMoney(invoice.subtotal, locale, currency)}</strong>
 					</div>
 					<div className={styles.invoiceTotalLine}>
 						<span>Total TVA</span>
-						<strong>{formatMoney(totalVat, locale, currency)}</strong>
+						<strong>{formatMoney(invoice.vatAmount, locale, currency)}</strong>
 					</div>
+					{!!invoice.discountAmount && (
+						<div className={styles.invoiceTotalLine}>
+							<span>Remise</span>
+							<strong>-{formatMoney(invoice.discountAmount, locale, currency)}</strong>
+						</div>
+					)}
+					{!!invoice.depositAmount && (
+						<div className={styles.invoiceTotalLine}>
+							<span>Acompte</span>
+							<strong>-{formatMoney(invoice.depositAmount, locale, currency)}</strong>
+						</div>
+					)}
 					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
 						<span>Total TTC</span>
-						<strong>{formatMoney(totalInclTax, locale, currency)}</strong>
+						<strong>{formatMoney(invoice.total, locale, currency)}</strong>
 					</div>
 				</div>
 			</section>
 
 			<footer className={`${styles.invoiceFooter} ${styles.keepTogether}`}>
-				<p className={styles.invoiceMuted}>{paymentTerms}</p>
-				{project.notes && <p className={styles.invoiceMuted}>Notes chantier: {project.notes}</p>}
-				<p className={styles.invoiceMuted}>{footerNote}</p>
+				<p className={styles.invoiceMuted}>{invoice.paymentTerms || 'Paiement a 30 jours fin de mois.'}</p>
+				{invoice.notes && <p className={styles.invoiceMuted}>Notes chantier: {invoice.notes}</p>}
+				<p className={styles.invoiceMuted}>{invoice.legalMentions || 'Merci pour votre confiance.'}</p>
 			</footer>
 		</article>
 		</section>

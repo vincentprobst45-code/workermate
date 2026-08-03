@@ -287,12 +287,14 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 								<p className="text-sm text-slate-600 mt-1">Aucune étape.</p>
 							)}
 						</div>
+						{handleSelectedProject && 
 						<button onClick={() => {handleSelectedProject?.(selectedProject)}}
 							className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
                     rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
                     hover:bg-blue-600 active:bg-blue-900'>
 								Sélectionner ce projet
 							</button>
+						}
 					</div>
 				</div>
 			)}

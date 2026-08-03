@@ -2,53 +2,37 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
-import { ProjectItemType, ProjectStatus } from '@prisma/client';
-import ProjectsList from '../components/ProjectsList';
-import NewInvoice from '../components/NewInvoice';
+import ProjectsList, { type Project } from '../components/ProjectsList';
+import InvoicesList, { type Invoice } from '../components/InvoicesList';
 
-interface Invoice {
-  id: string;
-  number: string;
-  amount: number;
-  description?: string;
-  createdAt: string;
+export interface AddInvoiceFromProject {
+  projectId: string;
+
+  issueDate: string;
+  dueDate?: string;
+
+  paymentTerms?: string;
+  legalMentions?: string;
+  notes?: string;
+
+  discountAmount?: number;
+  depositAmount?: number;
 }
 
-interface ProjectItem{
-  id: string;
-  position: number;
-  type: ProjectItemType;
+export function createEmptyInvoiceFromProject(): AddInvoiceFromProject {
+  return {
+    projectId: '',
 
-  title: string;
-  description?: string;
-  quantity : number;
-  unit?: string;
-  unitPrice: number;
-  vatRate: number;
+    issueDate: '',
+    dueDate: '',
+    
+    paymentTerms: '',
+    legalMentions: '',
+    notes: '',
 
-  // createdAt: string;
-  // updatedAt: string;
-}
-
-interface Project {
-  id: string;
-  title: string;
-  description?: string;
-
-  reference: string;
-
-  startDate?: string;   
-  endDate?: string;     
-
-  status: ProjectStatus;
-
-  projectItems?: ProjectItem[];
-
-  customerId? : string;
-  addressId? : string;
-  createdById? : string;
-
-  // createdAt: string;
+    discountAmount: 0,
+    depositAmount: 0,
+  };
 }
 
 export default function InvoicesPage() {
@@ -58,8 +42,9 @@ export default function InvoicesPage() {
   const [projectsLoading, setProjectLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
+  const [newInvoiceFromProject, setNewInvoiceFromProject] = useState<AddInvoiceFromProject>(createEmptyInvoiceFromProject());
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project>()
+  const [selectedProject, setSelectedProject] = useState<Project>();
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +66,7 @@ export default function InvoicesPage() {
           setProjectLoading(false);
         }
       }
-    };
+    }
 
     void loadProjects();
 
@@ -132,6 +117,19 @@ export default function InvoicesPage() {
     }
   }
 
+  async function handleAddInvoiceFromProjectId(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    try {
+      const res = await api.post('/invoices/from-project', newInvoiceFromProject);
+      if (!res.ok) throw new Error('Erreur');
+      const data = await res.json();
+      setInvoices([data, ...invoices]);
+      setNewInvoiceFromProject(createEmptyInvoiceFromProject());
+    } catch {
+      setError('Erreur lors de l\'ajout');
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Confirmer la suppression?')) return;
     try {
@@ -147,12 +145,82 @@ export default function InvoicesPage() {
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
         <h2 className="text-2xl font-semibold mb-6">Gestion des Factures</h2>
-        {selectedProject && 
-        <div>Le projet LOL
-                        <NewInvoice project={selectedProject} company={company} invoice={invoice} />
-                        </div>}
+        {selectedProject && (
+          <div>
+            <form onSubmit={handleAddInvoiceFromProjectId}>
+              <h3>Project sélectionné : {selectedProject.title}</h3>
+              <input type="hidden" value={newInvoiceFromProject.projectId} readOnly />
+              <input
+                type="datetime-local"
+                className="border px-3 py-2 rounded"
+                placeholder="Start"
+                value={newInvoiceFromProject.dueDate}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, dueDate: e.target.value })}
+                required
+              />
+              <input
+                type="datetime-local"
+                className="border px-3 py-2 rounded"
+                placeholder="End"
+                value={newInvoiceFromProject.issueDate}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, issueDate: e.target.value })}
+                required
+              />
+              <input
+                className="border px-3 py-2 rounded"
+                placeholder="Mentions légales"
+                value={newInvoiceFromProject.legalMentions}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, legalMentions: e.target.value })}
+                required
+              />
+              <input
+                className="border px-3 py-2 rounded"
+                placeholder="Notes"
+                value={newInvoiceFromProject.notes}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, notes: e.target.value })}
+                required
+              />
+              <input
+                className="border px-3 py-2 rounded"
+                placeholder="Conditions de paiement"
+                value={newInvoiceFromProject.paymentTerms}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, paymentTerms: e.target.value })}
+                required
+              />
+              <input
+                type="number"
+                className="border px-3 py-2 rounded"
+                placeholder="Remise"
+                value={newInvoiceFromProject.discountAmount}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, discountAmount: e.target.valueAsNumber })}
+                required
+              />
+              <input
+                type="number"
+                className="border px-3 py-2 rounded"
+                placeholder="Acompte"
+                value={newInvoiceFromProject.depositAmount}
+                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, depositAmount: e.target.valueAsNumber })}
+                required
+              />
+              <button
+                type="submit"
+                className="border-double border-gray-700 border-2 shadow-md text-xl text-white rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 hover:bg-blue-600 active:bg-blue-900"
+              >
+                Créer la facture pour ce projet
+              </button>
+            </form>
+          </div>
+        )}
         <h3>Projets</h3>
-        <ProjectsList projects={projects} onDelete={null} handleSelectedProject={(project) => {setSelectedProject(project)}}/>
+        <ProjectsList
+          projects={projects}
+          onDelete={null}
+          handleSelectedProject={(project) => {
+            setSelectedProject(project);
+            setNewInvoiceFromProject((current) => ({ ...current, projectId: project.id }));
+          }}
+        />
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
@@ -190,23 +258,7 @@ export default function InvoicesPage() {
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <div className="grid gap-4">
-            {invoices.map((invoice) => (
-              <div key={invoice.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">{invoice.number}</p>
-                  <p className="text-sm text-slate-600">{invoice.amount.toFixed(2)} €</p>
-                  {invoice.description && <p className="text-xs text-slate-500">{invoice.description}</p>}
-                </div>
-                <button
-                  onClick={() => handleDelete(invoice.id)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
+          <InvoicesList invoices={invoices} onDelete={handleDelete} />
         )}
       </main>
     </ProtectedRoute>

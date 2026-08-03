@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "Tenant" ADD COLUMN     "bic" TEXT,
+ADD COLUMN     "defaultCurrency" TEXT NOT NULL DEFAULT 'EUR',
+ADD COLUMN     "defaultInvoiceNotes" TEXT,
+ADD COLUMN     "defaultLegalMentions" TEXT,
+ADD COLUMN     "defaultPaymentTerms" TEXT,
+ADD COLUMN     "defaultVatRate" DECIMAL(65,30),
+ADD COLUMN     "email" TEXT,
+ADD COLUMN     "iban" TEXT,
+ADD COLUMN     "invoiceNumberPrefix" TEXT,
+ADD COLUMN     "logoFileId" TEXT,
+ADD COLUMN     "nextInvoiceNumber" INTEGER,
+ADD COLUMN     "phoneNumber" TEXT,
+ADD COLUMN     "siretNumber" TEXT,
+ADD COLUMN     "vatNumber" TEXT;
