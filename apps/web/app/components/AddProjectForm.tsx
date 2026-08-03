@@ -78,7 +78,7 @@ export type AddProjectFormData = {
     notes: string;
 
     customerMode: CustomerMode;
-    customerId: string;
+    customerId?: string;
     addressMode: AddressMode;
     addressId: string;
     address: AddAddressFormData;
@@ -237,7 +237,10 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           setError('Veuillez sélectionner une adresse existante');
           return;
         }
-
+        // if(newProject.customerMode == 'none'){
+        //   setNewProject({...newProject, customerId: undefined})
+        // }
+        console.log(newProject)
         const res = await api.post('/projects', {
           ...newProject,
           customerId: newProject.customerId || undefined,

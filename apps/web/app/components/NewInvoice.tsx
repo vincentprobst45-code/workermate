@@ -55,6 +55,43 @@ export interface InvoiceProjectDetails {
 	projectItems: InvoiceProjectItem[];
 }
 
+interface Project {
+  id: string;
+  title: string;
+  description?: string;
+
+  reference: string;
+
+  startDate?: string;   
+  endDate?: string;     
+
+  status: ProjectStatus;
+
+  projectItems?: ProjectItem[];
+
+  customerId? : string;
+  addressId? : string;
+  createdById? : string;
+
+  // createdAt: string;
+}
+
+interface ProjectItem{
+  id: string;
+  position: number;
+  type: ProjectItemType;
+
+  title: string;
+  description?: string;
+  quantity : number;
+  unit?: string;
+  unitPrice: number;
+  vatRate: number;
+
+  // createdAt: string;
+  // updatedAt: string;
+}
+
 export interface InvoiceMeta {
 	invoiceNumber: string;
 	issueDate?: string;

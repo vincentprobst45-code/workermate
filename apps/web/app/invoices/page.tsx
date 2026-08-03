@@ -4,6 +4,7 @@ import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
 import { ProjectItemType, ProjectStatus } from '@prisma/client';
 import ProjectsList from '../components/ProjectsList';
+import NewInvoice from '../components/NewInvoice';
 
 interface Invoice {
   id: string;
@@ -58,7 +59,7 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
   const [projects, setProjects] = useState<Project[]>([]);
-
+  const [selectedProject, setSelectedProject] = useState<Project>()
 
   useEffect(() => {
     let cancelled = false;
@@ -146,8 +147,12 @@ export default function InvoicesPage() {
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
         <h2 className="text-2xl font-semibold mb-6">Gestion des Factures</h2>
+        {selectedProject && 
+        <div>Le projet LOL
+                        <NewInvoice project={selectedProject} company={company} invoice={invoice} />
+                        </div>}
         <h3>Projets</h3>
-        <ProjectsList projects={projects} onDelete={null}/>
+        <ProjectsList projects={projects} onDelete={null} handleSelectedProject={(project) => {setSelectedProject(project)}}/>
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 

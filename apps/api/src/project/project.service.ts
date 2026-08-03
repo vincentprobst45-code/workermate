@@ -27,7 +27,8 @@ export class ProjectService {
 
   async create(tenantId: string, dto: CreateProjectDto ) {
 
-    const { addressId, address, projectItems, ...projectData } = dto;
+    console.log(dto)
+    const { addressId, address, customerId, projectItems, ...projectData } = dto;
     const year = new Date().getFullYear();
     const reference = `CH-${year}-${projectData.title}`;
 
@@ -61,6 +62,7 @@ export class ProjectService {
     //     create: projectItems,
     //   };
     // }
+    console.log(projectItems)
     if (projectItems?.length) {
       data.items = {
         create: projectItems.map((item) => ({
@@ -87,17 +89,23 @@ export class ProjectService {
         if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
       throw new BadRequestException("Rue, code postal et ville obligatoires.");
     }
+      data.address = {
+          create: {
+            street1: address.street1?.trim(),
+            street2: address.street2?.trim(),
+            postalCode: address.postalCode?.trim(),
+            city: address.city?.trim(),
+            countryCode: address.countryCode?.trim(),
+          },
+      };
+    }
 
-  data.address = {
-      create: {
-        street1: address.street1?.trim(),
-        street2: address.street2?.trim(),
-        postalCode: address.postalCode?.trim(),
-        city: address.city?.trim(),
-        countryCode: address.countryCode?.trim(),
-      },
-  };
-}console.log(JSON.stringify(projectItems, null, 2));
+    if(customerId?.trim()){
+      data.customer = {
+        connect : { id: customerId},
+      }
+    }
+
     const result = await this.prisma.project.create({ data });
 
     // this.debug(`Project created id=${result.id}`);

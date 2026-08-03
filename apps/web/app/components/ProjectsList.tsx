@@ -33,9 +33,10 @@ export interface Project {
 interface ProjectsListProps {
 	projects: Project[];
 	onDelete: ((id: string) => void | Promise<void>) | null ;
+	handleSelectedProject: ((project: Project) => void | Promise<void>) | null ;
 }
 
-export default function ProjectsList({ projects, onDelete }: ProjectsListProps) {
+export default function ProjectsList({ projects, onDelete, handleSelectedProject }: ProjectsListProps) {
 	const [showProjectDetails, setShowProjectDetails] = useState(false);
 	const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 	const [projectsPerPage, setProjectsPerPage] = useState(5);
@@ -271,7 +272,6 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 						<p>addressId : {selectedProject.addressId || '-'}</p>
 						<p>createdById : {selectedProject.createdById || '-'}</p>
 						<p>createdAt : {selectedProject.createdAt || '-'}</p>
-
 						<div className="mt-4">
 							<p className="font-semibold">Étapes projet</p>
 							{selectedProject.items && selectedProject.items.length > 0 ? (
@@ -287,6 +287,12 @@ export default function ProjectsList({ projects, onDelete }: ProjectsListProps) 
 								<p className="text-sm text-slate-600 mt-1">Aucune étape.</p>
 							)}
 						</div>
+						<button onClick={() => {handleSelectedProject?.(selectedProject)}}
+							className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
+                    rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
+                    hover:bg-blue-600 active:bg-blue-900'>
+								Sélectionner ce projet
+							</button>
 					</div>
 				</div>
 			)}
