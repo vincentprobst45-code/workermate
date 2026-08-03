@@ -106,10 +106,26 @@ export class ProjectService {
       }
     }
 
-    const result = await this.prisma.project.create({ data });
-
-    // this.debug(`Project created id=${result.id}`);
+    //const result = await this.prisma.project.create({ data });
+    const result = await this.prisma.project.create({
+      data,
+      include: {
+        items: {
+          orderBy: {
+            position: 'asc',
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
     return result;
+    // this.debug(`Project created id=${result.id}`);
 
     // return this.prisma.project.create({
     //   data: { ...dto, tenantId },
