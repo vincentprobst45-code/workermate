@@ -58,7 +58,7 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults>({});
   const [loading, setLoading] = useState(true);
-  const [, setProjectLoading] = useState(true);
+  const [projectLoading, setProjectLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
   const [newInvoiceFromProject, setNewInvoiceFromProject] = useState<AddInvoiceFromProject>(createEmptyInvoiceFromProject());
@@ -268,6 +268,7 @@ export default function InvoicesPage() {
           </div>
         )}
         <h3>Projets</h3>
+        {!projectLoading &&
         <ProjectsList
           projects={projects}
           onDelete={null}
@@ -276,10 +277,11 @@ export default function InvoicesPage() {
             setNewInvoiceFromProject((current) => ({ ...current, projectId: project.id }));
           }}
         />
+        }
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
-        <form onSubmit={handleAddInvoice} className="mb-8 p-5 bg-white rounded-lg shadow">
+        {/* <form onSubmit={handleAddInvoice} className="mb-8 p-5 bg-white rounded-lg shadow">
           <h3 className="font-semibold mb-4">Ajouter une facture</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
@@ -308,7 +310,7 @@ export default function InvoicesPage() {
           <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
             Ajouter
           </button>
-        </form>
+        </form> */}
 
         {loading ? (
           <p>Chargement...</p>

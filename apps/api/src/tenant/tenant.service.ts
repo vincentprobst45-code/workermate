@@ -41,6 +41,38 @@ export class TenantService {
     });
   }
 
+  async findCurrentQuoteDefaults(tenantId: string) {
+    return this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        // name : true,
+        // email: true,
+        // phoneNumber: true,
+
+        // siretNumber: true,
+        // vatNumber: true,
+
+        // iban: true,
+        // bic: true,
+
+        // defaultCurrency: true,
+        // defaultPaymentTerms: true,
+        // defaultLegalMentions: true,
+
+        address: {
+          select: {
+            id: true,
+            street1: true,
+            street2: true,
+            postalCode: true,
+            city: true,
+            countryCode: true,
+          },
+        },
+      },
+    });
+  }
+
   async updateCurrent(tenantId: string, dto: UpdateTenantDto) {
     const { addressId, address, ...tenantData } = dto;
 

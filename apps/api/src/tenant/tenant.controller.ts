@@ -14,6 +14,12 @@ export class TenantController {
     return this.tenantService.findCurrent(tenantId);
   }
 
+  @Get('current/quote-defaults')
+  async findCurrentQuoteDefaults(@Req() req: AuthenticatedRequest) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.tenantService.findCurrent(tenantId);
+  }
+
   @Put('current')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async updateCurrent(
