@@ -19,16 +19,34 @@ export interface AddInvoiceFromProject {
   depositAmount?: number;
 }
 
-export function createEmptyInvoiceFromProject(): AddInvoiceFromProject {
+interface TenantInvoiceDefaults {
+  defaultPaymentTerms?: string | null;
+  defaultLegalMentions?: string | null;
+  defaultInvoiceNotes?: string | null;
+}
+
+function toDatetimeLocal(date: Date): string {
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+export function createEmptyInvoiceFromProject(
+  tenantDefaults?: TenantInvoiceDefaults,
+): AddInvoiceFromProject {
+  const now = new Date();
+  const dueDate = new Date(now);
+  dueDate.setDate(dueDate.getDate() + 30);
+
   return {
     projectId: '',
 
-    issueDate: '',
-    dueDate: '',
+    issueDate: toDatetimeLocal(now),
+    dueDate: toDatetimeLocal(dueDate),
     
-    paymentTerms: '',
-    legalMentions: '',
-    notes: '',
+    paymentTerms: tenantDefaults?.defaultPaymentTerms || '',
+    legalMentions: tenantDefaults?.defaultLegalMentions || '',
+    notes: tenantDefaults?.defaultInvoiceNotes || '',
 
     discountAmount: 0,
     depositAmount: 0,
@@ -38,13 +56,46 @@ export function createEmptyInvoiceFromProject(): AddInvoiceFromProject {
 export default function InvoicesPage() {
   const api = useApiClient();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults>({});
   const [loading, setLoading] = useState(true);
-  const [projectsLoading, setProjectLoading] = useState(true);
+  const [, setProjectLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
   const [newInvoiceFromProject, setNewInvoiceFromProject] = useState<AddInvoiceFromProject>(createEmptyInvoiceFromProject());
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project>();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTenantDefaults() {
+      try {
+        const res = await api.get('/tenants/current');
+        if (!res.ok) throw new Error('Erreur');
+        const data: TenantInvoiceDefaults = await res.json();
+        if (!cancelled) {
+          setTenantDefaults(data);
+          setNewInvoiceFromProject((current) => {
+            const defaults = createEmptyInvoiceFromProject(data);
+            return {
+              ...defaults,
+              projectId: current.projectId,
+            };
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Erreur lors de la récupération des paramètres entreprise');
+        }
+      }
+    }
+
+    void loadTenantDefaults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,7 +175,11 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
       setInvoices([data, ...invoices]);
-      setNewInvoiceFromProject(createEmptyInvoiceFromProject());
+      setNewInvoiceFromProject((current) => ({
+        ...createEmptyInvoiceFromProject(tenantDefaults),
+        projectId: current.projectId,
+        // projectId: current.projectId,
+      }));
     } catch {
       setError('Erreur lors de l\'ajout');
     }

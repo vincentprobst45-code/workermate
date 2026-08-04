@@ -1,13 +1,20 @@
-import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { CreateAddressDto } from '../address/create-address.dto';
 
 export class UpdateTenantDto {
   @IsOptional()
   @IsString()
-  name?: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
   addressId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateAddressDto)
+  address?: CreateAddressDto;
 
   @IsOptional()
   @IsString()

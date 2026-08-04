@@ -46,12 +46,7 @@ export class CalendarEventService {
   private tenantScopedAddressWhere(tenantId: string, id: string): Prisma.AddressWhereInput {
     return {
       id,
-      OR: [
-        { tenants: { some: { id: tenantId } } },
-        { customers: { some: { tenantId } } },
-        { projects: { some: { tenantId } } },
-        { calendarevents: { some: { tenantId } } },
-      ],
+      tenantId,
     };
   }
 
@@ -193,6 +188,11 @@ export class CalendarEventService {
           postalCode: address.postalCode?.trim(),
           city: address.city?.trim(),
           countryCode: address.countryCode?.trim(),
+          tenant: {
+            connect: {
+              id: tenantId,
+            },
+          },
         },
       };
       data.addressName = this.formatAddressName(address);
@@ -390,6 +390,11 @@ export class CalendarEventService {
           postalCode: address.postalCode?.trim(),
           city: address.city?.trim(),
           countryCode: address.countryCode?.trim(),
+          tenant: {
+            connect: {
+              id: tenantId,
+            },
+          },
         },
       };
       data.addressName = this.formatAddressName(address);

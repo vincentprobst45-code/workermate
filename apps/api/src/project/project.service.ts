@@ -96,6 +96,11 @@ export class ProjectService {
             postalCode: address.postalCode?.trim(),
             city: address.city?.trim(),
             countryCode: address.countryCode?.trim(),
+            tenant: {
+              connect: {
+                id: tenantId,
+              },
+            },
           },
       };
     }

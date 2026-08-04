@@ -82,11 +82,29 @@ export class CustomerService {
         postalCode: address.postalCode?.trim(),
         city: address.city?.trim(),
         countryCode: address.countryCode?.trim(),
+        tenant: {
+          connect: {
+            id: tenantId,
+          },
+        },
       },
     };
   }
-    const result = await this.prisma.customer.create({ data });
-
+    // const result = await this.prisma.customer.create({ data });
+    const result = await this.prisma.customer.create({
+      data,
+      include: {
+        address: {
+          select: {
+            id: true,
+            street1: true,
+            postalCode: true,
+            city: true,
+          },
+        },
+      },
+    });
+    
     this.debug(`Customer created id=${result.id}`);
     return result;
   }

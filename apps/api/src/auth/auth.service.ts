@@ -161,7 +161,14 @@ export class AuthService {
 
     // create tenant, user and membership in a transaction
     const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const tenant = await tx.tenant.create({ data: { name: 'Mon Entreprise' } });
+      const tenant = await tx.tenant.create({ 
+        data: { 
+          name: 'Mon Entreprise',
+          invoiceNumberPrefix: 'FAC',
+          defaultPaymentTerms: 'Paiement sous 30 jours.',
+          defaultInvoiceNotes: 'Merci pour votre confiance.',
+        } 
+      });
       const user = await tx.user.create({ data: { email, password: hashed, firstname, lastname, activeTenantId: tenant.id } });
       await tx.membership.create({ data: { userId: user.id, tenantId: tenant.id, role: 'OWNER' } });
       return { user };

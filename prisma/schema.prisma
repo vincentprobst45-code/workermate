@@ -12,7 +12,7 @@ model Tenant {
   name      String
 
   addressId String?
-  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  address   Address?  @relation("TenantMainAddress",fields: [addressId], references: [id], onDelete: Cascade)
 
   email String?
   phoneNumber String?
@@ -39,6 +39,7 @@ model Tenant {
   createdAt DateTime  @default(now())
 
   memberships Membership[]
+  addresses Address[] @relation("TenantAddresses")
   customers   Customer[]
   projects    Project[]
   invoices    Invoice[]
@@ -79,6 +80,9 @@ model Membership {
 model Address {
   id String @id @default(cuid())
 
+  tenantId String
+  tenant Tenant @relation("TenantAddresses", fields: [tenantId], references: [id], onDelete: Cascade)
+
   // Adresse
   street1 String
   street2 String?
@@ -104,7 +108,7 @@ model Address {
   // Relations
   customers Customer[]
   projects Project[]
-  tenants Tenant[]
+  tenants Tenant[] @relation("TenantMainAddress")
   users User[]
   calendarevents CalendarEvent[]
 }

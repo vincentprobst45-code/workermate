@@ -24,9 +24,10 @@ function formatAddressLabel(address: AddressOption): string {
 interface SelectExistingAddressProps {
   selectedAddressId: string;
   onAddressChange: (addressId: string) => void;
+  required?: boolean;
 }
 
-function SelectExistingAddress( {selectedAddressId, onAddressChange}: SelectExistingAddressProps){
+function SelectExistingAddress({ selectedAddressId, onAddressChange, required = true }: SelectExistingAddressProps){
   const api = useApiClient();
   const [addressOptions, setAddressOptions] = useState<AddressOption[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
@@ -76,7 +77,7 @@ function SelectExistingAddress( {selectedAddressId, onAddressChange}: SelectExis
               className="border px-3 py-2 rounded w-full"
               value={selectedAddressId}
               onChange={(e) => onAddressChange(e.target.value)}
-              required
+              required={required}
             >
               <option value="">--Veuillez choisir une adresse--</option>
               {addressOptions.map((address) => (

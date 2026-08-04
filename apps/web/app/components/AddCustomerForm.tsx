@@ -40,7 +40,21 @@ export type AddCustomerFormData = {
   siret: string;
   vatNumber: string;
   notes: string;
-  addressMode: AddressMode;
+  // addressMode: AddressMode;
+  addressId: string;
+  address: AddAddressFormData;
+};
+
+export type CreateCustomerDto  = {
+  firstName: string;
+  lastName: string;
+  company: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  siret: string;
+  vatNumber: string;
+  notes: string;
   addressId: string;
   address: AddAddressFormData;
 };
@@ -56,7 +70,7 @@ export function createEmptyCustomer(): AddCustomerFormData {
     siret: '',
     vatNumber: '',
     notes: '',
-    addressMode: 'none',
+    // addressMode: 'none',
     addressId: '',
     address: createEmptyAddress(),
   };
@@ -73,20 +87,21 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
   const [success, setSuccess] = useState('');
   const [newCustomer, setNewCustomer] = useState<AddCustomerFormData>(createEmptyCustomer());
   const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [addressMode, setAddressMode] = useState<AddressMode>("none");
 
   async function handleAddCustomer(e: FormEvent) {
     e.preventDefault();
 
     try {
-      if (newCustomer.addressMode === 'existing' && !selectedAddressId) {
+      if (addressMode === 'existing' && !selectedAddressId) {
         setError('Veuillez sélectionner une adresse existante');
         return;
       }
 
-      const customerToAdd =
-        newCustomer.addressMode === 'new'
+      const customerToAdd: CreateCustomerDto  =
+        addressMode === 'new'
           ? { ...newCustomer, address: newCustomer.address }
-          : newCustomer.addressMode === 'existing'
+          : addressMode === 'existing'
             ? { ...newCustomer, addressId: selectedAddressId }
             : { ...newCustomer };
 
@@ -96,6 +111,7 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
       const data = await res.json();
       onCreated(data);
       setNewCustomer(createEmptyCustomer());
+      setAddressMode("none");
       setSelectedAddressId('');
       setError('');
       setSuccess('Client ajouté avec succès');
@@ -157,33 +173,39 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
       <div className="flex flex-wrap gap-2 px-3 pb-3">
         <button
           type="button"
-          className={`border py-2 px-3 rounded ${newCustomer.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-          onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'new' })}
+          // className={`border py-2 px-3 rounded ${newCustomer.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+          className={`border py-2 px-3 rounded ${addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+          // onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'new' })}
+          onClick={() => setAddressMode('new')}
         >
           Nouvelle adresse
         </button>
         <button
           type="button"
-          className={`border py-2 px-3 rounded ${newCustomer.addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-          onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'existing' })}
+          className={`border py-2 px-3 rounded ${addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+          // onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'existing' })}
+          onClick={() => setAddressMode('existing')}
         >
           Utiliser une adresse existante
         </button>
         <button
           type="button"
-          className={`border py-2 px-3 rounded ${newCustomer.addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-          onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'none' })}
+          className={`border py-2 px-3 rounded ${addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+          // onClick={() => setNewCustomer({ ...newCustomer, addressMode: 'none' })}
+          onClick={() => setAddressMode('none')}
         >
           Ne pas ajouter d&apos;adresse
         </button>
       </div>
 
-      {newCustomer.addressMode === 'new' ? (
+      {/* {newCustomer.addressMode === 'new' ? ( */}
+      {addressMode === 'new' ? (
         <AddressForm
           address={newCustomer.address}
           onChange={(address) => setNewCustomer({ ...newCustomer, address })}
         />
-      ) : newCustomer.addressMode === 'existing' ? (
+      // ) : newCustomer.addressMode === 'existing' ? (
+      ) : addressMode === 'existing' ? (
         <SelectExistingAddress
           selectedAddressId={selectedAddressId}
           onAddressChange={setSelectedAddressId}

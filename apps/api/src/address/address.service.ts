@@ -9,16 +9,11 @@ export class AddressService {
 
   private tenantScopeWhere(tenantId: string): Prisma.AddressWhereInput {
     return {
-      OR: [
-        { tenants: { some: { id: tenantId } } },
-        { customers: { some: { tenantId } } },
-        { projects: { some: { tenantId } } },
-        { calendarevents: { some: { tenantId } } },
-      ],
+      tenantId,
     };
   }
 
-  private toAddressCreateData(dto: CreateAddressDto): Prisma.AddressCreateInput {
+  private toAddressCreateData(dto: CreateAddressDto): Omit<Prisma.AddressCreateInput, 'tenant'> {
     return {
       street1: dto.street1.trim(),
       street2: dto.street2?.trim() || undefined,
@@ -41,7 +36,7 @@ export class AddressService {
     return this.prisma.address.create({
       data: {
         ...data,
-        tenants: {
+        tenant: {
           connect: { id: tenantId },
         },
       },
