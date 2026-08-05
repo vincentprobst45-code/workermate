@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type ProjectItemType } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateCustomerDto } from '../customer/create-customer.dto';
 import { PrismaService } from '../prisma.service';
@@ -367,7 +367,10 @@ export class QuoteService {
       subtotal += lineSubtotal;
       vatAmount += lineVat;
 
+      const itemType: ProjectItemType = item.type ?? 'OTHER';
+
       return {
+        type: itemType,
         position: index,
         title: item.title.trim(),
         description: item.description?.trim() ?? '',

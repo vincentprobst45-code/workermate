@@ -1,6 +1,6 @@
 'use client';
 
-import { QuoteStatus } from '@prisma/client';
+import { ProjectItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import AddressForm, {
@@ -57,6 +57,7 @@ interface TenantQuoteDefaults {
 export interface QuoteItem {
   id: string;
   quoteId: string;
+  type: ProjectItemType;
   position: number;
   title: string;
   description: string;
@@ -119,6 +120,7 @@ export interface Quote {
 }
 
 export interface AddQuoteItemFormData {
+  type: ProjectItemType;
   position: number;
   title: string;
   description: string;
@@ -212,6 +214,15 @@ const quoteStatusOptions: Array<{ value: QuoteStatus; label: string }> = [
   { value: 'EXPIRED', label: 'Expire' },
 ];
 
+const quoteItemTypeOptions: Array<{ value: ProjectItemType; label: string }> = [
+  { value: 'LABOR', label: 'Travaux' },
+  { value: 'MATERIAL', label: 'Materiel' },
+  { value: 'EQUIPMENT', label: 'Equipement' },
+  { value: 'TRAVEL', label: 'Deplacement' },
+  { value: 'SERVICE', label: 'Service' },
+  { value: 'OTHER', label: 'Autre' },
+];
+
 function toDatetimeLocal(date: Date): string {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60_000);
@@ -270,6 +281,7 @@ function sanitizeAddress(address: AddAddressFormData): AddAddressFormData {
 
 function createEmptyQuoteItem(position: number): AddQuoteItemFormData {
   return {
+    type: 'OTHER',
     position,
     title: '',
     description: '',
@@ -669,6 +681,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       notes: trimToUndefined(form.notes),
       depositAmount: form.depositAmount || undefined,
       quoteItems: form.quoteItems.map((item) => ({
+        type: item.type,
         position: item.position,
         title: item.title.trim(),
         description: item.description.trim(),
@@ -1092,6 +1105,28 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           {form.quoteItems.map((item, index) => (
             <div key={index} className="rounded-lg border border-slate-200 p-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <select
+                  className="rounded border px-3 py-2"
+                  value={item.type}
+                  onChange={(event) =>
+                    updateQuoteItems((items) =>
+                      items.map((currentItem, currentIndex) =>
+                        currentIndex === index
+                          ? {
+                              ...currentItem,
+                              type: event.target.value as ProjectItemType,
+                            }
+                          : currentItem,
+                      ),
+                    )
+                  }
+                >
+                  {quoteItemTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
                 <input
                   className="rounded border px-3 py-2 lg:col-span-2"
                   placeholder="Titre"

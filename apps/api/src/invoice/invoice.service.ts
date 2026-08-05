@@ -133,6 +133,7 @@ export class InvoiceService {
       vatAmount += lineVat;
 
       return {
+        type: item.type,
         position: item.position,
         title: item.title,
         description: item.description ?? '',

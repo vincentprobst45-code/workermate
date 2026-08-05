@@ -1,7 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { ProjectItemType } from '@prisma/client';
+import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateQuoteItemDto {
+  @IsOptional()
+  @IsEnum(ProjectItemType)
+  type?: ProjectItemType;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)
