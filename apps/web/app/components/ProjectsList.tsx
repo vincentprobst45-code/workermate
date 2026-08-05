@@ -178,8 +178,12 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 						key={project.id}
 						className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
 						onClick={() => {
-							setShowProjectDetails(true);
-							setSelectedProject(project);
+              				if(handleSelectedProject){
+              				    void handleSelectedProject(project);
+              				} else {
+              				  setShowProjectDetails(true);
+              				  setSelectedProject(project);
+              				}
 						}}
 					>
 						<div>

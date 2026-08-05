@@ -236,6 +236,8 @@ type AddQuoteFormProps = {
   show: boolean;
 };
 
+type ProjectSelectionMode = 'fillForm' | 'addLines';
+
 const quoteStatusOptions: Array<{ value: QuoteStatus; label: string }> = [
   { value: 'DRAFT', label: 'Brouillon' },
   { value: 'SENT', label: 'Envoye' },
@@ -578,7 +580,10 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState('');
   const [showProjectsList, setShowProjectsList] = useState(false);
+  const [showProjectsListTop, setShowProjectsListTop] = useState(false);
+  const [doubleCheckShowProjectsListTop, setDoubleCheckShowProjectsListTop] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [projectSelectionMode, setProjectSelectionMode] = useState<ProjectSelectionMode>('addLines');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
   const [catalogItemsError, setCatalogItemsError] = useState('');
@@ -717,9 +722,19 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     }
   }
 
-  async function openProjectSelector() {
+  async function openProjectSelector(mode: ProjectSelectionMode) {
+    setProjectSelectionMode(mode);
     setProjectsError('');
-    setShowProjectsList(true);
+    setShowProjectsList(false);
+    setShowProjectsListTop(false);
+    if(mode == 'addLines')
+    {
+      setDoubleCheckShowProjectsListTop(false)
+      setShowProjectsList(true);
+    } else {
+      setDoubleCheckShowProjectsListTop(true)
+      setShowProjectsListTop(true);
+    }
     setShowCatalogItemsList(false);
     setSelectedProject(null);
     setProjectsLoading(true);
@@ -750,26 +765,53 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       return;
     }
 
-    updateQuoteItems((items) => [
-      ...items,
-      ...selectedProject.items!.map((projectItem, index) => ({
-        rowId: createQuoteItemRowId(),
-        type: projectItem.type,
-        position: items.length + index,
-        title: projectItem.title,
-        description: projectItem.description ?? '',
-        quantity: Number(projectItem.quantity) || 0,
-        unit: projectItem.unit ?? '',
-        unitPrice: Number(projectItem.unitPrice) || 0,
-        vatRate: Number(projectItem.vatRate) || 0,
-        total: 0,
-      })),
-    ]);
+    const importedProjectItems = selectedProject.items.map((projectItem, index) => ({
+      rowId: createQuoteItemRowId(),
+      type: projectItem.type,
+      position: index,
+      title: projectItem.title,
+      description: projectItem.description ?? '',
+      quantity: Number(projectItem.quantity) || 0,
+      unit: projectItem.unit ?? '',
+      unitPrice: Number(projectItem.unitPrice) || 0,
+      vatRate: Number(projectItem.vatRate) || 0,
+      total: 0,
+    }));
+
+    if (projectSelectionMode === 'fillForm') {
+      const filledQuoteItems = recomputeQuote(importedProjectItems);
+
+      setForm((currentForm) => ({
+        ...currentForm,
+        title: `Devis-${selectedProject.title}`,
+        projectTitle: selectedProject.title,
+        projectReference: selectedProject.reference || '',
+        projectStartDate: selectedProject.startDate ? toDatetimeLocal(new Date(selectedProject.startDate)) : '',
+        projectEndDate: selectedProject.endDate ? toDatetimeLocal(new Date(selectedProject.endDate)) : '',
+        customerMode: selectedProject.customerId ? 'existing' : currentForm.customerMode,
+        customerId: selectedProject.customerId || '',
+        projectAddressMode: selectedProject.addressId ? 'existing' : 'none',
+        projectAddressId: selectedProject.addressId || '',
+        ...filledQuoteItems,
+      }));
+    } else {
+      updateQuoteItems((items) => [
+        ...items,
+        ...importedProjectItems.map((projectItem, index) => ({
+          ...projectItem,
+          position: items.length + index,
+        })),
+      ]);
+    }
 
     setShowProjectsList(false);
     setSelectedProject(null);
     setProjectsError('');
-    setSuccess('Lignes importées depuis le chantier.');
+    setSuccess(
+      projectSelectionMode === 'fillForm'
+        ? 'Formulaire rempli depuis le chantier.'
+        : 'Lignes importées depuis le chantier.',
+    );
   }
 
   async function openCatalogItemSelector() {
@@ -1048,6 +1090,78 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
 
       {error && <div className="mb-4 rounded bg-red-100 p-3 text-red-700">{error}</div>}
       {success && <div className="mb-4 rounded bg-green-100 p-3 text-green-700">{success}</div>}
+
+      <div className="mb-6">
+        <button
+          type="button"
+          className="rounded border bg-slate-200 px-3 py-2"
+          onClick={() => {
+            void openProjectSelector('fillForm');
+          }}
+        >
+          Remplir les champs à partir d&apos;un projet existant
+        </button>
+      </div>
+
+        {showProjectsListTop && (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
+              <button
+                type="button"
+                className="ml-auto rounded border px-3 py-2"
+                onClick={() => setShowProjectsListTop(false)}
+              >
+                Fermer la liste
+              </button>
+            </div>
+            {projectsLoading ? (
+              <p>Chargement des chantiers...</p>
+            ) : (
+              <ProjectsList
+                projects={projects}
+                onDelete={null}
+                handleSelectedProject={(project) => {
+                  setSelectedProject(project);
+                  setShowProjectsListTop(false);
+                  setProjectsError('');
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {!showProjectsListTop && doubleCheckShowProjectsListTop && selectedProject &&  (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
+            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+              <p><strong>Titre:</strong> {selectedProject.title}</p>
+              <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
+              <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items?.length || 0}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={chooseSelectedProject}
+                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+              >
+                {projectSelectionMode === 'fillForm'
+                  ? 'Remplir le devis avec ce chantier'
+                  : 'Choisir ce chantier'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProjectsListTop(true);
+                }}
+                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+              >
+                Choisir un autre chantier
+              </button>
+            </div>
+          </div>
+        )}
 
       <section className="mb-6 rounded-lg border border-slate-200 p-4">
         <h4 className="mb-3 text-lg font-semibold">Informations du devis</h4>
@@ -1435,7 +1549,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               type="button"
               className="rounded border bg-slate-200 px-3 py-2"
               onClick={() => {
-                void openProjectSelector();
+                void openProjectSelector('addLines');
               }}
             >
               Ajouter des lignes à partir d&apos;un chantier
@@ -1487,7 +1601,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </div>
         )}
 
-        {!showProjectsList && selectedProject && (
+        {!showProjectsList && !doubleCheckShowProjectsListTop && selectedProject && (
           <div className="mb-4 rounded-md border-2 p-4">
             <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
             <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
@@ -1502,7 +1616,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 onClick={chooseSelectedProject}
                 className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
               >
-                Choisir ce chantier
+                {projectSelectionMode === 'fillForm'
+                  ? 'Remplir le devis avec ce chantier'
+                  : 'Choisir ce chantier'}
               </button>
               <button
                 type="button"
