@@ -1,5 +1,20 @@
 'use client';
 
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { ProjectItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
@@ -120,6 +135,7 @@ export interface Quote {
 }
 
 export interface AddQuoteItemFormData {
+  rowId: string;
   type: ProjectItemType;
   position: number;
   title: string;
@@ -198,7 +214,19 @@ export interface CreateQuoteDto {
   legalMentions?: string;
   notes?: string;
   depositAmount?: number;
-  quoteItems: AddQuoteItemFormData[];
+  quoteItems: CreateQuoteItemPayload[];
+}
+
+interface CreateQuoteItemPayload {
+  type: ProjectItemType;
+  position: number;
+  title: string;
+  description: string;
+  quantity: number;
+  unit?: string;
+  unitPrice: number;
+  vatRate: number;
+  total: number;
 }
 
 type AddQuoteFormProps = {
@@ -279,8 +307,13 @@ function sanitizeAddress(address: AddAddressFormData): AddAddressFormData {
   };
 }
 
+function createQuoteItemRowId(): string {
+  return crypto.randomUUID();
+}
+
 function createEmptyQuoteItem(position: number): AddQuoteItemFormData {
   return {
+    rowId: createQuoteItemRowId(),
     type: 'OTHER',
     position,
     title: '',
@@ -291,6 +324,167 @@ function createEmptyQuoteItem(position: number): AddQuoteItemFormData {
     vatRate: 20,
     total: 0,
   };
+}
+
+type SortableQuoteLineProps = {
+  item: AddQuoteItemFormData;
+  index: number;
+  totalItems: number;
+  currency: string;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onTypeChange: (value: ProjectItemType) => void;
+  onTitleChange: (value: string) => void;
+  onQuantityChange: (value: number) => void;
+  onUnitChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onUnitPriceChange: (value: number) => void;
+  onVatRateChange: (value: number) => void;
+  onDelete: () => void;
+};
+
+function SortableQuoteLine({
+  item,
+  index,
+  totalItems,
+  currency,
+  onMoveUp,
+  onMoveDown,
+  onTypeChange,
+  onTitleChange,
+  onQuantityChange,
+  onUnitChange,
+  onDescriptionChange,
+  onUnitPriceChange,
+  onVatRateChange,
+  onDelete,
+}: SortableQuoteLineProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.rowId,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg border border-slate-200 p-4 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+    >
+      <div className="flex gap-3">
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            className="cursor-grab rounded border px-2 py-1 text-sm active:cursor-grabbing"
+            aria-label="Glisser la ligne"
+            title="Glisser la ligne"
+            {...attributes}
+            {...listeners}
+          >
+            ≡
+          </button>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={onMoveUp}
+            disabled={index === 0}
+            aria-label="Monter la ligne"
+            title="Monter la ligne"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={onMoveDown}
+            disabled={index === totalItems - 1}
+            aria-label="Descendre la ligne"
+            title="Descendre la ligne"
+          >
+            ↓
+          </button>
+        </div>
+        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <select
+            className="rounded border px-3 py-2"
+            value={item.type}
+            onChange={(event) => onTypeChange(event.target.value as ProjectItemType)}
+          >
+            {quoteItemTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <input
+            className="rounded border px-3 py-2 lg:col-span-2"
+            placeholder="Titre"
+            value={item.title}
+            onChange={(event) => onTitleChange(event.target.value)}
+            required
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className="rounded border px-3 py-2"
+            placeholder="Quantite"
+            value={item.quantity}
+            onChange={(event) =>
+              onQuantityChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+            }
+          />
+          <input
+            className="rounded border px-3 py-2"
+            placeholder="Unite"
+            value={item.unit || ''}
+            onChange={(event) => onUnitChange(event.target.value)}
+          />
+          <textarea
+            className="min-h-24 rounded border px-3 py-2 sm:col-span-2 lg:col-span-4"
+            placeholder="Description"
+            value={item.description}
+            onChange={(event) => onDescriptionChange(event.target.value)}
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className="rounded border px-3 py-2"
+            placeholder="Prix unitaire"
+            value={item.unitPrice}
+            onChange={(event) =>
+              onUnitPriceChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+            }
+          />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className="rounded border px-3 py-2"
+            placeholder="TVA %"
+            value={item.vatRate}
+            onChange={(event) =>
+              onVatRateChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+            }
+          />
+          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            Total ligne: {item.total.toFixed(2)} {currency || 'EUR'}
+          </div>
+          <button
+            type="button"
+            className="rounded border bg-red-300 px-3 py-2 hover:bg-red-500"
+            onClick={onDelete}
+          >
+            Supprimer la ligne
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function recomputeQuote(items: AddQuoteItemFormData[]): {
@@ -378,6 +572,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [success, setSuccess] = useState('');
   const [addressError, setAddressError] = useState('');
   const [addressSuccess, setAddressSuccess] = useState('');
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
 
@@ -464,6 +659,25 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         ...currentForm,
         ...totals,
       };
+    });
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    updateQuoteItems((items) => {
+      const oldIndex = items.findIndex((item) => item.rowId === active.id);
+      const newIndex = items.findIndex((item) => item.rowId === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return items;
+      }
+
+      return arrayMove(items, oldIndex, newIndex);
     });
   }
 
@@ -1102,203 +1316,100 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         </div>
 
         <div className="space-y-4">
-          {form.quoteItems.map((item, index) => (
-            <div key={index} className="rounded-lg border border-slate-200 p-4">
-              <div className="flex gap-3">
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() =>
-                      updateQuoteItems((items) => {
-                        if (index === 0) {
-                          return items;
-                        }
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext
+              items={form.quoteItems.map((item) => item.rowId)}
+              strategy={verticalListSortingStrategy}
+            >
+              {form.quoteItems.map((item, index) => (
+                <SortableQuoteLine
+                  key={item.rowId}
+                  item={item}
+                  index={index}
+                  totalItems={form.quoteItems.length}
+                  currency={form.currency}
+                  onMoveUp={() =>
+                    updateQuoteItems((items) => {
+                      if (index === 0) {
+                        return items;
+                      }
 
-                        const nextItems = [...items];
-                        [nextItems[index - 1], nextItems[index]] = [nextItems[index], nextItems[index - 1]];
-                        return nextItems;
-                      })
-                    }
-                    disabled={index === 0}
-                    aria-label="Monter la ligne"
-                    title="Monter la ligne"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() =>
-                      updateQuoteItems((items) => {
-                        if (index === items.length - 1) {
-                          return items;
-                        }
+                      const nextItems = [...items];
+                      [nextItems[index - 1], nextItems[index]] = [nextItems[index], nextItems[index - 1]];
+                      return nextItems;
+                    })
+                  }
+                  onMoveDown={() =>
+                    updateQuoteItems((items) => {
+                      if (index === items.length - 1) {
+                        return items;
+                      }
 
-                        const nextItems = [...items];
-                        [nextItems[index], nextItems[index + 1]] = [nextItems[index + 1], nextItems[index]];
-                        return nextItems;
-                      })
-                    }
-                    disabled={index === form.quoteItems.length - 1}
-                    aria-label="Descendre la ligne"
-                    title="Descendre la ligne"
-                  >
-                    ↓
-                  </button>
-                </div>
-                <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <select
-                  className="rounded border px-3 py-2"
-                  value={item.type}
-                  onChange={(event) =>
+                      const nextItems = [...items];
+                      [nextItems[index], nextItems[index + 1]] = [nextItems[index + 1], nextItems[index]];
+                      return nextItems;
+                    })
+                  }
+                  onTypeChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? {
-                              ...currentItem,
-                              type: event.target.value as ProjectItemType,
-                            }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, type: value } : currentItem,
                       ),
                     )
                   }
-                >
-                  {quoteItemTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="rounded border px-3 py-2 lg:col-span-2"
-                  placeholder="Titre"
-                  value={item.title}
-                  onChange={(event) =>
+                  onTitleChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? { ...currentItem, title: event.target.value }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, title: value } : currentItem,
                       ),
                     )
                   }
-                  required
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded border px-3 py-2"
-                  placeholder="Quantite"
-                  value={item.quantity}
-                  onChange={(event) =>
+                  onQuantityChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? {
-                              ...currentItem,
-                              quantity: Number.isNaN(event.target.valueAsNumber)
-                                ? 0
-                                : event.target.valueAsNumber,
-                            }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, quantity: value } : currentItem,
                       ),
                     )
                   }
-                />
-                <input
-                  className="rounded border px-3 py-2"
-                  placeholder="Unite"
-                  value={item.unit || ''}
-                  onChange={(event) =>
+                  onUnitChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? { ...currentItem, unit: event.target.value }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, unit: value } : currentItem,
                       ),
                     )
                   }
-                />
-                <textarea
-                  className="min-h-24 rounded border px-3 py-2 sm:col-span-2 lg:col-span-4"
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(event) =>
+                  onDescriptionChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? { ...currentItem, description: event.target.value }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, description: value } : currentItem,
                       ),
                     )
                   }
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded border px-3 py-2"
-                  placeholder="Prix unitaire"
-                  value={item.unitPrice}
-                  onChange={(event) =>
+                  onUnitPriceChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? {
-                              ...currentItem,
-                              unitPrice: Number.isNaN(event.target.valueAsNumber)
-                                ? 0
-                                : event.target.valueAsNumber,
-                            }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, unitPrice: value } : currentItem,
                       ),
                     )
                   }
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded border px-3 py-2"
-                  placeholder="TVA %"
-                  value={item.vatRate}
-                  onChange={(event) =>
+                  onVatRateChange={(value) =>
                     updateQuoteItems((items) =>
                       items.map((currentItem, currentIndex) =>
-                        currentIndex === index
-                          ? {
-                              ...currentItem,
-                              vatRate: Number.isNaN(event.target.valueAsNumber)
-                                ? 0
-                                : event.target.valueAsNumber,
-                            }
-                          : currentItem,
+                        currentIndex === index ? { ...currentItem, vatRate: value } : currentItem,
                       ),
                     )
                   }
-                />
-                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  Total ligne: {item.total.toFixed(2)} {form.currency || 'EUR'}
-                </div>
-                <button
-                  type="button"
-                  className="rounded border bg-red-300 px-3 py-2 hover:bg-red-500"
-                  onClick={() =>
+                  onDelete={() =>
                     updateQuoteItems((items) =>
                       items.length === 1
                         ? [createEmptyQuoteItem(0)]
                         : items.filter((_, currentIndex) => currentIndex !== index),
                     )
                   }
-                >
-                  Supprimer la ligne
-                </button>
-                </div>
-              </div>
-            </div>
-          ))}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
       </section>
 
