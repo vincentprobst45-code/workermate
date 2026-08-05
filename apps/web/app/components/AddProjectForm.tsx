@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import SelectExistingAddress from "./SelectExistingAddress";
 import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm';
 import { useApiClient } from "../api-client";
+import QuotesList, { type Quote } from './QuotesList';
+import NewQuote from './NewQuote';
 
 
 type ProjectStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -154,6 +156,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     const [success, setSuccess] = useState('');
     const [addressError, setAddressError] = useState('');
     const [addressSuccess, setAddressSuccess] = useState('');
+    const [quotes, setQuotes] = useState<Quote[]>([]);
+    const [quotesLoading, setQuotesLoading] = useState(false);
+    const [quotesError, setQuotesError] = useState('');
+    const [showQuotesList, setShowQuotesList] = useState(false);
+    const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
 
     useEffect(() => {
       let cancelled = false;
@@ -202,6 +209,63 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         // createdAt : '',
         // updatedAt: '',
       };
+    }
+
+    async function openQuoteSelector() {
+      setQuotesError('');
+      setShowQuotesList(true);
+      setSelectedQuote(null);
+      setQuotesLoading(true);
+
+      try {
+        const response = await api.get('/quotes');
+        if (!response.ok) {
+          throw new Error('Erreur');
+        }
+
+        const data: Quote[] = await response.json();
+        setQuotes(data);
+      } catch {
+        setQuotes([]);
+        setQuotesError('Erreur lors de la récupération des devis');
+      } finally {
+        setQuotesLoading(false);
+      }
+    }
+
+    function chooseSelectedQuote() {
+      if (!selectedQuote) {
+        return;
+      }
+
+      if (!selectedQuote.items?.length) {
+        setQuotesError('Le devis sélectionné ne contient aucune ligne.');
+        return;
+      }
+
+      setNewProject((currentProject) => {
+        const basePosition = currentProject.projectItems.length;
+        const importedItems: ProjectItem[] = selectedQuote.items!.map((quoteItem, index) => ({
+          id: '',
+          position: basePosition + index,
+          type: 'SERVICE',
+          title: quoteItem.title,
+          description: quoteItem.description,
+          quantity: quoteItem.quantity,
+          unit: quoteItem.unit ?? '',
+          unitPrice: quoteItem.unitPrice,
+          vatRate: quoteItem.vatRate,
+        }));
+
+        return {
+          ...currentProject,
+          projectItems: [...currentProject.projectItems, ...importedItems],
+        };
+      });
+
+      setShowQuotesList(false);
+      setQuotesError('');
+      setSuccess('Étapes importées depuis le devis.');
     }
 
     function handleUseCustomerAddress() {
@@ -289,22 +353,88 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             />
           </div>
           <div className='p-6 border-2 m-6'>
-            <button type="button" 
-                // onClick={() => {setProjectItems([...projectItems, createEmptyProjectItem()])}}
-                // onClick={() => {setNewProject([...newProject, [...newProject.projectItems, createEmptyProjectItem()]])}}
+            <div className="mb-4 flex flex-wrap gap-3">
+              <button type="button" 
+                  onClick={() => {
+                    setNewProject((currentProject) => ({
+                      ...currentProject,
+                      projectItems: [
+                        ...currentProject.projectItems,
+                        createEmptyProjectItem(),
+                      ],
+                    }));
+                  }}
+                  className='border-2 bg-blue-200 rounded-md p-2'
+              >
+                + Ajouter une étape
+              </button>
+              <button
+                type="button"
                 onClick={() => {
-                  setNewProject((currentProject) => ({
-                    ...currentProject,
-                    projectItems: [
-                      ...currentProject.projectItems,
-                      createEmptyProjectItem(),
-                    ],
-                  }));
+                  void openQuoteSelector();
                 }}
-                className='border-2 bg-blue-200 rounded-md p-2'
-            >
-              + Ajouter une étape
-            </button>
+                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+              >
+                Ajouter des étapes à partir d&apos;un devis
+              </button>
+            </div>
+
+            {quotesError && (
+              <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{quotesError}</div>
+            )}
+
+            {showQuotesList && (
+              <div className="mb-4 rounded-md border-2 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <h4 className="text-lg font-semibold">Sélectionner un devis</h4>
+                  <button
+                    type="button"
+                    className="ml-auto rounded border px-3 py-2"
+                    onClick={() => setShowQuotesList(false)}
+                  >
+                    Fermer la liste
+                  </button>
+                </div>
+                {quotesLoading ? (
+                  <p>Chargement des devis...</p>
+                ) : (
+                  <QuotesList
+                    quotes={quotes}
+                    onDelete={null}
+                    handleSelectedQuote={(quote) => {
+                      setSelectedQuote(quote);
+                      setShowQuotesList(false);
+                      setQuotesError('');
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            {!showQuotesList && selectedQuote && (
+              <div className="mb-4 rounded-md border-2 p-4">
+                <h4 className="mb-3 text-lg font-semibold">Devis sélectionné</h4>
+                <NewQuote quote={selectedQuote} />
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={chooseSelectedQuote}
+                    className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+                  >
+                    Choisir ce devis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuotesList(true);
+                    }}
+                    className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                  >
+                    Choisir un autre devis
+                  </button>
+                </div>
+              </div>
+            )}
             <div className='m-6'>
             {newProject.projectItems.map((projectItem,i) => {
               return(

@@ -185,7 +185,7 @@ export default function NewInvoice({
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
 								<td className={styles.invoiceTableCell}>{line.unit || '-'}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
-								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.vatRate.toFixed(2)}</td>
+								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{Number(line.vatRate).toFixed(2)}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.totalExclTax, locale, currency)}</td>
 							</tr>
 						))}

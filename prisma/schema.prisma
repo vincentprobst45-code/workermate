@@ -23,8 +23,14 @@ model Tenant {
   iban String?
   bic String?
 
-  invoiceNumberPrefix String?
-  nextInvoiceNumber Int?
+  invoiceNumberPrefix String @default("FAC")
+  nextInvoiceNumber Int @default(1)
+  invoiceNumberYear   Int
+
+  quoteNumberPrefix String @default("DEV")
+  nextQuoteNumber Int @default(1)
+  quoteNumberYear   Int
+  
 
   logoFileId String?
 

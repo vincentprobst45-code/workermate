@@ -110,7 +110,7 @@ export class TenantService {
           : undefined,
       invoiceNumberPrefix:
         tenantData.invoiceNumberPrefix !== undefined
-          ? this.normalizeOptionalString(tenantData.invoiceNumberPrefix)
+          ? tenantData.invoiceNumberPrefix.trim() || undefined
           : undefined,
       nextInvoiceNumber:
         tenantData.nextInvoiceNumber !== undefined

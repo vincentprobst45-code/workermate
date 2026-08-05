@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceFromProjectDto } from './create-invoice-from-project.dto';
@@ -12,6 +13,8 @@ import { CreateInvoiceFromProjectDto } from './create-invoice-from-project.dto';
 
 @Injectable()
 export class InvoiceService {
+  private static readonly INVOICE_NUMBER_RETRY_LIMIT = 3;
+
   constructor(private prisma: PrismaService) {}
 
   private toNumber(value: unknown): number {
@@ -27,19 +30,40 @@ export class InvoiceService {
     return Number(value.toFixed(2));
   }
 
-  private async generateInvoiceNumber(tenantId: string): Promise<string> {
+  private isTransactionRetryable(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  }
+
+  private async generateInvoiceNumber(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<string> {
     const year = new Date().getFullYear();
-    const prefix = `FAC-${year}-`;
-    const count = await this.prisma.invoice.count({
-      where: {
-        tenantId,
-        number: {
-          startsWith: prefix,
-        },
+    const tenant = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        invoiceNumberPrefix: true,
+        nextInvoiceNumber: true,
+        invoiceNumberYear: true,
       },
     });
 
-    return `${prefix}${String(count + 1).padStart(4, '0')}`;
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found.');
+    }
+
+    const nextInvoiceNumber =
+      tenant.invoiceNumberYear === year ? (tenant.nextInvoiceNumber ?? 1) : 1;
+
+    await tx.tenant.update({
+      where: { id: tenantId },
+      data: {
+        invoiceNumberYear: year,
+        nextInvoiceNumber: nextInvoiceNumber + 1,
+      },
+    });
+
+    return `${tenant.invoiceNumberPrefix}-${year}-${String(nextInvoiceNumber).padStart(4, '0')}`;
   }
 
   async create(tenantId: string, dto: CreateInvoiceDto) {
@@ -125,12 +149,9 @@ export class InvoiceService {
     const grossTotal = this.roundMoney(subtotal + vatAmount);
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
 
-    const invoiceNumber = await this.generateInvoiceNumber(tenantId);
-
-    const invoiceData: CreateInvoiceDto = {
+    const invoiceData: Omit<CreateInvoiceDto, 'number'> = {
       customerId: project.customer.id,
       projectId: project.id,
-      number: invoiceNumber,
       issueDate,
       dueDate,
       projectReference: project.reference,
@@ -170,20 +191,40 @@ export class InvoiceService {
       discountAmount: discountAmount > 0 ? discountAmount : undefined,
     };
 
-    return this.prisma.invoice.create({
-      data: {
-        ...invoiceData,
-        tenantId,
-        items: items.length
-          ? {
-              create: items,
-            }
-          : undefined,
-      },
-      include: {
-        items: true,
-      },
-    });
+    for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const invoiceNumber = await this.generateInvoiceNumber(tx, tenantId);
+
+            return tx.invoice.create({
+              data: {
+                ...invoiceData,
+                number: invoiceNumber,
+                tenantId,
+                items: items.length
+                  ? {
+                      create: items,
+                    }
+                  : undefined,
+              },
+              include: {
+                items: true,
+              },
+            });
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (error) {
+        if (!this.isTransactionRetryable(error) || attempt === InvoiceService.INVOICE_NUMBER_RETRY_LIMIT - 1) {
+          throw error;
+        }
+      }
+    }
+
+    throw new BadRequestException('Unable to generate invoice number.');
   }
 
   async findAll(tenantId: string) {

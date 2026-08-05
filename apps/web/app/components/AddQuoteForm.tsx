@@ -131,7 +131,6 @@ export interface AddQuoteItemFormData {
 
 export interface AddQuoteFormData {
   title: string;
-  number: string;
   issueDate: string;
   validUntil: string;
   projectReference: string;
@@ -160,7 +159,6 @@ export interface CreateQuoteDto {
   customerId?: string;
   customer?: CreateCustomerDto;
   title: string;
-  number: string;
   issueDate: string;
   validUntil?: string;
   projectReference?: string;
@@ -333,7 +331,6 @@ export function createEmptyQuote(
 
   return {
     title: '',
-    number: '',
     issueDate: toDatetimeLocal(now),
     validUntil: toDatetimeLocal(validUntil),
     projectReference: '',
@@ -626,7 +623,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
 
     const payload: CreateQuoteDto = {
       title: form.title.trim(),
-      number: form.number.trim(),
       issueDate: form.issueDate,
       validUntil: trimToUndefined(form.validUntil),
       projectReference: trimToUndefined(form.projectReference),
@@ -717,13 +713,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             placeholder="Titre du devis"
             value={form.title}
             onChange={(event) => setForm({ ...form, title: event.target.value })}
-            required
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Numero"
-            value={form.number}
-            onChange={(event) => setForm({ ...form, number: event.target.value })}
             required
           />
           <select

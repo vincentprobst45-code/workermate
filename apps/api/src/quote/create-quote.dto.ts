@@ -27,9 +27,6 @@ export class CreateQuoteDto {
   title!: string;
 
   @IsString()
-  number!: string;
-
-  @IsString()
   issueDate!: string;
 
   @IsOptional()

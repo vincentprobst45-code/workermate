@@ -35,6 +35,8 @@ type QuoteWithRelations = Prisma.QuoteGetPayload<{
 
 @Injectable()
 export class QuoteService {
+  private static readonly QUOTE_NUMBER_RETRY_LIMIT = 3;
+
   constructor(private prisma: PrismaService) {}
 
   private normalizeOptionalString(value?: string | null): string | undefined {
@@ -76,6 +78,41 @@ export class QuoteService {
 
   private roundMoney(value: number): number {
     return Number(value.toFixed(2));
+  }
+
+  private isTransactionRetryable(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  }
+
+  private async generateQuoteNumber(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    const tenant = await tx.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        quoteNumberPrefix: true,
+        nextQuoteNumber: true,
+        quoteNumberYear: true,
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found.');
+    }
+
+    const nextQuoteNumber = tenant.quoteNumberYear === year ? (tenant.nextQuoteNumber ?? 1) : 1;
+
+    await tx.tenant.update({
+      where: { id: tenantId },
+      data: {
+        quoteNumberYear: year,
+        nextQuoteNumber: nextQuoteNumber + 1,
+      },
+    });
+
+    return `${tenant.quoteNumberPrefix}-${year}-${String(nextQuoteNumber).padStart(4, '0')}`;
   }
 
   private sanitizeAddress(address: CreateAddressDto): Prisma.AddressUncheckedCreateInput {
@@ -346,89 +383,108 @@ export class QuoteService {
     vatAmount = this.roundMoney(vatAmount);
     const total = this.roundMoney(subtotal + vatAmount);
 
-    const created = await this.prisma.quote.create({
-      data: {
-        tenant: {
-          connect: {
-            id: tenantId,
-          },
-        },
-        customer: {
-          connect: {
-            id: customer.id,
-          },
-        },
-        title: dto.title.trim(),
-        number: dto.number.trim(),
-        issueDate,
-        validUntil,
-        projectReference: this.normalizeOptionalString(dto.projectReference),
-        projectTitle: this.normalizeOptionalString(dto.projectTitle),
-        tenantName: dto.tenantName.trim(),
-        tenantStreet1: dto.tenantStreet1.trim(),
-        tenantStreet2: this.normalizeOptionalString(dto.tenantStreet2),
-        tenantPostalCode: dto.tenantPostalCode.trim(),
-        tenantCity: dto.tenantCity.trim(),
-        tenantSiretNumber: dto.tenantSiretNumber.trim(),
-        tenantVatNumber: dto.tenantVatNumber.trim(),
-        tenantEmail: dto.tenantEmail.trim(),
-        tenantPhoneNumber: dto.tenantPhoneNumber.trim(),
-        tenantIban: this.normalizeOptionalString(dto.tenantIban),
-        tenantBic: this.normalizeOptionalString(dto.tenantBic),
-        customerFirstName:
-          this.normalizeOptionalString(dto.customerFirstName) ??
-          customer.firstName ??
-          customer.company ??
-          '',
-        customerLastName:
-          this.normalizeOptionalString(dto.customerLastName) ?? customer.lastName ?? '',
-        customerStreet1: customer.address?.street1 ?? dto.customerStreet1.trim(),
-        customerStreet2:
-          customer.address?.street2 ?? this.normalizeOptionalString(dto.customerStreet2),
-        customerPostalCode:
-          customer.address?.postalCode ?? dto.customerPostalCode.trim(),
-        customerCity: customer.address?.city ?? dto.customerCity.trim(),
-        customerEmail:
-          customer.email ?? this.normalizeOptionalString(dto.customerEmail),
-        customerPhoneNumber:
-          customer.phone ?? customer.mobile ?? this.normalizeOptionalString(dto.customerPhoneNumber),
-        customerVatNumber:
-          customer.vatNumber ?? this.normalizeOptionalString(dto.customerVatNumber),
-        projectStartDate,
-        projectEndDate,
-        projectAddress: projectAddress
-          ? {
-              connect: {
-                id: projectAddress.id,
-              },
-            }
-          : undefined,
-        status: dto.status ?? 'DRAFT',
-        currency: this.normalizeOptionalString(dto.currency) ?? 'EUR',
-        subtotal,
-        vatAmount,
-        total,
-        paymentTerms: this.normalizeOptionalString(dto.paymentTerms),
-        legalMentions: this.normalizeOptionalString(dto.legalMentions),
-        notes: this.normalizeOptionalString(dto.notes),
-        depositAmount:
-          dto.depositAmount !== undefined ? this.toNumber(dto.depositAmount) : undefined,
-        pdfFileId: this.normalizeOptionalString(dto.pdfFileId),
-        items: {
-          create: items,
-        },
-      },
-      include: {
-        items: {
-          orderBy: {
-            position: 'asc',
-          },
-        },
-        projectAddress: true,
-      },
-    });
+    for (let attempt = 0; attempt < QuoteService.QUOTE_NUMBER_RETRY_LIMIT; attempt += 1) {
+      try {
+        const created = await this.prisma.$transaction(
+          async (tx) => {
+            const quoteNumber = await this.generateQuoteNumber(tx, tenantId);
 
-    return this.serializeQuote(created);
+            return tx.quote.create({
+              data: {
+                tenant: {
+                  connect: {
+                    id: tenantId,
+                  },
+                },
+                customer: {
+                  connect: {
+                    id: customer.id,
+                  },
+                },
+                title: dto.title.trim(),
+                number: quoteNumber,
+                issueDate,
+                validUntil,
+                projectReference: this.normalizeOptionalString(dto.projectReference),
+                projectTitle: this.normalizeOptionalString(dto.projectTitle),
+                tenantName: dto.tenantName.trim(),
+                tenantStreet1: dto.tenantStreet1.trim(),
+                tenantStreet2: this.normalizeOptionalString(dto.tenantStreet2),
+                tenantPostalCode: dto.tenantPostalCode.trim(),
+                tenantCity: dto.tenantCity.trim(),
+                tenantSiretNumber: dto.tenantSiretNumber.trim(),
+                tenantVatNumber: dto.tenantVatNumber.trim(),
+                tenantEmail: dto.tenantEmail.trim(),
+                tenantPhoneNumber: dto.tenantPhoneNumber.trim(),
+                tenantIban: this.normalizeOptionalString(dto.tenantIban),
+                tenantBic: this.normalizeOptionalString(dto.tenantBic),
+                customerFirstName:
+                  this.normalizeOptionalString(dto.customerFirstName) ??
+                  customer.firstName ??
+                  customer.company ??
+                  '',
+                customerLastName:
+                  this.normalizeOptionalString(dto.customerLastName) ?? customer.lastName ?? '',
+                customerStreet1: customer.address?.street1 ?? dto.customerStreet1.trim(),
+                customerStreet2:
+                  customer.address?.street2 ?? this.normalizeOptionalString(dto.customerStreet2),
+                customerPostalCode:
+                  customer.address?.postalCode ?? dto.customerPostalCode.trim(),
+                customerCity: customer.address?.city ?? dto.customerCity.trim(),
+                customerEmail:
+                  customer.email ?? this.normalizeOptionalString(dto.customerEmail),
+                customerPhoneNumber:
+                  customer.phone ?? customer.mobile ?? this.normalizeOptionalString(dto.customerPhoneNumber),
+                customerVatNumber:
+                  customer.vatNumber ?? this.normalizeOptionalString(dto.customerVatNumber),
+                projectStartDate,
+                projectEndDate,
+                projectAddress: projectAddress
+                  ? {
+                      connect: {
+                        id: projectAddress.id,
+                      },
+                    }
+                  : undefined,
+                status: dto.status ?? 'DRAFT',
+                currency: this.normalizeOptionalString(dto.currency) ?? 'EUR',
+                subtotal,
+                vatAmount,
+                total,
+                paymentTerms: this.normalizeOptionalString(dto.paymentTerms),
+                legalMentions: this.normalizeOptionalString(dto.legalMentions),
+                notes: this.normalizeOptionalString(dto.notes),
+                depositAmount:
+                  dto.depositAmount !== undefined ? this.toNumber(dto.depositAmount) : undefined,
+                pdfFileId: this.normalizeOptionalString(dto.pdfFileId),
+                items: {
+                  create: items,
+                },
+              },
+              include: {
+                items: {
+                  orderBy: {
+                    position: 'asc',
+                  },
+                },
+                projectAddress: true,
+              },
+            });
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+
+        return this.serializeQuote(created);
+      } catch (error) {
+        if (!this.isTransactionRetryable(error) || attempt === QuoteService.QUOTE_NUMBER_RETRY_LIMIT - 1) {
+          throw error;
+        }
+      }
+    }
+
+    throw new BadRequestException('Unable to generate quote number.');
   }
 
   async findAll(tenantId: string) {

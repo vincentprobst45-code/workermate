@@ -160,11 +160,14 @@ export class AuthService {
     const hashed = await hashPassword(password);
 
     // create tenant, user and membership in a transaction
+    const currentYear = new Date().getFullYear();
     const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const tenant = await tx.tenant.create({ 
         data: { 
           name: 'Mon Entreprise',
           invoiceNumberPrefix: 'FAC',
+          quoteNumberYear: currentYear,
+          invoiceNumberYear: currentYear,
           defaultPaymentTerms: 'Paiement sous 30 jours.',
           defaultInvoiceNotes: 'Merci pour votre confiance.',
         } 

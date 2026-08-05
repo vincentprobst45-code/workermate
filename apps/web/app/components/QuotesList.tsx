@@ -84,7 +84,8 @@ export interface Quote {
 
 interface QuotesListProps {
   quotes: Quote[];
-  onDelete: (id: string) => void | Promise<void>;
+  onDelete: ((id: string) => void | Promise<void>) | null;
+  handleSelectedQuote?: ((quote: Quote) => void | Promise<void>) | null;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -110,7 +111,7 @@ function formatDate(value?: string) {
 }
 
 
-export default function QuotesList({ quotes, onDelete }: QuotesListProps) {
+export default function QuotesList({ quotes, onDelete, handleSelectedQuote = null }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [quotesPerPage, setQuotesPerPage] = useState(5);
@@ -196,15 +197,17 @@ export default function QuotesList({ quotes, onDelete }: QuotesListProps) {
                 {formatDate(quote.issueDate)} - {formatMoney(quote.total, quote.currency)}
               </p>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                void onDelete(quote.id);
-              }}
-              className="text-red-600 hover:text-red-800"
-            >
-              Supprimer
-            </button>
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onDelete(quote.id);
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         ))}
       </section>
@@ -313,6 +316,16 @@ export default function QuotesList({ quotes, onDelete }: QuotesListProps) {
                 <p className="text-sm text-slate-600 mt-1">Aucune ligne chargee.</p>
               )}
             </div>
+            {handleSelectedQuote && (
+              <button
+                onClick={() => {
+                  void handleSelectedQuote(selectedQuote);
+                }}
+                className="mt-4 rounded-sm border-2 border-double border-gray-700 bg-blue-400 px-3 py-2 text-xl text-white shadow-md hover:bg-blue-600 active:bg-blue-900"
+              >
+                Selectionner ce devis
+              </button>
+            )}
           </div>
         </div>
       )}
