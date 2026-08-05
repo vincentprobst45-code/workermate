@@ -264,6 +264,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       });
 
       setShowQuotesList(false);
+      setSelectedQuote(null)
       setQuotesError('');
       setSuccess('Étapes importées depuis le devis.');
     }
@@ -414,7 +415,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             {!showQuotesList && selectedQuote && (
               <div className="mb-4 rounded-md border-2 p-4">
                 <h4 className="mb-3 text-lg font-semibold">Devis sélectionné</h4>
-                <NewQuote quote={selectedQuote} />
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -433,6 +433,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     Choisir un autre devis
                   </button>
                 </div>
+                <NewQuote quote={selectedQuote} />
               </div>
             )}
             <div className='m-6'>

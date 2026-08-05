@@ -184,8 +184,12 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
             key={quote.id}
             className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
             onClick={() => {
-              setShowQuoteDetails(true);
-              setSelectedQuote(quote);
+              if(handleSelectedQuote){
+                  void handleSelectedQuote(quote);
+              } else {
+                setShowQuoteDetails(true);
+                setSelectedQuote(quote);
+              }
             }}
           >
             <div>
