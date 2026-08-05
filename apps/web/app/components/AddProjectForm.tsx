@@ -1,3 +1,18 @@
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useState } from "react";
 import SelectExistingAddress from "./SelectExistingAddress";
 import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm';
@@ -24,6 +39,7 @@ interface CustomerOption {
 
 interface ProjectItem{
   id: string;
+  rowId: string;
   position: number;
   type: ProjectItemType;
 
@@ -64,6 +80,151 @@ const projectItemTypeOptions = [
     label: 'Autre',
   },
 ];
+
+function createProjectItemRowId(): string {
+  return crypto.randomUUID();
+}
+
+type SortableProjectLineProps = {
+  projectItem: ProjectItem;
+  index: number;
+  totalItems: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onTitleChange: (value: string) => void;
+  onTypeChange: (value: ProjectItemType) => void;
+  onDescriptionChange: (value: string) => void;
+  onQuantityChange: (value: number) => void;
+  onUnitChange: (value: string) => void;
+  onUnitPriceChange: (value: number) => void;
+  onVatRateChange: (value: number) => void;
+  onDelete: () => void;
+};
+
+function SortableProjectLine({
+  projectItem,
+  index,
+  totalItems,
+  onMoveUp,
+  onMoveDown,
+  onTitleChange,
+  onTypeChange,
+  onDescriptionChange,
+  onQuantityChange,
+  onUnitChange,
+  onUnitPriceChange,
+  onVatRateChange,
+  onDelete,
+}: SortableProjectLineProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: projectItem.rowId,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`p-6 mt-6 border-2 flex flex-wrap gap-4 items-center ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+    >
+      <div className="flex flex-col gap-2 mr-2">
+        <button
+          type="button"
+          className="cursor-grab rounded border px-2 py-1 text-sm active:cursor-grabbing"
+          aria-label="Glisser l'etape"
+          title="Glisser l'etape"
+          {...attributes}
+          {...listeners}
+        >
+          ≡
+        </button>
+        <button
+          type="button"
+          className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onMoveUp}
+          disabled={index === 0}
+          aria-label="Monter l'etape"
+          title="Monter l'etape"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onMoveDown}
+          disabled={index === totalItems - 1}
+          aria-label="Descendre l'etape"
+          title="Descendre l'etape"
+        >
+          ↓
+        </button>
+      </div>
+      <label htmlFor='title'>Titre : </label>
+      <input name="title"
+        className="border px-3 py-2 rounded"
+        placeholder="Titre"
+        value={projectItem.title}
+        onChange={(e) => onTitleChange(e.target.value)}
+      />
+      <label htmlFor='itemtype'>Type : </label>
+      <select name="itemtype"
+        className="border px-3 py-2 rounded"
+        value={projectItem.type}
+        onChange={(e) => onTypeChange(e.target.value as ProjectItemType)}
+      >
+        {projectItemTypeOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <label htmlFor='description'>Description : </label>
+      <input name="description"
+        className="border px-3 py-2 rounded"
+        placeholder="Description"
+        value={projectItem.description}
+        onChange={(e) => onDescriptionChange(e.target.value)}
+      />
+      <label htmlFor='quantity'>Quantité : </label>
+      <input type="number" name="quantity"
+        className="border px-3 py-2 rounded"
+        value={projectItem.quantity}
+        onChange={(e) => onQuantityChange(e.target.valueAsNumber)}
+      />
+      <label htmlFor='unit'>Unité : </label>
+      <input name="unit"
+        className="border px-3 py-2 rounded"
+        placeholder="unité"
+        value={projectItem.unit}
+        onChange={(e) => onUnitChange(e.target.value)}
+      />
+      <label htmlFor="unitprice">{`Prix à l'unité : `}</label>
+      <input type="number" name="unitprice"
+        className="border px-3 py-2 rounded"
+        placeholder="Prix à l'unité"
+        value={projectItem.unitPrice}
+        onChange={(e) => onUnitPriceChange(e.target.valueAsNumber)}
+      />
+      <label htmlFor="vat">TVA : </label>
+      <input type="number" name="vat"
+        className="border px-3 py-2 rounded"
+        placeholder="Taux de TVA"
+        value={projectItem.vatRate}
+        onChange={(e) => onVatRateChange(e.target.valueAsNumber)}
+      />
+      <button type="button"
+        className='py-2 px-3 border-2 rounded-md bg-red-300 hover:bg-red-500 active:bg-red-800'
+        onClick={onDelete}
+      >
+        {"Supprimer l'étape"}
+      </button>
+    </div>
+  );
+}
 
 export type AddProjectFormData = {
     title: string;
@@ -167,6 +328,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     const [catalogItemsError, setCatalogItemsError] = useState('');
     const [showCatalogItemsList, setShowCatalogItemsList] = useState(false);
     const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
+    const sensors = useSensors(useSensor(PointerSensor));
 
     useEffect(() => {
       let cancelled = false;
@@ -201,6 +363,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     function createEmptyProjectItem(): ProjectItem {
       return {
         id: '',
+        rowId: createProjectItemRowId(),
         position: newProject.projectItems ? newProject.projectItems.length : 0,
         type: 'LABOR',
 
@@ -215,6 +378,39 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         // createdAt : '',
         // updatedAt: '',
       };
+    }
+
+    function reorderProjectItems(items: ProjectItem[]): ProjectItem[] {
+      return items.map((item, index) => ({
+        ...item,
+        position: index,
+      }));
+    }
+
+    function updateProjectItems(updater: (items: ProjectItem[]) => ProjectItem[]) {
+      setNewProject((currentProject) => ({
+        ...currentProject,
+        projectItems: reorderProjectItems(updater(currentProject.projectItems)),
+      }));
+    }
+
+    function handleProjectItemDragEnd(event: DragEndEvent) {
+      const { active, over } = event;
+
+      if (!over || active.id === over.id) {
+        return;
+      }
+
+      updateProjectItems((items) => {
+        const oldIndex = items.findIndex((item) => item.rowId === active.id);
+        const newIndex = items.findIndex((item) => item.rowId === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) {
+          return items;
+        }
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
     }
 
     async function openQuoteSelector() {
@@ -254,6 +450,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         const basePosition = currentProject.projectItems.length;
         const importedItems: ProjectItem[] = selectedQuote.items!.map((quoteItem, index) => ({
           id: '',
+          rowId: createProjectItemRowId(),
           position: basePosition + index,
           type: 'SERVICE',
           title: quoteItem.title,
@@ -308,6 +505,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         const nextPosition = currentProject.projectItems.length;
         const itemToAdd: ProjectItem = {
           id: '',
+          rowId: createProjectItemRowId(),
           position: nextPosition,
           type: selectedCatalogItem.type,
           title: selectedCatalogItem.title,
@@ -418,13 +616,10 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <div className="mb-4 flex flex-wrap gap-3">
               <button type="button" 
                   onClick={() => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: [
-                        ...currentProject.projectItems,
-                        createEmptyProjectItem(),
-                      ],
-                    }));
+                    updateProjectItems((items) => [
+                      ...items,
+                      createEmptyProjectItem(),
+                    ]);
                   }}
                   className='border-2 bg-blue-200 rounded-md p-2'
               >
@@ -573,147 +768,97 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </div>
             )}
             <div className='m-6'>
-            {newProject.projectItems.map((projectItem,i) => {
-              return(
-              <div key={i} className='p-6 mt-6 border-2 flex flex-wrap gap-4 items-center'>
-                <label htmlFor='title'>Titre : </label>
-                <input name="title"
-                  className="border px-3 py-2 rounded"
-                  placeholder="Titre"
-                  value={projectItem.title}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, title: e.target.value }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <label htmlFor='itemtype'>Type : </label>
-                <select name="itemtype"
-                  className="border px-3 py-2 rounded"
-                  value={projectItem.type}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, type: e.target.value as ProjectItemType }
-                            : item
-                      ),
-                    }));
-                  }}
-                >
-                  {projectItemTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor='description'>Description : </label>
-                <input name="description"
-                  className="border px-3 py-2 rounded"
-                  placeholder="Description"
-                  value={projectItem.description}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, description: e.target.value }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <label htmlFor='quantity'>Quantité : </label>
-                <input type="number" name="quantity"
-                  className="border px-3 py-2 rounded"
-                  value={projectItem.quantity}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, quantity: e.target.valueAsNumber }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <label htmlFor='unit'>Unité : </label>
-                <input name="unit"
-                  className="border px-3 py-2 rounded"
-                  placeholder="unité"
-                  value={projectItem.unit}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, unit: e.target.value }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <label htmlFor="unitprice">{`Prix à l'unité : `}</label>
-                <input type="number" name="unitprice"
-                  className="border px-3 py-2 rounded"
-                  placeholder="Prix à l'unité"
-                  value={projectItem.unitPrice}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, unitPrice: e.target.valueAsNumber }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <label htmlFor="vat">TVA : </label>
-                <input type="number" name="vat"
-                  className="border px-3 py-2 rounded"
-                  placeholder="Taux de TVA"
-                  value={projectItem.vatRate}
-                  onChange={(e) => {
-                    setNewProject((currentProject) => ({
-                      ...currentProject,
-                      projectItems: currentProject.projectItems.map(
-                        (item, index) =>
-                          index === i
-                            ? { ...item, vatRate: e.target.valueAsNumber }
-                            : item
-                      ),
-                    }));
-                  }}
-                />
-                <button type="button"
-                  className='py-2 px-3 border-2 rounded-md bg-red-300 hover:bg-red-500 active:bg-red-800'
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectItemDragEnd}>
+              <SortableContext
+                items={newProject.projectItems.map((item) => item.rowId)}
+                strategy={verticalListSortingStrategy}
+              >
+                {newProject.projectItems.map((projectItem,i) => {
+                  return(
+                  <SortableProjectLine
+                    key={projectItem.rowId}
+                    projectItem={projectItem}
+                    index={i}
+                    totalItems={newProject.projectItems.length}
+                    onMoveUp={() =>
+                      updateProjectItems((items) => {
+                        if (i === 0) {
+                          return items;
+                        }
 
-                onClick={() => { 
-                    setNewProject((currentProject) => ({
-                        ...currentProject,
-                        projectItems: currentProject.projectItems.filter(( item, index) => index !== i)
-                    }))
-                }}
-                > 
-                  {"Supprimer l'étape"}
-                </button>
-              </div>
-            )
-            })}
+                        const nextItems = [...items];
+                        [nextItems[i - 1], nextItems[i]] = [nextItems[i], nextItems[i - 1]];
+                        return nextItems;
+                      })
+                    }
+                    onMoveDown={() =>
+                      updateProjectItems((items) => {
+                        if (i === items.length - 1) {
+                          return items;
+                        }
+
+                        const nextItems = [...items];
+                        [nextItems[i], nextItems[i + 1]] = [nextItems[i + 1], nextItems[i]];
+                        return nextItems;
+                      })
+                    }
+                    onTitleChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, title: value } : item,
+                        ),
+                      )
+                    }
+                    onTypeChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, type: value } : item,
+                        ),
+                      )
+                    }
+                    onDescriptionChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, description: value } : item,
+                        ),
+                      )
+                    }
+                    onQuantityChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, quantity: value } : item,
+                        ),
+                      )
+                    }
+                    onUnitChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, unit: value } : item,
+                        ),
+                      )
+                    }
+                    onUnitPriceChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, unitPrice: value } : item,
+                        ),
+                      )
+                    }
+                    onVatRateChange={(value) =>
+                      updateProjectItems((items) =>
+                        items.map((item, index) =>
+                          index === i ? { ...item, vatRate: value } : item,
+                        ),
+                      )
+                    }
+                    onDelete={() => 
+                      updateProjectItems((items) => items.filter((item, index) => index !== i))
+                    }
+                  />
+                )
+                })}
+              </SortableContext>
+            </DndContext>
             </div>
           </div>
           <div className='border-2 rounded-md p-4 m-4'>
