@@ -4,6 +4,7 @@ import AddressForm, { type AddAddressFormData, createEmptyAddress } from './Addr
 import { useApiClient } from "../api-client";
 import QuotesList, { type Quote } from './QuotesList';
 import NewQuote from './NewQuote';
+import CatalogItemList, { type CatalogItem } from './CatalogItemList';
 
 
 type ProjectStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -161,6 +162,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     const [quotesError, setQuotesError] = useState('');
     const [showQuotesList, setShowQuotesList] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+    const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+    const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
+    const [catalogItemsError, setCatalogItemsError] = useState('');
+    const [showCatalogItemsList, setShowCatalogItemsList] = useState(false);
+    const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
 
     useEffect(() => {
       let cancelled = false;
@@ -214,6 +220,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     async function openQuoteSelector() {
       setQuotesError('');
       setShowQuotesList(true);
+      setShowCatalogItemsList(false);
       setSelectedQuote(null);
       setQuotesLoading(true);
 
@@ -267,6 +274,60 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       setSelectedQuote(null)
       setQuotesError('');
       setSuccess('Étapes importées depuis le devis.');
+    }
+
+    async function openCatalogItemSelector() {
+      setCatalogItemsError('');
+      setShowCatalogItemsList(true);
+      setShowQuotesList(false);
+      setSelectedCatalogItem(null);
+      setCatalogItemsLoading(true);
+
+      try {
+        const response = await api.get('/catalogitems');
+        if (!response.ok) {
+          throw new Error('Erreur');
+        }
+
+        const data: CatalogItem[] = await response.json();
+        setCatalogItems(data);
+      } catch {
+        setCatalogItems([]);
+        setCatalogItemsError('Erreur lors de la récupération des articles catalogue');
+      } finally {
+        setCatalogItemsLoading(false);
+      }
+    }
+
+    function chooseSelectedCatalogItem() {
+      if (!selectedCatalogItem) {
+        return;
+      }
+
+      setNewProject((currentProject) => {
+        const nextPosition = currentProject.projectItems.length;
+        const itemToAdd: ProjectItem = {
+          id: '',
+          position: nextPosition,
+          type: selectedCatalogItem.type,
+          title: selectedCatalogItem.title,
+          description: selectedCatalogItem.description ?? '',
+          quantity: Number(selectedCatalogItem.defaultQuantity) || 1,
+          unit: selectedCatalogItem.unit ?? '',
+          unitPrice: Number(selectedCatalogItem.unitPrice) || 0,
+          vatRate: Number(selectedCatalogItem.vatRate) || 0,
+        };
+
+        return {
+          ...currentProject,
+          projectItems: [...currentProject.projectItems, itemToAdd],
+        };
+      });
+
+      setShowCatalogItemsList(false);
+      setSelectedCatalogItem(null);
+      setCatalogItemsError('');
+      setSuccess('Étape importée depuis le catalogue.');
     }
 
     function handleUseCustomerAddress() {
@@ -378,10 +439,22 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               >
                 Ajouter des étapes à partir d&apos;un devis
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void openCatalogItemSelector();
+                }}
+                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+              >
+                Ajouter une étape à partir du catalogue
+              </button>
             </div>
 
             {quotesError && (
               <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{quotesError}</div>
+            )}
+            {catalogItemsError && (
+              <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>
             )}
 
             {showQuotesList && (
@@ -434,6 +507,69 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                   </button>
                 </div>
                 <NewQuote quote={selectedQuote} />
+              </div>
+            )}
+
+            {showCatalogItemsList && (
+              <div className="mb-4 rounded-md border-2 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <h4 className="text-lg font-semibold">Sélectionner un article catalogue</h4>
+                  <button
+                    type="button"
+                    className="ml-auto rounded border px-3 py-2"
+                    onClick={() => setShowCatalogItemsList(false)}
+                  >
+                    Fermer la liste
+                  </button>
+                </div>
+                {catalogItemsLoading ? (
+                  <p>Chargement des articles catalogue...</p>
+                ) : (
+                  <CatalogItemList
+                    catalogItems={catalogItems}
+                    onDelete={null}
+                    handleSelectedCatalogItem={(catalogItem) => {
+                      setSelectedCatalogItem(catalogItem);
+                      setShowCatalogItemsList(false);
+                      setCatalogItemsError('');
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
+            {!showCatalogItemsList && selectedCatalogItem && (
+              <div className="mb-4 rounded-md border-2 p-4">
+                <h4 className="mb-3 text-lg font-semibold">Article catalogue sélectionné</h4>
+                <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                  <p><strong>Titre:</strong> {selectedCatalogItem.title}</p>
+                  <p><strong>Type:</strong> {selectedCatalogItem.type}</p>
+                  <p><strong>Description:</strong> {selectedCatalogItem.description || '-'}</p>
+                  <p>
+                    <strong>Quantité/Unité:</strong> {Number(selectedCatalogItem.defaultQuantity) || 1} {selectedCatalogItem.unit || '-'}
+                  </p>
+                  <p>
+                    <strong>Prix / TVA:</strong> {Number(selectedCatalogItem.unitPrice) || 0} / {Number(selectedCatalogItem.vatRate) || 0}%
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={chooseSelectedCatalogItem}
+                    className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+                  >
+                    Choisir cet article
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCatalogItemsList(true);
+                    }}
+                    className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                  >
+                    Choisir un autre article
+                  </button>
+                </div>
               </div>
             )}
             <div className='m-6'>

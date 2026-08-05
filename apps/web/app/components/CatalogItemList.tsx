@@ -19,7 +19,8 @@ export interface CatalogItem {
 
 interface CatalogItemListProps {
   catalogItems: CatalogItem[];
-  onDelete: (id: string) => void | Promise<void>;
+  onDelete: ((id: string) => void | Promise<void>) | null;
+  handleSelectedCatalogItem?: ((catalogItem: CatalogItem) => void | Promise<void>) | null;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc';
@@ -42,7 +43,11 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export default function CatalogItemList({ catalogItems, onDelete }: CatalogItemListProps) {
+export default function CatalogItemList({
+  catalogItems,
+  onDelete,
+  handleSelectedCatalogItem = null,
+}: CatalogItemListProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -126,15 +131,17 @@ export default function CatalogItemList({ catalogItems, onDelete }: CatalogItemL
                 Qte: {toNumber(catalogItem.defaultQuantity)} {catalogItem.unit || '-'} | PU: {toNumber(catalogItem.unitPrice).toFixed(2)} | TVA: {toNumber(catalogItem.vatRate).toFixed(2)}%
               </p>
             </div>
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                void onDelete(catalogItem.id);
-              }}
-              className="text-red-600 hover:text-red-800"
-            >
-              Supprimer
-            </button>
+            {onDelete && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onDelete(catalogItem.id);
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         ))}
       </section>
@@ -209,6 +216,17 @@ export default function CatalogItemList({ catalogItems, onDelete }: CatalogItemL
             <p>tva : {toNumber(selectedItem.vatRate).toFixed(2)}%</p>
             <p>createdAt : {formatDate(selectedItem.createdAt)}</p>
             <p>updatedAt : {formatDate(selectedItem.updatedAt)}</p>
+
+            {handleSelectedCatalogItem && (
+              <button
+                onClick={() => {
+                  void handleSelectedCatalogItem(selectedItem);
+                }}
+                className="mt-4 rounded-sm border-2 border-double border-gray-700 bg-blue-400 px-3 py-2 text-xl text-white shadow-md hover:bg-blue-600 active:bg-blue-900"
+              >
+                Selectionner cet article
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -1104,7 +1104,50 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         <div className="space-y-4">
           {form.quoteItems.map((item, index) => (
             <div key={index} className="rounded-lg border border-slate-200 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex gap-3">
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() =>
+                      updateQuoteItems((items) => {
+                        if (index === 0) {
+                          return items;
+                        }
+
+                        const nextItems = [...items];
+                        [nextItems[index - 1], nextItems[index]] = [nextItems[index], nextItems[index - 1]];
+                        return nextItems;
+                      })
+                    }
+                    disabled={index === 0}
+                    aria-label="Monter la ligne"
+                    title="Monter la ligne"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() =>
+                      updateQuoteItems((items) => {
+                        if (index === items.length - 1) {
+                          return items;
+                        }
+
+                        const nextItems = [...items];
+                        [nextItems[index], nextItems[index + 1]] = [nextItems[index + 1], nextItems[index]];
+                        return nextItems;
+                      })
+                    }
+                    disabled={index === form.quoteItems.length - 1}
+                    aria-label="Descendre la ligne"
+                    title="Descendre la ligne"
+                  >
+                    ↓
+                  </button>
+                </div>
+                <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <select
                   className="rounded border px-3 py-2"
                   value={item.type}
@@ -1252,6 +1295,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 >
                   Supprimer la ligne
                 </button>
+                </div>
               </div>
             </div>
           ))}
