@@ -27,6 +27,8 @@ import {
   type AddCustomerFormData,
   type CreateCustomerDto,
 } from './AddCustomerForm';
+import CatalogItemList, { type CatalogItem } from './CatalogItemList';
+import ProjectsList, { type Project } from './ProjectsList';
 import SelectExistingAddress from './SelectExistingAddress';
 
 type AddressMode = 'new' | 'existing' | 'none';
@@ -572,6 +574,16 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [success, setSuccess] = useState('');
   const [addressError, setAddressError] = useState('');
   const [addressSuccess, setAddressSuccess] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState('');
+  const [showProjectsList, setShowProjectsList] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
+  const [catalogItemsError, setCatalogItemsError] = useState('');
+  const [showCatalogItemsList, setShowCatalogItemsList] = useState(false);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
   const sensors = useSensors(useSensor(PointerSensor));
 
   const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
@@ -703,6 +715,111 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       setAddressError('');
       setAddressSuccess('Adresse du client selectionnee');
     }
+  }
+
+  async function openProjectSelector() {
+    setProjectsError('');
+    setShowProjectsList(true);
+    setShowCatalogItemsList(false);
+    setSelectedProject(null);
+    setProjectsLoading(true);
+
+    try {
+      const response = await api.get('/projects');
+      if (!response.ok) {
+        throw new Error('Erreur');
+      }
+
+      const data: Project[] = await response.json();
+      setProjects(data);
+    } catch {
+      setProjects([]);
+      setProjectsError('Erreur lors de la récupération des chantiers');
+    } finally {
+      setProjectsLoading(false);
+    }
+  }
+
+  function chooseSelectedProject() {
+    if (!selectedProject) {
+      return;
+    }
+
+    if (!selectedProject.items?.length) {
+      setProjectsError('Le chantier sélectionné ne contient aucune étape.');
+      return;
+    }
+
+    updateQuoteItems((items) => [
+      ...items,
+      ...selectedProject.items!.map((projectItem, index) => ({
+        rowId: createQuoteItemRowId(),
+        type: projectItem.type,
+        position: items.length + index,
+        title: projectItem.title,
+        description: projectItem.description ?? '',
+        quantity: Number(projectItem.quantity) || 0,
+        unit: projectItem.unit ?? '',
+        unitPrice: Number(projectItem.unitPrice) || 0,
+        vatRate: Number(projectItem.vatRate) || 0,
+        total: 0,
+      })),
+    ]);
+
+    setShowProjectsList(false);
+    setSelectedProject(null);
+    setProjectsError('');
+    setSuccess('Lignes importées depuis le chantier.');
+  }
+
+  async function openCatalogItemSelector() {
+    setCatalogItemsError('');
+    setShowCatalogItemsList(true);
+    setShowProjectsList(false);
+    setSelectedCatalogItem(null);
+    setCatalogItemsLoading(true);
+
+    try {
+      const response = await api.get('/catalogitems');
+      if (!response.ok) {
+        throw new Error('Erreur');
+      }
+
+      const data: CatalogItem[] = await response.json();
+      setCatalogItems(data);
+    } catch {
+      setCatalogItems([]);
+      setCatalogItemsError('Erreur lors de la récupération des articles catalogue');
+    } finally {
+      setCatalogItemsLoading(false);
+    }
+  }
+
+  function chooseSelectedCatalogItem() {
+    if (!selectedCatalogItem) {
+      return;
+    }
+
+    updateQuoteItems((items) => [
+      ...items,
+      {
+        rowId: createQuoteItemRowId(),
+        type: selectedCatalogItem.type,
+        position: items.length,
+        title: selectedCatalogItem.title,
+        description: selectedCatalogItem.description ?? '',
+        quantity: Number(selectedCatalogItem.defaultQuantity) || 1,
+        unit: selectedCatalogItem.unit ?? '',
+        unitPrice: Number(selectedCatalogItem.unitPrice) || 0,
+        vatRate: Number(selectedCatalogItem.vatRate) || 0,
+        total: 0,
+      },
+    ]);
+
+    setShowCatalogItemsList(false);
+    setSelectedCatalogItem(null);
+    setCatalogItemsError('');
+    setSuccess('Ligne importée depuis le catalogue.');
   }
 
   function validateTenantSnapshot(defaults: TenantQuoteDefaults | null) {
@@ -1304,16 +1421,164 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       <section className="mb-6 rounded-lg border border-slate-200 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h4 className="text-lg font-semibold">Lignes du devis</h4>
-          <button
-            type="button"
-            className="rounded border bg-blue-400 px-3 py-2 text-white"
-            onClick={() =>
-              updateQuoteItems((items) => [...items, createEmptyQuoteItem(items.length)])
-            }
-          >
-            Ajouter une ligne
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded border bg-blue-400 px-3 py-2 text-white"
+              onClick={() =>
+                updateQuoteItems((items) => [...items, createEmptyQuoteItem(items.length)])
+              }
+            >
+              Ajouter une ligne
+            </button>
+            <button
+              type="button"
+              className="rounded border bg-slate-200 px-3 py-2"
+              onClick={() => {
+                void openProjectSelector();
+              }}
+            >
+              Ajouter des lignes à partir d&apos;un chantier
+            </button>
+            <button
+              type="button"
+              className="rounded border bg-slate-200 px-3 py-2"
+              onClick={() => {
+                void openCatalogItemSelector();
+              }}
+            >
+              Ajouter une ligne à partir du catalogue
+            </button>
+          </div>
         </div>
+
+        {projectsError && (
+          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{projectsError}</div>
+        )}
+        {catalogItemsError && (
+          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>
+        )}
+
+        {showProjectsList && (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
+              <button
+                type="button"
+                className="ml-auto rounded border px-3 py-2"
+                onClick={() => setShowProjectsList(false)}
+              >
+                Fermer la liste
+              </button>
+            </div>
+            {projectsLoading ? (
+              <p>Chargement des chantiers...</p>
+            ) : (
+              <ProjectsList
+                projects={projects}
+                onDelete={null}
+                handleSelectedProject={(project) => {
+                  setSelectedProject(project);
+                  setShowProjectsList(false);
+                  setProjectsError('');
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {!showProjectsList && selectedProject && (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
+            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+              <p><strong>Titre:</strong> {selectedProject.title}</p>
+              <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
+              <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items?.length || 0}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={chooseSelectedProject}
+                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+              >
+                Choisir ce chantier
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProjectsList(true);
+                }}
+                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+              >
+                Choisir un autre chantier
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showCatalogItemsList && (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h4 className="text-lg font-semibold">Sélectionner un article catalogue</h4>
+              <button
+                type="button"
+                className="ml-auto rounded border px-3 py-2"
+                onClick={() => setShowCatalogItemsList(false)}
+              >
+                Fermer la liste
+              </button>
+            </div>
+            {catalogItemsLoading ? (
+              <p>Chargement des articles catalogue...</p>
+            ) : (
+              <CatalogItemList
+                catalogItems={catalogItems}
+                onDelete={null}
+                handleSelectedCatalogItem={(catalogItem) => {
+                  setSelectedCatalogItem(catalogItem);
+                  setShowCatalogItemsList(false);
+                  setCatalogItemsError('');
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {!showCatalogItemsList && selectedCatalogItem && (
+          <div className="mb-4 rounded-md border-2 p-4">
+            <h4 className="mb-3 text-lg font-semibold">Article catalogue sélectionné</h4>
+            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+              <p><strong>Titre:</strong> {selectedCatalogItem.title}</p>
+              <p><strong>Type:</strong> {selectedCatalogItem.type}</p>
+              <p><strong>Description:</strong> {selectedCatalogItem.description || '-'}</p>
+              <p>
+                <strong>Quantité/Unité:</strong> {Number(selectedCatalogItem.defaultQuantity) || 1} {selectedCatalogItem.unit || '-'}
+              </p>
+              <p>
+                <strong>Prix / TVA:</strong> {Number(selectedCatalogItem.unitPrice) || 0} / {Number(selectedCatalogItem.vatRate) || 0}%
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={chooseSelectedCatalogItem}
+                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+              >
+                Choisir cet article
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCatalogItemsList(true);
+                }}
+                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+              >
+                Choisir un autre article
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
