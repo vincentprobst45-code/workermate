@@ -21,7 +21,7 @@ export interface Quote {
   id: string;
   tenantId: string;
   customerId: string;
-  projectId?: string;
+  workOrderId?: string;
 
   title: string;
 
@@ -29,8 +29,8 @@ export interface Quote {
   issueDate: string;
   validUntil?: string;
 
-  projectReference?: string;
-  projectTitle?: string;
+  workOrderReference?: string;
+  workOrderTitle?: string;
 
   tenantName: string;
   tenantStreet1: string;
@@ -54,11 +54,11 @@ export interface Quote {
   customerPhoneNumber?: string;
   customerVatNumber?: string;
 
-  projectStartDate?: string;
-  projectEndDate?: string;
-  projectAddress?: string;
-  projectPostalCode?: string;
-  projectCity?: string;
+  workOrderStartDate?: string;
+  workOrderEndDate?: string;
+  workOrderAddress?: string;
+  workOrderPostalCode?: string;
+  workOrderCity?: string;
 
   status: QuoteStatus;
 
@@ -292,9 +292,9 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
               adresse : {selectedQuote.customerStreet1} {selectedQuote.customerStreet2 || ''} {selectedQuote.customerPostalCode} {selectedQuote.customerCity}
             </p>
 
-            <p className="mt-4 font-semibold">Projet</p>
-            <p>reference : {selectedQuote.projectReference || '-'}</p>
-            <p>titre : {selectedQuote.projectTitle || '-'}</p>
+            <p className="mt-4 font-semibold">Chantier</p>
+            <p>reference : {selectedQuote.workOrderReference || '-'}</p>
+            <p>titre : {selectedQuote.workOrderTitle || '-'}</p>
 
             <p className="mt-4 font-semibold">Montants</p>
             <p>sous-total HT : {formatMoney(selectedQuote.subtotal, selectedQuote.currency)}</p>

@@ -18,7 +18,7 @@ export class CreateInvoiceDto {
 
   @IsOptional()
   @IsString()
-  projectId?: string;
+  workOrderId?: string;
 
   @IsString()
   number!: string;
@@ -31,10 +31,10 @@ export class CreateInvoiceDto {
   dueDate?: Date;
 
   @IsString()
-  projectReference!: string;
+  workOrderReference!: string;
 
   @IsString()
-  projectTitle!: string;
+  workOrderTitle!: string;
 
   @IsString()
   tenantName!: string;
@@ -104,24 +104,24 @@ export class CreateInvoiceDto {
   customerVatNumber?: string;
 
   @IsOptional()
-  @IsDate({ message: 'projectStartDate must be a date' })
-  projectStartDate?: Date;
+  @IsDate({ message: 'workOrderStartDate must be a date' })
+  workOrderStartDate?: Date;
 
   @IsOptional()
-  @IsDate({ message: 'projectEndDate must be a date' })
-  projectEndDate?: Date;
-
-  @IsOptional()
-  @IsString()
-  projectAddress?: string;
+  @IsDate({ message: 'workOrderEndDate must be a date' })
+  workOrderEndDate?: Date;
 
   @IsOptional()
   @IsString()
-  projectPostalCode?: string;
+  workOrderAddress?: string;
 
   @IsOptional()
   @IsString()
-  projectCity?: string;
+  workOrderPostalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  workOrderCity?: string;
 
   @IsOptional()
   @IsEnum(InvoiceStatus)

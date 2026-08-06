@@ -35,11 +35,11 @@ export class CreateQuoteDto {
 
   @IsOptional()
   @IsString()
-  projectReference?: string;
+  workOrderReference?: string;
 
   @IsOptional()
   @IsString()
-  projectTitle?: string;
+  workOrderTitle?: string;
 
   @IsString()
   tenantName!: string;
@@ -110,20 +110,20 @@ export class CreateQuoteDto {
 
   @IsOptional()
   @IsString()
-  projectStartDate?: string;
+  workOrderStartDate?: string;
 
   @IsOptional()
   @IsString()
-  projectEndDate?: string;
+  workOrderEndDate?: string;
 
   @IsOptional()
   @IsString()
-  projectAddressId?: string;
+  workOrderAddressId?: string;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateAddressDto)
-  projectAddress?: CreateAddressDto;
+  workOrderAddress?: CreateAddressDto;
 
   @IsOptional()
   @IsEnum(QuoteStatus)

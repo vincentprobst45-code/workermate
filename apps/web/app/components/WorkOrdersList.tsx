@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { ProjectItemType, ProjectStatus } from '@prisma/client';
+import { WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
 
-export interface ProjectItem {
+export interface WorkOrderItem {
 	id: string;
 	position: number;
-	type: ProjectItemType;
+	type: WorkOrderItemType;
 	title: string;
 	description?: string;
 	quantity: number;
@@ -15,57 +15,57 @@ export interface ProjectItem {
 	vatRate: number;
 }
 
-export interface Project {
+export interface WorkOrder {
 	id: string;
 	title: string;
 	description?: string;
 	reference: string;
 	startDate?: string;
 	endDate?: string;
-	status: ProjectStatus;
-	items: ProjectItem[];
+	status: WorkOrderStatus;
+	items: WorkOrderItem[];
 	customerId?: string;
 	addressId?: string;
 	createdById?: string;
 	createdAt?: string;
 }
 
-interface ProjectsListProps {
-	projects: Project[];
+interface WorkOrdersListProps {
+	workOrders: WorkOrder[];
 	onDelete: ((id: string) => void | Promise<void>) | null ;
-	handleSelectedProject: ((project: Project) => void | Promise<void>) | null ;
+	handleSelectedWorkOrder?: ((workOrder: WorkOrder) => void | Promise<void>) | null ;
 }
 
-export default function ProjectsList({ projects, onDelete, handleSelectedProject }: ProjectsListProps) {
-	const [showProjectDetails, setShowProjectDetails] = useState(false);
-	const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-	const [projectsPerPage, setProjectsPerPage] = useState(5);
+export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWorkOrder }: WorkOrdersListProps) {
+	const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
+	const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
+	const [workOrdersPerPage, setWorkOrdersPerPage] = useState(5);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [sortBy, setSortBy] = useState<'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc'>('createdAtDesc');
-	const [statusFilter, setStatusFilter] = useState<'ALL' | ProjectStatus>('ALL');
+	const [statusFilter, setStatusFilter] = useState<'ALL' | WorkOrderStatus>('ALL');
 	const [futureOnly, setFutureOnly] = useState(false);
-    const totalPrice = selectedProject?.items.reduce(
+    const totalPrice = selectedWorkOrder?.items.reduce(
       (total, item) => total + item.unitPrice * item.quantity,
       0
     );
 	const now = new Date();
 
-	const filteredProjects = projects.filter((project) => {
-		if (statusFilter !== 'ALL' && project.status !== statusFilter) {
+	const filteredWorkOrders = workOrders.filter((workOrder) => {
+		if (statusFilter !== 'ALL' && workOrder.status !== statusFilter) {
 			return false;
 		}
 
 		if (futureOnly) {
-			if (!project.startDate) {
+			if (!workOrder.startDate) {
 				return false;
 			}
-			return new Date(project.startDate).getTime() >= now.getTime();
+			return new Date(workOrder.startDate).getTime() >= now.getTime();
 		}
 
 		return true;
 	});
 
-	const sortedProjects = [...filteredProjects].sort((a, b) => {
+	const sortedWorkOrders = [...filteredWorkOrders].sort((a, b) => {
 		if (futureOnly) {
 			const aStart = a.startDate ? new Date(a.startDate).getTime() : Number.POSITIVE_INFINITY;
 			const bStart = b.startDate ? new Date(b.startDate).getTime() : Number.POSITIVE_INFINITY;
@@ -88,23 +88,21 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 		return b.title.localeCompare(a.title, 'fr', { sensitivity: 'base' });
 	});
 
-	const totalPages = Math.max(1, Math.ceil(sortedProjects.length / projectsPerPage));
+	const totalPages = Math.max(1, Math.ceil(sortedWorkOrders.length / workOrdersPerPage));
 	const effectiveCurrentPage = Math.min(currentPage, totalPages);
-	const firstItemIndex = (effectiveCurrentPage - 1) * projectsPerPage;
-	const currentProjects = sortedProjects.slice(firstItemIndex, firstItemIndex + projectsPerPage);
+	const firstItemIndex = (effectiveCurrentPage - 1) * workOrdersPerPage;
+	const currentWorkOrders = sortedWorkOrders.slice(firstItemIndex, firstItemIndex + workOrdersPerPage);
 	const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
 
-
-    console.log("lesprojets" , projects)
 
 	return (
 		<>
 			<div className="mb-4 flex flex-wrap justify-end items-center gap-2">
-				<label htmlFor="projects-sort" className="text-sm text-slate-700">
+				<label htmlFor="workOrders-sort" className="text-sm text-slate-700">
 					Trier
 				</label>
 				<select
-					id="projects-sort"
+					id="workOrders-sort"
 					className="border px-2 py-1 rounded bg-white"
 					value={sortBy}
 					onChange={(e) => {
@@ -119,15 +117,15 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 					<option value="titleDesc">Titre: Z → A</option>
 				</select>
 
-				<label htmlFor="projects-status" className="text-sm text-slate-700">
+				<label htmlFor="workOrders-status" className="text-sm text-slate-700">
 					Statut
 				</label>
 				<select
-					id="projects-status"
+					id="workOrders-status"
 					className="border px-2 py-1 rounded bg-white"
 					value={statusFilter}
 					onChange={(e) => {
-						setStatusFilter(e.target.value as 'ALL' | ProjectStatus);
+						setStatusFilter(e.target.value as 'ALL' | WorkOrderStatus);
 						setCurrentPage(1);
 					}}
 				>
@@ -153,15 +151,15 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 					className="h-4 w-4"
 				/>
 
-				<label htmlFor="projects-per-page" className="text-sm text-slate-700">
+				<label htmlFor="workOrders-per-page" className="text-sm text-slate-700">
 					Projets par page
 				</label>
 				<select
-					id="projects-per-page"
+					id="workOrders-per-page"
 					className="border px-2 py-1 rounded bg-white"
-					value={projectsPerPage}
+					value={workOrdersPerPage}
 					onChange={(e) => {
-						setProjectsPerPage(Number(e.target.value));
+						setWorkOrdersPerPage(Number(e.target.value));
 						setCurrentPage(1);
 					}}
 				>
@@ -173,28 +171,28 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 			</div>
 
 			<div className="grid gap-4">
-				{currentProjects.map((project) => (
+				{currentWorkOrders.map((workOrder) => (
 					<div
-						key={project.id}
+						key={workOrder.id}
 						className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
 						onClick={() => {
-              				if(handleSelectedProject){
-              				    void handleSelectedProject(project);
+              				if(handleSelectedWorkOrder){
+              				    void handleSelectedWorkOrder(workOrder);
               				} else {
-              				  setShowProjectDetails(true);
-              				  setSelectedProject(project);
+              				  setShowWorkOrderDetails(true);
+              				  setSelectedWorkOrder(workOrder);
               				}
 						}}
 					>
 						<div>
-							<p className="font-semibold">{project.title}</p>
-							{project.description && <p className="text-sm text-slate-600">{project.description}</p>}
+							<p className="font-semibold">{workOrder.title}</p>
+							{workOrder.description && <p className="text-sm text-slate-600">{workOrder.description}</p>}
 						</div>
                         {onDelete &&
 						<button
 							onClick={(e) => {
 								e.stopPropagation();
-								onDelete?.(project.id);
+								onDelete?.(workOrder.id);
 							}}
 							className="text-red-600 hover:text-red-800"
 						>
@@ -205,11 +203,11 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 				))}
 			</div>
 
-			{sortedProjects.length === 0 && (
-				<p className="mt-4 text-sm text-slate-600">Aucun projet à afficher.</p>
+			{sortedWorkOrders.length === 0 && (
+				<p className="mt-4 text-sm text-slate-600">Aucun chantier à afficher.</p>
 			)}
 
-			{sortedProjects.length > 0 && (
+			{sortedWorkOrders.length > 0 && (
 				<div className="mt-5 flex flex-wrap items-center justify-center gap-2">
 					<button
 						className="border px-3 py-1 rounded disabled:opacity-50"
@@ -240,12 +238,12 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 				</div>
 			)}
 
-			{showProjectDetails && selectedProject && (
+			{showWorkOrderDetails && selectedWorkOrder && (
 				<div
 					className="fixed inset-0 bg-black/40 flex items-center justify-center z-9"
 					onClick={() => {
-						setShowProjectDetails(false);
-						setSelectedProject(null);
+						setShowWorkOrderDetails(false);
+						setSelectedWorkOrder(null);
 					}}
 				>
 					<div
@@ -253,34 +251,34 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 						onClick={(e) => e.stopPropagation()}
 					>
 						<div className="pb-4 flex items-center gap-3">
-							<h3 className="text-2xl"><strong>Détails projet</strong></h3>
+							<h3 className="text-2xl"><strong>Détails chantier</strong></h3>
 							<button
 								className="border-2 rounded-md px-3 py-2 ml-auto"
 								onClick={() => {
-									setShowProjectDetails(false);
-									setSelectedProject(null);
+									setShowWorkOrderDetails(false);
+									setSelectedWorkOrder(null);
 								}}
 							>
 								Fermer X
 							</button>
 						</div>
 
-						<p>id : {selectedProject.id}</p>
-						<p>titre : {selectedProject.title}</p>
-						<p>description : {selectedProject.description || '-'}</p>
-						<p>reference : {selectedProject.reference || '-'}</p>
-						<p>status : {selectedProject.status}</p>
-						<p>startDate : {selectedProject.startDate || '-'}</p>
-						<p>endDate : {selectedProject.endDate || '-'}</p>
-						<p>customerId : {selectedProject.customerId || '-'}</p>
-						<p>addressId : {selectedProject.addressId || '-'}</p>
-						<p>createdById : {selectedProject.createdById || '-'}</p>
-						<p>createdAt : {selectedProject.createdAt || '-'}</p>
+						<p>id : {selectedWorkOrder.id}</p>
+						<p>titre : {selectedWorkOrder.title}</p>
+						<p>description : {selectedWorkOrder.description || '-'}</p>
+						<p>reference : {selectedWorkOrder.reference || '-'}</p>
+						<p>status : {selectedWorkOrder.status}</p>
+						<p>startDate : {selectedWorkOrder.startDate || '-'}</p>
+						<p>endDate : {selectedWorkOrder.endDate || '-'}</p>
+						<p>customerId : {selectedWorkOrder.customerId || '-'}</p>
+						<p>addressId : {selectedWorkOrder.addressId || '-'}</p>
+						<p>createdById : {selectedWorkOrder.createdById || '-'}</p>
+						<p>createdAt : {selectedWorkOrder.createdAt || '-'}</p>
 						<div className="mt-4">
-							<p className="font-semibold">Étapes projet</p>
-							{selectedProject.items && selectedProject.items.length > 0 ? (
+							<p className="font-semibold">Étapes chantier</p>
+							{selectedWorkOrder.items && selectedWorkOrder.items.length > 0 ? (
 								<ul className="list-disc pl-5 mt-2 space-y-1">
-									{selectedProject.items.map((item) => (
+									{selectedWorkOrder.items.map((item) => (
 										<li key={item.id}>
 											{item.position}. {item.title} ({item.type}) - {item.quantity} {item.unit || ''} - {item.unitPrice} € par unité - {item.unitPrice*item.quantity} € au total
 										</li>
@@ -291,12 +289,12 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 								<p className="text-sm text-slate-600 mt-1">Aucune étape.</p>
 							)}
 						</div>
-						{handleSelectedProject && 
-						<button onClick={() => {handleSelectedProject?.(selectedProject)}}
+						{handleSelectedWorkOrder && 
+						<button onClick={() => {handleSelectedWorkOrder?.(selectedWorkOrder)}}
 							className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
                     rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
                     hover:bg-blue-600 active:bg-blue-900'>
-								Sélectionner ce projet
+								Sélectionner ce chantier
 							</button>
 						}
 					</div>

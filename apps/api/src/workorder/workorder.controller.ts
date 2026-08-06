@@ -1,43 +1,43 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
-import { ProjectService } from './project.service';
+import { WorkOrderService } from './workorder.service';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
-import { CreateProjectDto } from './create-project.dto';
+import { CreateWorkOrderDto } from './create-workorder.dto';
 
-@Controller('projects')
-export class ProjectController {
-  constructor(private projectService: ProjectService) {}
+@Controller('workOrders')
+export class WorkOrderController {
+  constructor(private workOrderService: WorkOrderService) {}
 
   @Post()
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
-  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateProjectDto ) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateWorkOrderDto ) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.projectService.create(tenantId, dto);
+    return this.workOrderService.create(tenantId, dto);
   }
 
   @Get()
   async findAll(@Req() req: AuthenticatedRequest) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.projectService.findAll(tenantId);
+    return this.workOrderService.findAll(tenantId);
   }
 
   @Get(':id')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.projectService.findOne(tenantId, id);
+    return this.workOrderService.findOne(tenantId, id);
   }
 
   @Put(':id')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
-  async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: Partial<CreateProjectDto>) {
+  async update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: Partial<CreateWorkOrderDto>) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.projectService.update(tenantId, id, dto);
+    return this.workOrderService.update(tenantId, id, dto);
   }
 
   @Delete(':id')
   @UseGuards(new RequireRoleGuard(['OWNER']))
   async delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.projectService.delete(tenantId, id);
+    return this.workOrderService.delete(tenantId, id);
   }
 }

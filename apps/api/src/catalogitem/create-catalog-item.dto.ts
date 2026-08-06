@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ProjectItemType } from '@prisma/client';
+import { WorkOrderItemType } from '@prisma/client';
 import {
   IsEnum,
   IsNumber,
@@ -9,8 +9,8 @@ import {
 } from 'class-validator';
 
 export class CreateCatalogItemDto {
-  @IsEnum(ProjectItemType)
-  type!: ProjectItemType;
+  @IsEnum(WorkOrderItemType)
+  type!: WorkOrderItemType;
 
   @IsString()
   title!: string;

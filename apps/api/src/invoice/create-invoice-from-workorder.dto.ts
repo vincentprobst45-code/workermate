@@ -1,8 +1,8 @@
 import { IsDate, IsDecimal, IsOptional, IsString } from 'class-validator';
 
-export class CreateInvoiceFromProjectDto {
+export class CreateInvoiceFromWorkOrderDto {
   @IsString()
-  projectId!: string;
+  workOrderId!: string;
 
   @IsOptional()
   @IsDate({ message: 'issueDate must be a date' })

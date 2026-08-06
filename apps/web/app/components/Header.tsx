@@ -37,7 +37,7 @@ function Header(){
             <Link className='px-2' href="/customers">Clients</Link>
             <Link className='px-2' href="/catalogitem">Catalogue</Link>
             <Link className='px-2' href="/quotes">Devis</Link>
-            <Link className='px-2' href="/projects">Chantiers</Link>
+            <Link className='px-2' href="/workorders">Chantiers</Link>
             <Link className='px-2' href="/invoices">Factures</Link>
           </nav>
 

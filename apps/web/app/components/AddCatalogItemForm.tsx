@@ -1,13 +1,13 @@
 'use client';
 
-import { ProjectItemType } from '@prisma/client';
+import { WorkOrderItemType } from '@prisma/client';
 import { type FormEvent, useState } from 'react';
 import { useApiClient } from '../api-client';
 
 export interface CatalogItem {
   id: string;
   tenantId: string;
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   title: string;
   description?: string;
   defaultQuantity: number;
@@ -19,7 +19,7 @@ export interface CatalogItem {
 }
 
 export interface AddCatalogItemFormData {
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   title: string;
   description: string;
   defaultQuantity: number;
@@ -29,7 +29,7 @@ export interface AddCatalogItemFormData {
 }
 
 export interface CreateCatalogItemDto {
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   title: string;
   description?: string;
   defaultQuantity?: number;
@@ -38,7 +38,7 @@ export interface CreateCatalogItemDto {
   vatRate: number;
 }
 
-const catalogItemTypeOptions: Array<{ value: ProjectItemType; label: string }> = [
+const catalogItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> = [
   { value: 'LABOR', label: 'Travaux' },
   { value: 'MATERIAL', label: 'Materiel' },
   { value: 'EQUIPMENT', label: 'Equipement' },
@@ -134,7 +134,7 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
               onChange={(event) =>
                 setNewCatalogItem({
                   ...newCatalogItem,
-                  type: event.target.value as ProjectItemType,
+                  type: event.target.value as WorkOrderItemType,
                 })
               }
             >

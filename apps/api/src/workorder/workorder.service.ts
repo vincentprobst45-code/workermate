@@ -1,18 +1,18 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
-import { CreateProjectDto } from './create-project.dto';
+import { CreateWorkOrderDto } from './create-workorder.dto';
 import { CreateAddressDto } from 'src/address/create-address.dto';
 
 
-// export class CreateProjectDto {
+// export class CreateWorkOrderDto {
 //   name!: string;
 //   description?: string;
 //   customerId?: string;
 // }
 
 @Injectable()
-export class ProjectService {
+export class WorkOrderService {
   constructor(private prisma: PrismaService) {}
 
   private hasAddress(address?: CreateAddressDto ): boolean {
@@ -25,28 +25,28 @@ export class ProjectService {
     );
   }
 
-  async create(tenantId: string, dto: CreateProjectDto ) {
+  async create(tenantId: string, dto: CreateWorkOrderDto ) {
 
     console.log(dto)
-    const { addressId, address, customerId, projectItems, ...projectData } = dto;
+    const { addressId, address, customerId, items, ...workOrderData } = dto;
     const year = new Date().getFullYear();
-    const reference = `CH-${year}-${projectData.title}`;
+    const reference = `CH-${year}-${workOrderData.title}`;
 
-    const data: Prisma.ProjectCreateInput = {
-      title: projectData.title,
-      description: projectData.description,
-      startDate: projectData.startDate
-        ? new Date(projectData.startDate)
+    const data: Prisma.WorkOrderCreateInput = {
+      title: workOrderData.title,
+      description: workOrderData.description,
+      startDate: workOrderData.startDate
+        ? new Date(workOrderData.startDate)
         : undefined,
-      endDate: projectData.endDate
-        ? new Date(projectData.endDate)
+      endDate: workOrderData.endDate
+        ? new Date(workOrderData.endDate)
         : undefined,
-      // startDate: projectData.startDate && new Date(projectData.startDate),
-      // endDate: projectData.endDate && new Date(projectData.endDate),
-      status: projectData.status
-        ? projectData.status
+      // startDate: workOrderData.startDate && new Date(workOrderData.startDate),
+      // endDate: workOrderData.endDate && new Date(workOrderData.endDate),
+      status: workOrderData.status
+        ? workOrderData.status
         : 'DRAFT',
-      // ...projectData,
+      // ...workOrderData,
       reference,
       tenant: {
         connect: { id: tenantId },
@@ -56,16 +56,16 @@ export class ProjectService {
       // },
     };
 
-    // ProjectItems
-    // if (projectItems?.length) {
+    // WorkOrderItems
+    // if (items?.length) {
     //   data.items = {
-    //     create: projectItems,
+    //     create: items,
     //   };
     // }
-    console.log(projectItems)
-    if (projectItems?.length) {
+    console.log(items)
+    if (items?.length) {
       data.items = {
-        create: projectItems.map((item) => ({
+        create: items.map((item) => ({
           type: item.type,
           position: item.position,
 
@@ -111,8 +111,8 @@ export class ProjectService {
       }
     }
 
-    //const result = await this.prisma.project.create({ data });
-    const result = await this.prisma.project.create({
+    //const result = await this.prisma.workOrder.create({ data });
+    const result = await this.prisma.workOrder.create({
       data,
       include: {
         items: {
@@ -130,15 +130,15 @@ export class ProjectService {
       },
     });
     return result;
-    // this.debug(`Project created id=${result.id}`);
+    // this.debug(`WorkOrder created id=${result.id}`);
 
-    // return this.prisma.project.create({
+    // return this.prisma.workOrder.create({
     //   data: { ...dto, tenantId },
     // });
   }
 
   async findAll(tenantId: string) {
-    return this.prisma.project.findMany({
+    return this.prisma.workOrder.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -150,7 +150,7 @@ export class ProjectService {
   }
 
   async findOne(tenantId: string, id: string) {
-    return this.prisma.project.findFirst({
+    return this.prisma.workOrder.findFirst({
       where: { id, tenantId },
       include: {
         items: true,
@@ -160,15 +160,15 @@ export class ProjectService {
     });
   }
 
-  async update(tenantId: string, id: string, dto: Partial<CreateProjectDto>) {
-    return this.prisma.project.updateMany({
+  async update(tenantId: string, id: string, dto: Partial<CreateWorkOrderDto>) {
+    return this.prisma.workOrder.updateMany({
       where: { id, tenantId },
       data: dto,
     });
   }
 
   async delete(tenantId: string, id: string) {
-    return this.prisma.project.deleteMany({
+    return this.prisma.workOrder.deleteMany({
       where: { id, tenantId },
     });
   }

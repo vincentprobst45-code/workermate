@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { type ProjectItemType } from '@prisma/client';
+import { type WorkOrderItemType } from '@prisma/client';
 
 export interface CatalogItem {
   id: string;
   tenantId: string;
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   title: string;
   description?: string;
   defaultQuantity: number;

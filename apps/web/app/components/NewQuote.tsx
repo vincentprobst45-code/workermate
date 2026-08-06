@@ -20,7 +20,7 @@ export interface Quote {
   id: string;
   tenantId: string;
   customerId: string;
-  projectId?: string;
+  workOrderId?: string;
 
   title: string;
 
@@ -28,8 +28,8 @@ export interface Quote {
   issueDate: string;
   validUntil?: string;
 
-  projectReference?: string;
-  projectTitle?: string;
+  workOrderReference?: string;
+  workOrderTitle?: string;
 
   tenantName: string;
   tenantStreet1: string;
@@ -53,11 +53,11 @@ export interface Quote {
   customerPhoneNumber?: string;
   customerVatNumber?: string;
 
-  projectStartDate?: string;
-  projectEndDate?: string;
-  projectAddress?: string;
-  projectPostalCode?: string;
-  projectCity?: string;
+  workOrderStartDate?: string;
+  workOrderEndDate?: string;
+  workOrderAddress?: string;
+  workOrderPostalCode?: string;
+  workOrderCity?: string;
 
   status: QuoteStatus;
 
@@ -137,8 +137,8 @@ export default function NewInvoice({
                     <p className={styles.invoiceMuted}>Numero: {quote.number}</p>
                     <p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(quote.issueDate, locale)}</p>
                     {/* <p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(quote.dueDate, locale)}</p> */}
-                    <p className={styles.invoiceMuted}>Reference chantier: {quote.projectReference || '-'}</p>
-                    <p className={styles.invoiceMuted}>Chantier: {quote.projectTitle}</p>
+                    <p className={styles.invoiceMuted}>Reference chantier: {quote.workOrderReference || '-'}</p>
+                    <p className={styles.invoiceMuted}>Chantier: {quote.workOrderTitle}</p>
                 </div>
 
                 <div className={styles.rightBlock}>
@@ -163,9 +163,9 @@ export default function NewInvoice({
 
                 <div className={styles.rightBlock}>
                     <h3 className={styles.invoiceSectionTitle}>Infos chantier</h3>
-                    <p className={styles.invoiceMuted}>Debut: {formatDate(quote.projectStartDate, locale)}</p>
-                    <p className={styles.invoiceMuted}>Fin: {formatDate(quote.projectEndDate, locale)}</p>
-                    <p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(quote.projectAddress, undefined, quote.projectPostalCode, quote.projectCity)}</p>
+                    <p className={styles.invoiceMuted}>Debut: {formatDate(quote.workOrderStartDate, locale)}</p>
+                    <p className={styles.invoiceMuted}>Fin: {formatDate(quote.workOrderEndDate, locale)}</p>
+                    <p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(quote.workOrderAddress, undefined, quote.workOrderPostalCode, quote.workOrderCity)}</p>
                 </div>
             </section>
 

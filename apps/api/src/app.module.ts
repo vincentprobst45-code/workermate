@@ -6,7 +6,7 @@ import { PrismaModule } from './prisma.module';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { CustomerModule } from './customer/customer.module';
-import { ProjectModule } from './project/project.module';
+import { WorkOrderModule } from './workorder/workorder.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { CalendarEventModule } from './calendarevent/calendarEvent.module';
@@ -23,7 +23,7 @@ import { CatalogItemModule } from './catalogitem/catalogitem.module';
     }),
     PrismaModule,
     CustomerModule,
-    ProjectModule,
+    WorkOrderModule,
     CalendarEventModule,
     AddressModule,
     InvoiceModule,
@@ -38,6 +38,6 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantMiddleware)
-      .forRoutes('customers', 'projects', 'invoices', 'quotes', 'calendarevents', 'addresses', 'tenants', 'catalogitems');
+      .forRoutes('customers', 'workorders', 'invoices', 'quotes', 'calendarevents', 'addresses', 'tenants', 'catalogitems');
   }
 }

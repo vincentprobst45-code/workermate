@@ -1,4 +1,4 @@
-import { ProjectItemType } from '@prisma/client';
+import { WorkOrderItemType } from '@prisma/client';
 import {
   IsDecimal,
   IsEnum,
@@ -9,9 +9,9 @@ import {
 } from 'class-validator';
 
 
-export class CreateProjectItemDto {
-  @IsEnum(ProjectItemType)
-  type!: ProjectItemType;
+export class CreateWorkOrderItemDto {
+  @IsEnum(WorkOrderItemType)
+  type!: WorkOrderItemType;
 
   @IsInt()
   @Min(0)

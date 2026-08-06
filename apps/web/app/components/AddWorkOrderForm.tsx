@@ -22,9 +22,9 @@ import NewQuote from './NewQuote';
 import CatalogItemList, { type CatalogItem } from './CatalogItemList';
 
 
-type ProjectStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+type WorkOrderStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
-type ProjectItemType = 'LABOR' | 'MATERIAL' | 'EQUIPMENT' | 'TRAVEL' | 'SERVICE' | 'OTHER';
+type WorkOrderItemType = 'LABOR' | 'MATERIAL' | 'EQUIPMENT' | 'TRAVEL' | 'SERVICE' | 'OTHER';
 
 type AddressMode = 'new' | 'existing' | 'none';
 type CustomerMode = 'existing' | 'none';
@@ -38,11 +38,11 @@ interface CustomerOption {
   addressId?: string;
 }
 
-interface ProjectItem{
+interface WorkOrderItem{
   id: string;
   rowId: string;
   position: number;
-  type: ProjectItemType;
+  type: WorkOrderItemType;
 
   title: string;
   description?: string;
@@ -55,7 +55,7 @@ interface ProjectItem{
   // updatedAt: string;
 }
 
-const projectItemTypeOptions = [
+const workOrderItemTypeOptions = [
   {
     value: 'LABOR',
     label: 'Travaux',
@@ -82,7 +82,7 @@ const projectItemTypeOptions = [
   },
 ];
 
-function createProjectItemRowId(): string {
+function createWorkOrderItemRowId(): string {
   return crypto.randomUUID();
 }
 
@@ -101,14 +101,14 @@ function toDatetimeLocal(value?: string): string {
   return local.toISOString().slice(0, 16);
 }
 
-type SortableProjectLineProps = {
-  projectItem: ProjectItem;
+type SortableWorkOrderLineProps = {
+  workOrderItem: WorkOrderItem;
   index: number;
   totalItems: number;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onTitleChange: (value: string) => void;
-  onTypeChange: (value: ProjectItemType) => void;
+  onTypeChange: (value: WorkOrderItemType) => void;
   onDescriptionChange: (value: string) => void;
   onQuantityChange: (value: number) => void;
   onUnitChange: (value: string) => void;
@@ -117,8 +117,8 @@ type SortableProjectLineProps = {
   onDelete: () => void;
 };
 
-function SortableProjectLine({
-  projectItem,
+function SortableWorkOrderLine({
+  workOrderItem,
   index,
   totalItems,
   onMoveUp,
@@ -131,9 +131,9 @@ function SortableProjectLine({
   onUnitPriceChange,
   onVatRateChange,
   onDelete,
-}: SortableProjectLineProps) {
+}: SortableWorkOrderLineProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: projectItem.rowId,
+    id: workOrderItem.rowId,
   });
 
   const style = {
@@ -187,7 +187,7 @@ function SortableProjectLine({
             name="title"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             placeholder="Titre"
-            value={projectItem.title}
+            value={workOrderItem.title}
             onChange={(e) => onTitleChange(e.target.value)}
           />
         </label>
@@ -196,10 +196,10 @@ function SortableProjectLine({
           <select
             name="itemtype"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            value={projectItem.type}
-            onChange={(e) => onTypeChange(e.target.value as ProjectItemType)}
+            value={workOrderItem.type}
+            onChange={(e) => onTypeChange(e.target.value as WorkOrderItemType)}
           >
-            {projectItemTypeOptions.map((option) => (
+            {workOrderItemTypeOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -212,7 +212,7 @@ function SortableProjectLine({
             name="description"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             placeholder="Description"
-            value={projectItem.description}
+            value={workOrderItem.description}
             onChange={(e) => onDescriptionChange(e.target.value)}
           />
         </label>
@@ -222,7 +222,7 @@ function SortableProjectLine({
             type="number"
             name="quantity"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            value={projectItem.quantity}
+            value={workOrderItem.quantity}
             onChange={(e) => onQuantityChange(e.target.valueAsNumber)}
           />
         </label>
@@ -232,7 +232,7 @@ function SortableProjectLine({
             name="unit"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             placeholder="Unité"
-            value={projectItem.unit}
+            value={workOrderItem.unit}
             onChange={(e) => onUnitChange(e.target.value)}
           />
         </label>
@@ -243,7 +243,7 @@ function SortableProjectLine({
             name="unitprice"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             placeholder="Prix unitaire"
-            value={projectItem.unitPrice}
+            value={workOrderItem.unitPrice}
             onChange={(e) => onUnitPriceChange(e.target.valueAsNumber)}
           />
         </label>
@@ -254,7 +254,7 @@ function SortableProjectLine({
             name="vat"
             className="rounded-md border border-slate-300 px-3 py-2 text-sm"
             placeholder="Taux de TVA"
-            value={projectItem.vatRate}
+            value={workOrderItem.vatRate}
             onChange={(e) => onVatRateChange(e.target.valueAsNumber)}
           />
         </label>
@@ -273,7 +273,7 @@ function SortableProjectLine({
   );
 }
 
-export type AddProjectFormData = {
+export type AddWorkOrderFormData = {
     title: string;
     description: string;
 
@@ -282,9 +282,9 @@ export type AddProjectFormData = {
     startDate: string;
     endDate: string;
 
-    status: ProjectStatus;
+    status: WorkOrderStatus;
 
-    projectItems: ProjectItem[];
+    items: WorkOrderItem[];
 
     notes: string;
 
@@ -300,7 +300,7 @@ export type AddProjectFormData = {
 };
 
 
-export function createEmptyProject(): AddProjectFormData {
+export function createEmptyWorkOrder(): AddWorkOrderFormData {
   return {
     title: '',
     description: '',
@@ -312,7 +312,7 @@ export function createEmptyProject(): AddProjectFormData {
 
     status: 'DRAFT',
 
-    projectItems: [],
+    items: [],
 
     notes: '',
     
@@ -330,7 +330,7 @@ export function createEmptyProject(): AddProjectFormData {
   };
 }
 
-interface Project {
+interface WorkOrder {
   id: string;
   title: string;
   description?: string;
@@ -340,9 +340,9 @@ interface Project {
   startDate?: string;   
   endDate?: string;     
 
-  status: ProjectStatus;
+  status: WorkOrderStatus;
 
-  projectItems: ProjectItem[];
+  items: WorkOrderItem[];
 
   customerId? : string;
   addressId? : string;
@@ -351,14 +351,14 @@ interface Project {
   // createdAt: string;
 }
 
-type AddProjectFormProps = {
-  onCreated : (project: Project) => void;
+type AddWorkOrderFormProps = {
+  onCreated : (workOrder: WorkOrder) => void;
   show : boolean;
 };
 
-export default function AddProjectForm({ onCreated, show }: AddProjectFormProps){
+export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormProps){
     const api = useApiClient();
-    const [newProject, setNewProject] = useState<AddProjectFormData>(createEmptyProject());
+    const [newWorkOrder, setNewWorkOrder] = useState<AddWorkOrderFormData>(createEmptyWorkOrder());
     const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
     const [customersLoading, setCustomersLoading] = useState(false);
     const [error, setError] = useState('');
@@ -410,11 +410,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       };
     }, [api]);
 
-    function createEmptyProjectItem(): ProjectItem {
+    function createEmptyWorkOrderItem(): WorkOrderItem {
       return {
         id: '',
-        rowId: createProjectItemRowId(),
-        position: newProject.projectItems ? newProject.projectItems.length : 0,
+        rowId: createWorkOrderItemRowId(),
+        position: newWorkOrder.items ? newWorkOrder.items.length : 0,
         type: 'LABOR',
 
         title: '',
@@ -430,28 +430,28 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       };
     }
 
-    function reorderProjectItems(items: ProjectItem[]): ProjectItem[] {
+    function reorderWorkOrderItems(items: WorkOrderItem[]): WorkOrderItem[] {
       return items.map((item, index) => ({
         ...item,
         position: index,
       }));
     }
 
-    function updateProjectItems(updater: (items: ProjectItem[]) => ProjectItem[]) {
-      setNewProject((currentProject) => ({
-        ...currentProject,
-        projectItems: reorderProjectItems(updater(currentProject.projectItems)),
+    function updateWorkOrderItems(updater: (items: WorkOrderItem[]) => WorkOrderItem[]) {
+      setNewWorkOrder((currentWorkOrder) => ({
+        ...currentWorkOrder,
+        items: reorderWorkOrderItems(updater(currentWorkOrder.items)),
       }));
     }
 
-    function handleProjectItemDragEnd(event: DragEndEvent) {
+    function handleWorkOrderItemDragEnd(event: DragEndEvent) {
       const { active, over } = event;
 
       if (!over || active.id === over.id) {
         return;
       }
 
-      updateProjectItems((items) => {
+      updateWorkOrderItems((items) => {
         const oldIndex = items.findIndex((item) => item.rowId === active.id);
         const newIndex = items.findIndex((item) => item.rowId === over.id);
 
@@ -506,9 +506,9 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       }
 
       if (quoteSelectionMode === 'fillForm') {
-        const filledItems: ProjectItem[] = selectedQuote.items.map((quoteItem, index) => ({
+        const filledItems: WorkOrderItem[] = selectedQuote.items.map((quoteItem, index) => ({
           id: '',
-          rowId: createProjectItemRowId(),
+          rowId: createWorkOrderItemRowId(),
           position: index,
           type: 'SERVICE',
           title: quoteItem.title,
@@ -519,27 +519,27 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           vatRate: quoteItem.vatRate,
         }));
 
-        setNewProject((currentProject) => ({
-          ...currentProject,
-          title: selectedQuote.projectTitle || selectedQuote.title || '',
+        setNewWorkOrder((currentWorkOrder) => ({
+          ...currentWorkOrder,
+          title: selectedQuote.workOrderTitle || selectedQuote.title || '',
           description: selectedQuote.notes || '',
-          reference: selectedQuote.projectReference || selectedQuote.number || '',
-          startDate: toDatetimeLocal(selectedQuote.projectStartDate),
-          endDate: toDatetimeLocal(selectedQuote.projectEndDate),
-          customerMode: selectedQuote.customerId ? 'existing' : currentProject.customerMode,
+          reference: selectedQuote.workOrderReference || selectedQuote.number || '',
+          startDate: toDatetimeLocal(selectedQuote.workOrderStartDate),
+          endDate: toDatetimeLocal(selectedQuote.workOrderEndDate),
+          customerMode: selectedQuote.customerId ? 'existing' : currentWorkOrder.customerMode,
           customerId: selectedQuote.customerId || '',
           addressMode: 'none',
           addressId: '',
-          projectItems: filledItems,
+          items: filledItems,
         }));
 
         setSuccess('Formulaire rempli depuis le devis.');
       } else {
-        setNewProject((currentProject) => {
-          const basePosition = currentProject.projectItems.length;
-          const importedItems: ProjectItem[] = selectedQuote.items.map((quoteItem, index) => ({
+        setNewWorkOrder((currentWorkOrder) => {
+          const basePosition = currentWorkOrder.items.length;
+          const importedItems: WorkOrderItem[] = selectedQuote.items.map((quoteItem, index) => ({
             id: '',
-            rowId: createProjectItemRowId(),
+            rowId: createWorkOrderItemRowId(),
             position: basePosition + index,
             type: 'SERVICE',
             title: quoteItem.title,
@@ -551,8 +551,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           }));
 
           return {
-            ...currentProject,
-            projectItems: [...currentProject.projectItems, ...importedItems],
+            ...currentWorkOrder,
+            items: [...currentWorkOrder.items, ...importedItems],
           };
         });
 
@@ -593,11 +593,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         return;
       }
 
-      setNewProject((currentProject) => {
-        const nextPosition = currentProject.projectItems.length;
-        const itemToAdd: ProjectItem = {
+      setNewWorkOrder((currentWorkOrder) => {
+        const nextPosition = currentWorkOrder.items.length;
+        const itemToAdd: WorkOrderItem = {
           id: '',
-          rowId: createProjectItemRowId(),
+          rowId: createWorkOrderItemRowId(),
           position: nextPosition,
           type: selectedCatalogItem.type,
           title: selectedCatalogItem.title,
@@ -609,8 +609,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         };
 
         return {
-          ...currentProject,
-          projectItems: [...currentProject.projectItems, itemToAdd],
+          ...currentWorkOrder,
+          items: [...currentWorkOrder.items, itemToAdd],
         };
       });
 
@@ -621,18 +621,18 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     }
 
     function handleUseCustomerAddress() {
-      if (!newProject.customerId) {
+      if (!newWorkOrder.customerId) {
         setAddressError('Veuillez sélectionner un client existant');
         return;
       }
 
-      const selectedCustomer = customerOptions.find((customer) => customer.id === newProject.customerId);
+      const selectedCustomer = customerOptions.find((customer) => customer.id === newWorkOrder.customerId);
       const customerAddressId = selectedCustomer?.addressId ?? '';
 
-      setNewProject((currentProject) => ({
-        ...currentProject,
+      setNewWorkOrder((currentWorkOrder) => ({
+        ...currentWorkOrder,
         customerMode: 'existing',
-        customerId: currentProject.customerId,
+        customerId: currentWorkOrder.customerId,
         addressMode: customerAddressId ? 'existing' : 'none',
         addressId: customerAddressId,
       }));
@@ -646,25 +646,25 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       }
     }
 
-    async function handleAddProject(e: React.FormEvent) {
+    async function handleAddWorkOrder(e: React.FormEvent) {
       e.preventDefault();
       try {
-        if (newProject.addressMode === 'existing' && !newProject.addressId) {
+        if (newWorkOrder.addressMode === 'existing' && !newWorkOrder.addressId) {
           setError('Veuillez sélectionner une adresse existante');
           return;
         }
-        // if(newProject.customerMode == 'none'){
-        //   setNewProject({...newProject, customerId: undefined})
+        // if(newWorkOrder.customerMode == 'none'){
+        //   setNewWorkOrder({...newWorkOrder, customerId: undefined})
         // }
-        const res = await api.post('/projects', {
-          ...newProject,
-          customerId: newProject.customerId || undefined,
+        const res = await api.post('/workOrders', {
+          ...newWorkOrder,
+          customerId: newWorkOrder.customerId || undefined,
         });
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
-        // setProjects([data, ...projects]);
+        // setWorkOrders([data, ...workOrders]);
         onCreated(data);
-        setNewProject(createEmptyProject());
+        setNewWorkOrder(createEmptyWorkOrder());
         // setAddressMode('new');
       } catch {
         setError('Erreur lors de l\'ajout');
@@ -672,7 +672,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     }
 
     return(
-        <form onSubmit={handleAddProject} className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show && "hidden"}`}>
+        <form onSubmit={handleAddWorkOrder} className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show && "hidden"}`}>
           <h3 className="text-lg font-semibold text-zinc-900">Ajouter un chantier</h3>
           <div>
             <button
@@ -719,8 +719,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               <h4 className="mb-3 text-lg font-semibold">Devis sélectionné</h4>
               <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
                 <p><strong>Titre:</strong> {selectedQuote.title}</p>
-                <p><strong>Référence:</strong> {selectedQuote.projectReference || selectedQuote.number || '-'}</p>
-                <p><strong>Projet:</strong> {selectedQuote.projectTitle || '-'}</p>
+                <p><strong>Référence:</strong> {selectedQuote.workOrderReference || selectedQuote.number || '-'}</p>
+                <p><strong>Chantier:</strong> {selectedQuote.workOrderTitle || '-'}</p>
                 <p><strong>Nombre de lignes:</strong> {selectedQuote.items.length || 0}</p>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -752,8 +752,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 <input
                   className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
                   placeholder="Titre du chantier"
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                  value={newWorkOrder.title}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, title: e.target.value })}
                   required
                 />
               </label>
@@ -762,8 +762,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 <input
                   className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
                   placeholder="Description"
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                  value={newWorkOrder.description}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })}
                 />
               </label>
               <label className="flex flex-col gap-1.5">
@@ -771,8 +771,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 <input type="datetime-local"
                   className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
                   placeholder="Start"
-                  value={newProject.startDate}
-                  onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
+                  value={newWorkOrder.startDate}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, startDate: e.target.value })}
                   required
                 />
               </label>
@@ -781,8 +781,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 <input type="datetime-local"
                   className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
                   placeholder="End"
-                  value={newProject.endDate}
-                  onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
+                  value={newWorkOrder.endDate}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, endDate: e.target.value })}
                   required
                 />
               </label>
@@ -793,9 +793,9 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <div className="mb-4 flex flex-wrap gap-3">
               <button type="button" 
                   onClick={() => {
-                    updateProjectItems((items) => [
+                    updateWorkOrderItems((items) => [
                       ...items,
-                      createEmptyProjectItem(),
+                      createEmptyWorkOrderItem(),
                     ]);
                   }}
                   className='rounded-md border border-blue-300 bg-blue-100 px-3 py-2 text-sm text-blue-900 transition hover:bg-blue-200'
@@ -945,20 +945,20 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </div>
             )}
             <div className='mt-4'>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectItemDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleWorkOrderItemDragEnd}>
               <SortableContext
-                items={newProject.projectItems.map((item) => item.rowId)}
+                items={newWorkOrder.items.map((item) => item.rowId)}
                 strategy={verticalListSortingStrategy}
               >
-                {newProject.projectItems.map((projectItem,i) => {
+                {newWorkOrder.items.map((workOrderItem,i) => {
                   return(
-                  <SortableProjectLine
-                    key={projectItem.rowId}
-                    projectItem={projectItem}
+                  <SortableWorkOrderLine
+                    key={workOrderItem.rowId}
+                    workOrderItem={workOrderItem}
                     index={i}
-                    totalItems={newProject.projectItems.length}
+                    totalItems={newWorkOrder.items.length}
                     onMoveUp={() =>
-                      updateProjectItems((items) => {
+                      updateWorkOrderItems((items) => {
                         if (i === 0) {
                           return items;
                         }
@@ -969,7 +969,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                       })
                     }
                     onMoveDown={() =>
-                      updateProjectItems((items) => {
+                      updateWorkOrderItems((items) => {
                         if (i === items.length - 1) {
                           return items;
                         }
@@ -980,56 +980,56 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                       })
                     }
                     onTitleChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, title: value } : item,
                         ),
                       )
                     }
                     onTypeChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, type: value } : item,
                         ),
                       )
                     }
                     onDescriptionChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, description: value } : item,
                         ),
                       )
                     }
                     onQuantityChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, quantity: value } : item,
                         ),
                       )
                     }
                     onUnitChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, unit: value } : item,
                         ),
                       )
                     }
                     onUnitPriceChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, unitPrice: value } : item,
                         ),
                       )
                     }
                     onVatRateChange={(value) =>
-                      updateProjectItems((items) =>
+                      updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, vatRate: value } : item,
                         ),
                       )
                     }
                     onDelete={() => 
-                      updateProjectItems((items) => items.filter((item, index) => index !== i))
+                      updateWorkOrderItems((items) => items.filter((item, index) => index !== i))
                     }
                   />
                 )
@@ -1045,31 +1045,31 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <div className="flex flex-wrap gap-2 px-3 pb-3">
               <button
                 type="button"
-                className={`border py-2 px-3 rounded ${newProject.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => setNewProject({ ...newProject, customerMode: 'existing' })}
+                className={`border py-2 px-3 rounded ${newWorkOrder.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => setNewWorkOrder({ ...newWorkOrder, customerMode: 'existing' })}
               >
                 Utiliser un client existant
               </button>
               <button
                 type="button"
-                className={`border py-2 px-3 rounded ${newProject.customerMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                className={`border py-2 px-3 rounded ${newWorkOrder.customerMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
                 onClick={() => { 
-                  setNewProject({ ...newProject, customerMode: 'none', customerId: '', addressMode: 'none'});
+                  setNewWorkOrder({ ...newWorkOrder, customerMode: 'none', customerId: '', addressMode: 'none'});
                   setAddressSuccess('')
                 }}
               >
                 Ne pas ajouter de client
               </button>
             </div>
-            {newProject.customerMode === 'existing' ? (
+            {newWorkOrder.customerMode === 'existing' ? (
               <div className="px-3 pb-3">
                 <label className="mb-2 block text-sm font-medium">Client existant</label>
                 <select
                   className="w-full rounded border px-3 py-2"
-                  value={newProject.customerId}
+                  value={newWorkOrder.customerId}
                   onChange={(e) => {
                     const customerId = e.target.value;
-                    setNewProject((currentProject) => ({ ...currentProject, customerId, addressMode: 'none' }));
+                    setNewWorkOrder((currentWorkOrder) => ({ ...currentWorkOrder, customerId, addressMode: 'none' }));
                     setAddressError('');
                     setAddressSuccess('');
                   }}
@@ -1094,9 +1094,9 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <div className="flex flex-wrap gap-2 px-3 pb-3">
               <button
                 type="button"
-                className={`border py-2 px-3 rounded ${newProject.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                className={`border py-2 px-3 rounded ${newWorkOrder.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
                 onClick={() => {
-                  setNewProject({ ...newProject, addressMode: 'new' });
+                  setNewWorkOrder({ ...newWorkOrder, addressMode: 'new' });
                   setAddressSuccess('')
                 }}
               >
@@ -1104,8 +1104,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </button>
               <button
                 type="button"
-                className={`border py-2 px-3 rounded ${newProject.addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
-                onClick={() => {setNewProject({ ...newProject, addressMode: 'existing' })}}
+                className={`border py-2 px-3 rounded ${newWorkOrder.addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                onClick={() => {setNewWorkOrder({ ...newWorkOrder, addressMode: 'existing' })}}
               >
                 Utiliser une adresse existante
               </button>
@@ -1115,31 +1115,31 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     bg-blue-400 hover:bg-blue-600 active:bg-blue-900 text-white disabled:text-black
                     text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleUseCustomerAddress}
-                disabled={!newProject.customerId}
+                disabled={!newWorkOrder.customerId}
               >
                 Sélectionner l&apos;adresse du client
               </button>
               <button
                 type="button"
-                className={`border py-2 px-3 rounded ${newProject.addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+                className={`border py-2 px-3 rounded ${newWorkOrder.addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
                 onClick={() => {
-                  setNewProject({ ...newProject, addressMode: 'none' });
+                  setNewWorkOrder({ ...newWorkOrder, addressMode: 'none' });
                   setAddressSuccess('')
                 }}
               >
                 {`Ne pas ajouter d'adresse`}
               </button>
             </div>
-            {newProject.addressMode === 'new' ? (
+            {newWorkOrder.addressMode === 'new' ? (
                 <AddressForm 
-                    address={newProject.address} 
-                    onChange={(address) => {setNewProject({ ...newProject, address})}}
+                    address={newWorkOrder.address} 
+                    onChange={(address) => {setNewWorkOrder({ ...newWorkOrder, address})}}
                 />
-            ) : newProject.addressMode === 'existing' ? (
+            ) : newWorkOrder.addressMode === 'existing' ? (
                 <SelectExistingAddress 
-                    selectedAddressId={newProject.addressId} 
+                    selectedAddressId={newWorkOrder.addressId} 
                     onAddressChange={(addressId) => {
-                      setNewProject({ ...newProject, addressId});
+                      setNewWorkOrder({ ...newWorkOrder, addressId});
                       setAddressSuccess('Addresse sélectionnée')
                     }} 
                 />

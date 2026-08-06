@@ -2,11 +2,11 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
-import ProjectsList, { type Project } from '../components/ProjectsList';
+import WorkOrdersList, { type WorkOrder } from '../components/WorkOrdersList';
 import InvoicesList, { type Invoice } from '../components/InvoicesList';
 
-export interface AddInvoiceFromProject {
-  projectId: string;
+export interface AddInvoiceFromWorkOrder {
+  workOrderId: string;
 
   issueDate: string;
   dueDate?: string;
@@ -31,15 +31,15 @@ function toDatetimeLocal(date: Date): string {
   return local.toISOString().slice(0, 16);
 }
 
-export function createEmptyInvoiceFromProject(
+export function createEmptyInvoiceFromWorkOrder(
   tenantDefaults?: TenantInvoiceDefaults,
-): AddInvoiceFromProject {
+): AddInvoiceFromWorkOrder {
   const now = new Date();
   const dueDate = new Date(now);
   dueDate.setDate(dueDate.getDate() + 30);
 
   return {
-    projectId: '',
+    workOrderId: '',
 
     issueDate: toDatetimeLocal(now),
     dueDate: toDatetimeLocal(dueDate),
@@ -58,12 +58,12 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults>({});
   const [loading, setLoading] = useState(true);
-  const [projectLoading, setProjectLoading] = useState(true);
+  const [workOrderLoading, setWorkOrderLoading] = useState(true);
   const [error, setError] = useState('');
   const [newInvoice, setNewInvoice] = useState({ number: '', amount: 0, description: '' });
-  const [newInvoiceFromProject, setNewInvoiceFromProject] = useState<AddInvoiceFromProject>(createEmptyInvoiceFromProject());
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project>();
+  const [newInvoiceFromWorkOrder, setNewInvoiceFromWorkOrder] = useState<AddInvoiceFromWorkOrder>(createEmptyInvoiceFromWorkOrder());
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder>();
 
   useEffect(() => {
     let cancelled = false;
@@ -75,11 +75,11 @@ export default function InvoicesPage() {
         const data: TenantInvoiceDefaults = await res.json();
         if (!cancelled) {
           setTenantDefaults(data);
-          setNewInvoiceFromProject((current) => {
-            const defaults = createEmptyInvoiceFromProject(data);
+          setNewInvoiceFromWorkOrder((current) => {
+            const defaults = createEmptyInvoiceFromWorkOrder(data);
             return {
               ...defaults,
-              projectId: current.projectId,
+              workOrderId: current.workOrderId,
             };
           });
         }
@@ -100,13 +100,13 @@ export default function InvoicesPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadProjects() {
+    async function loadWorkOrders() {
       try {
-        const res = await api.get('/projects');
+        const res = await api.get('/workOrders');
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
         if (!cancelled) {
-          setProjects(data);
+          setWorkOrders(data);
         }
       } catch {
         if (!cancelled) {
@@ -114,12 +114,12 @@ export default function InvoicesPage() {
         }
       } finally {
         if (!cancelled) {
-          setProjectLoading(false);
+          setWorkOrderLoading(false);
         }
       }
     }
 
-    void loadProjects();
+    void loadWorkOrders();
 
     return () => {
       cancelled = true;
@@ -168,17 +168,17 @@ export default function InvoicesPage() {
     }
   }
 
-  async function handleAddInvoiceFromProjectId(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAddInvoiceFromWorkOrderId(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      const res = await api.post('/invoices/from-project', newInvoiceFromProject);
+      const res = await api.post('/invoices/from-workOrder', newInvoiceFromWorkOrder);
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
       setInvoices([data, ...invoices]);
-      setNewInvoiceFromProject((current) => ({
-        ...createEmptyInvoiceFromProject(tenantDefaults),
-        projectId: current.projectId,
-        // projectId: current.projectId,
+      setNewInvoiceFromWorkOrder((current) => ({
+        ...createEmptyInvoiceFromWorkOrder(tenantDefaults),
+        workOrderId: current.workOrderId,
+        // workOrderId: current.workOrderId,
       }));
     } catch {
       setError('Erreur lors de l\'ajout');
@@ -200,81 +200,81 @@ export default function InvoicesPage() {
     <ProtectedRoute>
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
         <h2 className="text-2xl font-semibold mb-6">Gestion des Factures</h2>
-        {selectedProject && (
+        {selectedWorkOrder && (
           <div>
-            <form onSubmit={handleAddInvoiceFromProjectId}>
-              <h3>Project sélectionné : {selectedProject.title}</h3>
-              <input type="hidden" value={newInvoiceFromProject.projectId} readOnly />
+            <form onSubmit={handleAddInvoiceFromWorkOrderId}>
+              <h3>WorkOrder sélectionné : {selectedWorkOrder.title}</h3>
+              <input type="hidden" value={newInvoiceFromWorkOrder.workOrderId} readOnly />
               <input
                 type="datetime-local"
                 className="border px-3 py-2 rounded"
                 placeholder="Start"
-                value={newInvoiceFromProject.dueDate}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, dueDate: e.target.value })}
+                value={newInvoiceFromWorkOrder.dueDate}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, dueDate: e.target.value })}
                 required
               />
               <input
                 type="datetime-local"
                 className="border px-3 py-2 rounded"
                 placeholder="End"
-                value={newInvoiceFromProject.issueDate}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, issueDate: e.target.value })}
+                value={newInvoiceFromWorkOrder.issueDate}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, issueDate: e.target.value })}
                 required
               />
               <input
                 className="border px-3 py-2 rounded"
                 placeholder="Mentions légales"
-                value={newInvoiceFromProject.legalMentions}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, legalMentions: e.target.value })}
+                value={newInvoiceFromWorkOrder.legalMentions}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, legalMentions: e.target.value })}
                 required
               />
               <input
                 className="border px-3 py-2 rounded"
                 placeholder="Notes"
-                value={newInvoiceFromProject.notes}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, notes: e.target.value })}
+                value={newInvoiceFromWorkOrder.notes}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, notes: e.target.value })}
                 required
               />
               <input
                 className="border px-3 py-2 rounded"
                 placeholder="Conditions de paiement"
-                value={newInvoiceFromProject.paymentTerms}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, paymentTerms: e.target.value })}
+                value={newInvoiceFromWorkOrder.paymentTerms}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, paymentTerms: e.target.value })}
                 required
               />
               <input
                 type="number"
                 className="border px-3 py-2 rounded"
                 placeholder="Remise"
-                value={newInvoiceFromProject.discountAmount}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, discountAmount: e.target.valueAsNumber })}
+                value={newInvoiceFromWorkOrder.discountAmount}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, discountAmount: e.target.valueAsNumber })}
                 required
               />
               <input
                 type="number"
                 className="border px-3 py-2 rounded"
                 placeholder="Acompte"
-                value={newInvoiceFromProject.depositAmount}
-                onChange={(e) => setNewInvoiceFromProject({ ...newInvoiceFromProject, depositAmount: e.target.valueAsNumber })}
+                value={newInvoiceFromWorkOrder.depositAmount}
+                onChange={(e) => setNewInvoiceFromWorkOrder({ ...newInvoiceFromWorkOrder, depositAmount: e.target.valueAsNumber })}
                 required
               />
               <button
                 type="submit"
                 className="border-double border-gray-700 border-2 shadow-md text-xl text-white rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 hover:bg-blue-600 active:bg-blue-900"
               >
-                Créer la facture pour ce projet
+                Créer la facture pour ce chantier
               </button>
             </form>
           </div>
         )}
-        <h3>Projets</h3>
-        {!projectLoading &&
-        <ProjectsList
-          projects={projects}
+        <h3>Chantiers</h3>
+        {!workOrderLoading &&
+        <WorkOrdersList
+          workOrders={workOrders}
           onDelete={null}
-          handleSelectedProject={(project) => {
-            setSelectedProject(project);
-            setNewInvoiceFromProject((current) => ({ ...current, projectId: project.id }));
+          handleSelectedWorkOrder={(workOrder) => {
+            setSelectedWorkOrder(workOrder);
+            setNewInvoiceFromWorkOrder((current) => ({ ...current, workOrderId: workOrder.id }));
           }}
         />
         }

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
-import { CreateInvoiceFromProjectDto } from './create-invoice-from-project.dto';
+import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
 
 // export class CreateInvoiceDto {
 //   number!: string;
@@ -72,13 +72,13 @@ export class InvoiceService {
     });
   }
 
-  async createFromProject(
+  async createFromWorkOrder(
     tenantId: string,
-    dto: CreateInvoiceFromProjectDto,
+    dto: CreateInvoiceFromWorkOrderDto,
   ): Promise<unknown> {
-    const project = await this.prisma.project.findFirst({
+    const workOrder = await this.prisma.workOrder.findFirst({
       where: {
-        id: dto.projectId,
+        id: dto.workOrderId,
         tenantId,
       },
       include: {
@@ -101,15 +101,15 @@ export class InvoiceService {
       },
     });
 
-    if (!project) {
-      throw new NotFoundException('Project not found for this tenant.');
+    if (!workOrder) {
+      throw new NotFoundException('WorkOrder not found for this tenant.');
     }
 
-    if (!project.customer) {
-      throw new BadRequestException('Project must be linked to a customer.');
+    if (!workOrder.customer) {
+      throw new BadRequestException('WorkOrder must be linked to a customer.');
     }
 
-    if (!project.customer.address) {
+    if (!workOrder.customer.address) {
       throw new BadRequestException('Customer must have an address to generate an invoice.');
     }
 
@@ -121,7 +121,7 @@ export class InvoiceService {
     let subtotal = 0;
     let vatAmount = 0;
 
-    const items = project.items.map((item) => {
+    const items = workOrder.items.map((item) => {
       const quantity = this.toNumber(item.quantity);
       const unitPrice = this.toNumber(item.unitPrice);
       const vatRate = this.toNumber(item.vatRate);
@@ -151,43 +151,43 @@ export class InvoiceService {
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
 
     const invoiceData: Omit<CreateInvoiceDto, 'number'> = {
-      customerId: project.customer.id,
-      projectId: project.id,
+      customerId: workOrder.customer.id,
+      workOrderId: workOrder.id,
       issueDate,
       dueDate,
-      projectReference: project.reference,
-      projectTitle: project.title,
-      tenantName: project.tenant.name,
-      tenantStreet1: project.tenant.address?.street1 ?? '',
-      tenantStreet2: project.tenant.address?.street2 ?? undefined,
-      tenantPostalCode: project.tenant.address?.postalCode ?? '',
-      tenantCity: project.tenant.address?.city ?? '',
-      tenantSiretNumber: project.tenant.siretNumber ?? '',
-      tenantVatNumber: project.tenant.vatNumber ?? '',
-      tenantEmail: project.tenant.email ?? '',
-      tenantPhoneNumber: project.tenant.phoneNumber ?? '',
+      workOrderReference: workOrder.reference,
+      workOrderTitle: workOrder.title,
+      tenantName: workOrder.tenant.name,
+      tenantStreet1: workOrder.tenant.address?.street1 ?? '',
+      tenantStreet2: workOrder.tenant.address?.street2 ?? undefined,
+      tenantPostalCode: workOrder.tenant.address?.postalCode ?? '',
+      tenantCity: workOrder.tenant.address?.city ?? '',
+      tenantSiretNumber: workOrder.tenant.siretNumber ?? '',
+      tenantVatNumber: workOrder.tenant.vatNumber ?? '',
+      tenantEmail: workOrder.tenant.email ?? '',
+      tenantPhoneNumber: workOrder.tenant.phoneNumber ?? '',
       tenantIban: undefined,
       tenantBic: undefined,
-      customerFirstName: project.customer.firstName ?? project.customer.company ?? '',
-      customerLastName: project.customer.lastName ?? '',
-      customerStreet1: project.customer.address.street1,
-      customerStreet2: project.customer.address.street2 ?? undefined,
-      customerPostalCode: project.customer.address.postalCode,
-      customerCity: project.customer.address.city,
-      customerEmail: project.customer.email ?? undefined,
-      customerPhoneNumber: project.customer.phone ?? project.customer.mobile ?? undefined,
-      customerVatNumber: project.customer.vatNumber ?? undefined,
-      projectStartDate: project.startDate ?? undefined,
-      projectEndDate: project.endDate ?? undefined,
-      projectAddress: project.address?.street1 ?? undefined,
-      projectPostalCode: project.address?.postalCode ?? undefined,
-      projectCity: project.address?.city ?? undefined,
+      customerFirstName: workOrder.customer.firstName ?? workOrder.customer.company ?? '',
+      customerLastName: workOrder.customer.lastName ?? '',
+      customerStreet1: workOrder.customer.address.street1,
+      customerStreet2: workOrder.customer.address.street2 ?? undefined,
+      customerPostalCode: workOrder.customer.address.postalCode,
+      customerCity: workOrder.customer.address.city,
+      customerEmail: workOrder.customer.email ?? undefined,
+      customerPhoneNumber: workOrder.customer.phone ?? workOrder.customer.mobile ?? undefined,
+      customerVatNumber: workOrder.customer.vatNumber ?? undefined,
+      workOrderStartDate: workOrder.startDate ?? undefined,
+      workOrderEndDate: workOrder.endDate ?? undefined,
+      workOrderAddress: workOrder.address?.street1 ?? undefined,
+      workOrderPostalCode: workOrder.address?.postalCode ?? undefined,
+      workOrderCity: workOrder.address?.city ?? undefined,
       currency: 'EUR',
       subtotal,
       vatAmount,
       total,
       paymentTerms: dto.paymentTerms,
-      notes: dto.notes ?? project.notes ?? undefined,
+      notes: dto.notes ?? workOrder.notes ?? undefined,
       depositAmount: depositAmount > 0 ? depositAmount : undefined,
       discountAmount: discountAmount > 0 ? discountAmount : undefined,
     };

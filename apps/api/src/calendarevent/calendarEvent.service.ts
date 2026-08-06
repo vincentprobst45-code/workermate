@@ -56,7 +56,7 @@ export class CalendarEventService {
       this.logger.warn('create() called without tenantId');
       throw new Error('tenantId is required');
     }
-  const {  addressMode, addressId, address, projectId, customerId, ...calendarEventData } = dto;
+  const {  addressMode, addressId, address, workOrderId, customerId, ...calendarEventData } = dto;
 
   const data: Prisma.CalendarEventCreateInput = {
     title: calendarEventData.title,
@@ -72,9 +72,9 @@ export class CalendarEventService {
     },
   };
 
-  if (projectId) {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, tenantId },
+  if (workOrderId) {
+    const workOrder = await this.prisma.workOrder.findFirst({
+      where: { id: workOrderId, tenantId },
       select: {
         id: true,
         title: true,
@@ -89,16 +89,16 @@ export class CalendarEventService {
       },
     });
 
-    if (!project) {
-      throw new BadRequestException('Projet introuvable pour ce tenant.');
+    if (!workOrder) {
+      throw new BadRequestException('Chantier introuvable pour ce tenant.');
     }
 
-    data.project = { connect: { id: project.id } };
-    data.projectName = project.title;
+    data.workOrder = { connect: { id: workOrder.id } };
+    data.workOrderName = workOrder.title;
 
-    if (!customerId && project.customerId && project.customer) {
-      data.customer = { connect: { id: project.customerId } };
-      data.customerName = this.formatCustomerName(project.customer);
+    if (!customerId && workOrder.customerId && workOrder.customer) {
+      data.customer = { connect: { id: workOrder.customerId } };
+      data.customerName = this.formatCustomerName(workOrder.customer);
     }
   }
 
@@ -268,7 +268,7 @@ export class CalendarEventService {
   async update(tenantId: string, id: string, dto: Partial<CreateCalendarEventDto>) {
     this.debug(`update() tenantId=${tenantId} id=${id}`);
 
-    const { addressId, address, projectId, customerId, ...calendarEventData } = dto;
+    const { addressId, address, workOrderId, customerId, ...calendarEventData } = dto;
 
     if (addressId && this.hasAddress(address)) {
       throw new BadRequestException(
@@ -291,13 +291,13 @@ export class CalendarEventService {
           : undefined,
     };
 
-    if (projectId !== undefined) {
-      if (!projectId) {
-        data.project = { disconnect: true };
-        data.projectName = null;
+    if (workOrderId !== undefined) {
+      if (!workOrderId) {
+        data.workOrder = { disconnect: true };
+        data.workOrderName = null;
       } else {
-        const project = await this.prisma.project.findFirst({
-          where: { id: projectId, tenantId },
+        const workOrder = await this.prisma.workOrder.findFirst({
+          where: { id: workOrderId, tenantId },
           select: {
             id: true,
             title: true,
@@ -312,18 +312,18 @@ export class CalendarEventService {
           },
         });
 
-        if (!project) {
-          throw new BadRequestException('Projet introuvable pour ce tenant.');
+        if (!workOrder) {
+          throw new BadRequestException('Chantier introuvable pour ce tenant.');
         }
 
-        data.project = { connect: { id: project.id } };
-        data.projectName = project.title;
+        data.workOrder = { connect: { id: workOrder.id } };
+        data.workOrderName = workOrder.title;
 
-        // Keep customer snapshot in sync with the selected project when customerId is not explicitly sent.
+        // Keep customer snapshot in sync with the selected workOrder when customerId is not explicitly sent.
         if (customerId === undefined) {
-          if (project.customerId && project.customer) {
-            data.customer = { connect: { id: project.customerId } };
-            data.customerName = this.formatCustomerName(project.customer);
+          if (workOrder.customerId && workOrder.customer) {
+            data.customer = { connect: { id: workOrder.customerId } };
+            data.customerName = this.formatCustomerName(workOrder.customer);
           } else {
             data.customer = { disconnect: true };
             data.customerName = null;

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { InvoiceService } from './invoice.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
-import { CreateInvoiceFromProjectDto } from './create-invoice-from-project.dto';
+import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
 
@@ -16,15 +16,15 @@ export class InvoiceController {
     return this.invoiceService.create(tenantId, dto);
   }
 
-  @Post('from-project')
+  @Post('from-workorder')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
-  async createFromProject(
+  async createFromWorkOrder(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: CreateInvoiceFromProjectDto,
+    @Body() dto: CreateInvoiceFromWorkOrderDto,
   ): Promise<unknown> {
     const tenantId = requireTenantContext(req).tenant.id;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    return await this.invoiceService.createFromProject(tenantId, dto);
+    return await this.invoiceService.createFromWorkOrder(tenantId, dto);
   }
 
   @Get()

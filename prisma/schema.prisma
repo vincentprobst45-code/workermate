@@ -48,7 +48,7 @@ model Tenant {
   addresses Address[] @relation("TenantAddresses")
   customers   Customer[]
   quotes    Quote[]
-  projects    Project[]
+  workOrders    WorkOrder[]
   invoices    Invoice[]
   calendarevents CalendarEvent[]
   catalogItems CatalogItem[]
@@ -69,7 +69,7 @@ model User {
 
   memberships Membership[]
   createdCustomers Customer[] @relation("CustomerCreator")
-  createdProjects    Project[] @relation("ProjectCreator")
+  createdWorkOrders    WorkOrder[] @relation("WorkOrderCreator")
   createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
 }
 
@@ -116,7 +116,7 @@ model Address {
   // Relations
   quotes Quote[]
   customers Customer[]
-  projects Project[]
+  workOrders WorkOrder[]
   tenants Tenant[] @relation("TenantMainAddress")
   users User[]
   calendarevents CalendarEvent[]
@@ -157,7 +157,7 @@ model Customer {
 
   // Relations
   quotes    Quote[]
-  projects    Project[]
+  workOrders    WorkOrder[]
   calendarevents CalendarEvent[]
   invoices Invoice[]
 
@@ -183,9 +183,9 @@ model CalendarEvent {
   addressName String?
   address     Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
 
-  projectId   String?
-  projectName String?
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workOrderId   String?
+  workOrderName String?
+  workOrder     WorkOrder?  @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   createdById String?
   createdByName String?
@@ -206,14 +206,14 @@ model CalendarEvent {
 
 }
 
-model Project {
+model WorkOrder {
   id          String   @id @default(cuid())
 
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   createdById String?
-  createdBy   User? @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdBy   User? @relation("WorkOrderCreator", fields: [createdById], references: [id])
 
   customerId    String?
   customer      Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -226,7 +226,7 @@ model Project {
   title       String
   description String?
 
-  status      ProjectStatus @default(DRAFT)
+  status      WorkOrderStatus @default(DRAFT)
 
   startDate   DateTime?
   endDate     DateTime?
@@ -239,7 +239,7 @@ model Project {
   updatedAt DateTime @updatedAt
   archivedAt DateTime?
 
-  items ProjectItem[]
+  items WorkOrderItem[]
   quotes    Quote[]
   documents Document[]
   calendarevents CalendarEvent[]
@@ -249,14 +249,14 @@ model Project {
   @@index([customerId])
 }
 
-model ProjectItem {
+model WorkOrderItem {
 
   id String @id @default(cuid())
 
-  projectId String
-  project Project @relation(fields:[projectId], references:[id], onDelete:Cascade)
+  workOrderId String
+  workOrder WorkOrder @relation(fields:[workOrderId], references:[id], onDelete:Cascade)
 
-  type ProjectItemType
+  type WorkOrderItemType
 
   position Int
 
@@ -272,15 +272,15 @@ model ProjectItem {
 
   vatRate Decimal @db.Decimal(4,2)
 
-  @@index([projectId])
+  @@index([workOrderId])
 }
 
 model Document {
 
   id String @id @default(cuid())
 
-  projectId String
-  project Project @relation(fields:[projectId], references:[id], onDelete:Cascade)
+  workOrderId String
+  workOrder WorkOrder @relation(fields:[workOrderId], references:[id], onDelete:Cascade)
 
   type DocumentType
 
@@ -308,7 +308,7 @@ model DocumentItem {
 
   position Int
 
-  type ProjectItemType
+  type WorkOrderItemType
 
   title String
 
@@ -332,15 +332,15 @@ model Invoice {
   customerId String
   customer Customer @relation(fields: [customerId], references: [id])
 
-  projectId String?
-  project Project? @relation(fields: [projectId], references: [id])
+  workOrderId String?
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
 
   number String @unique
   
   issueDate DateTime
   dueDate DateTime?
-  projectReference String
-  projectTitle String
+  workOrderReference String
+  workOrderTitle String
 
   tenantName String
   tenantStreet1 String
@@ -365,11 +365,11 @@ model Invoice {
   customerPhoneNumber String?
   customerVatNumber String?
 
-  projectStartDate DateTime?
-  projectEndDate DateTime?
-  projectAddress String?
-  projectPostalCode String?
-  projectCity String?
+  workOrderStartDate DateTime?
+  workOrderEndDate DateTime?
+  workOrderAddress String?
+  workOrderPostalCode String?
+  workOrderCity String?
 
   status InvoiceStatus @default(DRAFT)
 
@@ -410,7 +410,7 @@ model InvoiceItem {
   invoiceId String
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
-  type ProjectItemType
+  type WorkOrderItemType
 
   position Int
 
@@ -440,8 +440,8 @@ model Quote {
   customerId String
   customer Customer @relation(fields: [customerId], references: [id])
 
-  projectId String?
-  project Project? @relation(fields: [projectId], references: [id])
+  workOrderId String?
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
 
   title String
 
@@ -450,8 +450,8 @@ model Quote {
   issueDate DateTime
   validUntil DateTime?
 
-  projectReference String?
-  projectTitle String?
+  workOrderReference String?
+  workOrderTitle String?
 
   // Coordonnées de l'entreprise (snapshot)
   tenantName String
@@ -478,11 +478,11 @@ model Quote {
   customerVatNumber String?
 
   // Adresse du chantier
-  projectStartDate DateTime?
-  projectEndDate DateTime?
+  workOrderStartDate DateTime?
+  workOrderEndDate DateTime?
 
-  projectaddressId   String?
-  projectAddress     Address?  @relation(fields: [projectaddressId], references: [id])
+  workOrderaddressId   String?
+  workOrderAddress     Address?  @relation(fields: [workOrderaddressId], references: [id])
 
   status QuoteStatus @default(DRAFT)
 
@@ -512,7 +512,7 @@ model QuoteItem {
   quoteId String
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
-  type ProjectItemType
+  type WorkOrderItemType
 
   position Int
 
@@ -539,7 +539,7 @@ model CatalogItem {
   tenantId String
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  type ProjectItemType
+  type WorkOrderItemType
 
   title String
 
@@ -565,7 +565,7 @@ enum TenantRole {
   MEMBER
 }
 
-enum ProjectStatus {
+enum WorkOrderStatus {
   DRAFT
   PLANNED
   IN_PROGRESS
@@ -573,7 +573,7 @@ enum ProjectStatus {
   CANCELLED
 }
 
-enum ProjectItemType {
+enum WorkOrderItemType {
   LABOR
   MATERIAL
   EQUIPMENT

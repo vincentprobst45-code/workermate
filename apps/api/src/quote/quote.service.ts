@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type ProjectItemType } from '@prisma/client';
+import { Prisma, type WorkOrderItemType } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateCustomerDto } from '../customer/create-customer.dto';
 import { PrismaService } from '../prisma.service';
@@ -29,7 +29,7 @@ type CustomerRecord = {
 type QuoteWithRelations = Prisma.QuoteGetPayload<{
   include: {
     items: true;
-    projectAddress: true;
+    workOrderAddress: true;
   };
 }>;
 
@@ -305,35 +305,35 @@ export class QuoteService {
     });
   }
 
-  private async resolveProjectAddress(
+  private async resolveWorkOrderAddress(
     tenantId: string,
     dto: CreateQuoteDto,
   ): Promise<AddressRecord | null> {
-    if (dto.projectAddressId && dto.projectAddress) {
+    if (dto.workOrderAddressId && dto.workOrderAddress) {
       throw new BadRequestException(
-        'Vous devez fournir soit projectAddressId, soit une nouvelle adresse chantier.',
+        'Vous devez fournir soit workOrderAddressId, soit une nouvelle adresse chantier.',
       );
     }
 
-    if (dto.projectAddressId) {
-      return this.findTenantAddress(tenantId, dto.projectAddressId);
+    if (dto.workOrderAddressId) {
+      return this.findTenantAddress(tenantId, dto.workOrderAddressId);
     }
 
-    if (dto.projectAddress) {
-      return this.createTenantAddress(tenantId, dto.projectAddress);
+    if (dto.workOrderAddress) {
+      return this.createTenantAddress(tenantId, dto.workOrderAddress);
     }
 
     return null;
   }
 
   private serializeQuote(quote: QuoteWithRelations) {
-    const { projectAddress, ...rest } = quote;
+    const { workOrderAddress, ...rest } = quote;
 
     return {
       ...rest,
-      projectAddress: projectAddress?.street1 ?? undefined,
-      projectPostalCode: projectAddress?.postalCode ?? undefined,
-      projectCity: projectAddress?.city ?? undefined,
+      workOrderAddress: workOrderAddress?.street1 ?? undefined,
+      workOrderPostalCode: workOrderAddress?.postalCode ?? undefined,
+      workOrderCity: workOrderAddress?.city ?? undefined,
     };
   }
 
@@ -343,11 +343,11 @@ export class QuoteService {
     }
 
     const customer = await this.resolveCustomer(tenantId, dto);
-    const projectAddress = await this.resolveProjectAddress(tenantId, dto);
+    const workOrderAddress = await this.resolveWorkOrderAddress(tenantId, dto);
     const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
     const validUntil = this.parseOptionalDate(dto.validUntil);
-    const projectStartDate = this.parseOptionalDate(dto.projectStartDate);
-    const projectEndDate = this.parseOptionalDate(dto.projectEndDate);
+    const workOrderStartDate = this.parseOptionalDate(dto.workOrderStartDate);
+    const workOrderEndDate = this.parseOptionalDate(dto.workOrderEndDate);
 
     let subtotal = 0;
     let vatAmount = 0;
@@ -367,7 +367,7 @@ export class QuoteService {
       subtotal += lineSubtotal;
       vatAmount += lineVat;
 
-      const itemType: ProjectItemType = item.type ?? 'OTHER';
+      const itemType: WorkOrderItemType = item.type ?? 'OTHER';
 
       return {
         type: itemType,
@@ -408,8 +408,8 @@ export class QuoteService {
                 number: quoteNumber,
                 issueDate,
                 validUntil,
-                projectReference: this.normalizeOptionalString(dto.projectReference),
-                projectTitle: this.normalizeOptionalString(dto.projectTitle),
+                workOrderReference: this.normalizeOptionalString(dto.workOrderReference),
+                workOrderTitle: this.normalizeOptionalString(dto.workOrderTitle),
                 tenantName: dto.tenantName.trim(),
                 tenantStreet1: dto.tenantStreet1.trim(),
                 tenantStreet2: this.normalizeOptionalString(dto.tenantStreet2),
@@ -440,12 +440,12 @@ export class QuoteService {
                   customer.phone ?? customer.mobile ?? this.normalizeOptionalString(dto.customerPhoneNumber),
                 customerVatNumber:
                   customer.vatNumber ?? this.normalizeOptionalString(dto.customerVatNumber),
-                projectStartDate,
-                projectEndDate,
-                projectAddress: projectAddress
+                workOrderStartDate,
+                workOrderEndDate,
+                workOrderAddress: workOrderAddress
                   ? {
                       connect: {
-                        id: projectAddress.id,
+                        id: workOrderAddress.id,
                       },
                     }
                   : undefined,
@@ -470,7 +470,7 @@ export class QuoteService {
                     position: 'asc',
                   },
                 },
-                projectAddress: true,
+                workOrderAddress: true,
               },
             });
           },
@@ -500,7 +500,7 @@ export class QuoteService {
             position: 'asc',
           },
         },
-        projectAddress: true,
+        workOrderAddress: true,
       },
     });
 
@@ -516,7 +516,7 @@ export class QuoteService {
             position: 'asc',
           },
         },
-        projectAddress: true,
+        workOrderAddress: true,
       },
     });
 

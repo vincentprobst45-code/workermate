@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ProjectItemType, QuoteStatus } from '@prisma/client';
+import { WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import AddressForm, {
@@ -28,7 +28,7 @@ import {
   type CreateCustomerDto,
 } from './AddCustomerForm';
 import CatalogItemList, { type CatalogItem } from './CatalogItemList';
-import ProjectsList, { type Project } from './ProjectsList';
+import WorkOrdersList, { type WorkOrder } from './WorkOrdersList';
 import SelectExistingAddress from './SelectExistingAddress';
 
 type AddressMode = 'new' | 'existing' | 'none';
@@ -74,7 +74,7 @@ interface TenantQuoteDefaults {
 export interface QuoteItem {
   id: string;
   quoteId: string;
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   position: number;
   title: string;
   description: string;
@@ -89,13 +89,13 @@ export interface Quote {
   id: string;
   tenantId: string;
   customerId: string;
-  projectId?: string;
+  workOrderId?: string;
   title: string;
   number: string;
   issueDate: string;
   validUntil?: string;
-  projectReference?: string;
-  projectTitle?: string;
+  workOrderReference?: string;
+  workOrderTitle?: string;
   tenantName: string;
   tenantStreet1: string;
   tenantStreet2?: string;
@@ -116,11 +116,11 @@ export interface Quote {
   customerEmail?: string;
   customerPhoneNumber?: string;
   customerVatNumber?: string;
-  projectStartDate?: string;
-  projectEndDate?: string;
-  projectAddress?: string;
-  projectPostalCode?: string;
-  projectCity?: string;
+  workOrderStartDate?: string;
+  workOrderEndDate?: string;
+  workOrderAddress?: string;
+  workOrderPostalCode?: string;
+  workOrderCity?: string;
   status: QuoteStatus;
   currency: string;
   subtotal: number;
@@ -138,7 +138,7 @@ export interface Quote {
 
 export interface AddQuoteItemFormData {
   rowId: string;
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   position: number;
   title: string;
   description: string;
@@ -153,16 +153,16 @@ export interface AddQuoteFormData {
   title: string;
   issueDate: string;
   validUntil: string;
-  projectReference: string;
-  projectTitle: string;
-  projectStartDate: string;
-  projectEndDate: string;
+  workOrderReference: string;
+  workOrderTitle: string;
+  workOrderStartDate: string;
+  workOrderEndDate: string;
   customerMode: CustomerMode;
   customerId: string;
   customer: AddCustomerFormData;
-  projectAddressMode: AddressMode;
-  projectAddressId: string;
-  projectAddress: AddAddressFormData;
+  workOrderAddressMode: AddressMode;
+  workOrderAddressId: string;
+  workOrderAddress: AddAddressFormData;
   status: QuoteStatus;
   currency: string;
   subtotal: number;
@@ -181,8 +181,8 @@ export interface CreateQuoteDto {
   title: string;
   issueDate: string;
   validUntil?: string;
-  projectReference?: string;
-  projectTitle?: string;
+  workOrderReference?: string;
+  workOrderTitle?: string;
   tenantName: string;
   tenantStreet1: string;
   tenantStreet2?: string;
@@ -203,10 +203,10 @@ export interface CreateQuoteDto {
   customerEmail?: string;
   customerPhoneNumber?: string;
   customerVatNumber?: string;
-  projectStartDate?: string;
-  projectEndDate?: string;
-  projectAddressId?: string;
-  projectAddress?: AddAddressFormData;
+  workOrderStartDate?: string;
+  workOrderEndDate?: string;
+  workOrderAddressId?: string;
+  workOrderAddress?: AddAddressFormData;
   status: QuoteStatus;
   currency: string;
   subtotal: number;
@@ -220,7 +220,7 @@ export interface CreateQuoteDto {
 }
 
 interface CreateQuoteItemPayload {
-  type: ProjectItemType;
+  type: WorkOrderItemType;
   position: number;
   title: string;
   description: string;
@@ -236,7 +236,7 @@ type AddQuoteFormProps = {
   show: boolean;
 };
 
-type ProjectSelectionMode = 'fillForm' | 'addLines';
+type WorkOrderSelectionMode = 'fillForm' | 'addLines';
 
 const quoteStatusOptions: Array<{ value: QuoteStatus; label: string }> = [
   { value: 'DRAFT', label: 'Brouillon' },
@@ -246,7 +246,7 @@ const quoteStatusOptions: Array<{ value: QuoteStatus; label: string }> = [
   { value: 'EXPIRED', label: 'Expire' },
 ];
 
-const quoteItemTypeOptions: Array<{ value: ProjectItemType; label: string }> = [
+const quoteItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> = [
   { value: 'LABOR', label: 'Travaux' },
   { value: 'MATERIAL', label: 'Materiel' },
   { value: 'EQUIPMENT', label: 'Equipement' },
@@ -337,7 +337,7 @@ type SortableQuoteLineProps = {
   currency: string;
   onMoveUp: () => void;
   onMoveDown: () => void;
-  onTypeChange: (value: ProjectItemType) => void;
+  onTypeChange: (value: WorkOrderItemType) => void;
   onTitleChange: (value: string) => void;
   onQuantityChange: (value: number) => void;
   onUnitChange: (value: string) => void;
@@ -417,7 +417,7 @@ function SortableQuoteLine({
             <select
               className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               value={item.type}
-              onChange={(event) => onTypeChange(event.target.value as ProjectItemType)}
+              onChange={(event) => onTypeChange(event.target.value as WorkOrderItemType)}
             >
               {quoteItemTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -566,16 +566,16 @@ export function createEmptyQuote(
     title: '',
     issueDate: toDatetimeLocal(now),
     validUntil: toDatetimeLocal(validUntil),
-    projectReference: '',
-    projectTitle: '',
-    projectStartDate: '',
-    projectEndDate: '',
+    workOrderReference: '',
+    workOrderTitle: '',
+    workOrderStartDate: '',
+    workOrderEndDate: '',
     customerMode: 'new',
     customerId: '',
     customer: createEmptyCustomer(),
-    projectAddressMode: 'none',
-    projectAddressId: '',
-    projectAddress: createEmptyAddress(),
+    workOrderAddressMode: 'none',
+    workOrderAddressId: '',
+    workOrderAddress: createEmptyAddress(),
     status: 'DRAFT',
     currency: tenantDefaults?.defaultCurrency || 'EUR',
     subtotal: 0,
@@ -599,14 +599,14 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [success, setSuccess] = useState('');
   const [addressError, setAddressError] = useState('');
   const [addressSuccess, setAddressSuccess] = useState('');
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [projectsError, setProjectsError] = useState('');
-  const [showProjectsList, setShowProjectsList] = useState(false);
-  const [showProjectsListTop, setShowProjectsListTop] = useState(false);
-  const [doubleCheckShowProjectsListTop, setDoubleCheckShowProjectsListTop] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [projectSelectionMode, setProjectSelectionMode] = useState<ProjectSelectionMode>('addLines');
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
+  const [workOrdersError, setWorkOrdersError] = useState('');
+  const [showWorkOrdersList, setShowWorkOrdersList] = useState(false);
+  const [showWorkOrdersListTop, setShowWorkOrdersListTop] = useState(false);
+  const [doubleCheckShowWorkOrdersListTop, setDoubleCheckShowWorkOrdersListTop] = useState(false);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
+  const [workOrderSelectionMode, setWorkOrderSelectionMode] = useState<WorkOrderSelectionMode>('addLines');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
   const [catalogItemsError, setCatalogItemsError] = useState('');
@@ -634,9 +634,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             customerMode: currentForm.customerMode,
             customerId: currentForm.customerId,
             customer: currentForm.customer,
-            projectAddressMode: currentForm.projectAddressMode,
-            projectAddressId: currentForm.projectAddressId,
-            projectAddress: currentForm.projectAddress,
+            workOrderAddressMode: currentForm.workOrderAddressMode,
+            workOrderAddressId: currentForm.workOrderAddressId,
+            workOrderAddress: currentForm.workOrderAddress,
             quoteItems: currentForm.quoteItems.length
               ? currentForm.quoteItems
               : [createEmptyQuoteItem(0)],
@@ -732,8 +732,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
 
     setForm((currentForm) => ({
       ...currentForm,
-      projectAddressMode: customerAddressId ? 'existing' : 'none',
-      projectAddressId: customerAddressId,
+      workOrderAddressMode: customerAddressId ? 'existing' : 'none',
+      workOrderAddressId: customerAddressId,
     }));
 
     if (!customerAddressId) {
@@ -745,92 +745,92 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     }
   }
 
-  async function openProjectSelector(mode: ProjectSelectionMode) {
-    setProjectSelectionMode(mode);
-    setProjectsError('');
-    setShowProjectsList(false);
-    setShowProjectsListTop(false);
+  async function openWorkOrderSelector(mode: WorkOrderSelectionMode) {
+    setWorkOrderSelectionMode(mode);
+    setWorkOrdersError('');
+    setShowWorkOrdersList(false);
+    setShowWorkOrdersListTop(false);
     if(mode == 'addLines')
     {
-      setDoubleCheckShowProjectsListTop(false)
-      setShowProjectsList(true);
+      setDoubleCheckShowWorkOrdersListTop(false)
+      setShowWorkOrdersList(true);
     } else {
-      setDoubleCheckShowProjectsListTop(true)
-      setShowProjectsListTop(true);
+      setDoubleCheckShowWorkOrdersListTop(true)
+      setShowWorkOrdersListTop(true);
     }
     setShowCatalogItemsList(false);
-    setSelectedProject(null);
-    setProjectsLoading(true);
+    setSelectedWorkOrder(null);
+    setWorkOrdersLoading(true);
 
     try {
-      const response = await api.get('/projects');
+      const response = await api.get('/workOrders');
       if (!response.ok) {
         throw new Error('Erreur');
       }
 
-      const data: Project[] = await response.json();
-      setProjects(data);
+      const data: WorkOrder[] = await response.json();
+      setWorkOrders(data);
     } catch {
-      setProjects([]);
-      setProjectsError('Erreur lors de la récupération des chantiers');
+      setWorkOrders([]);
+      setWorkOrdersError('Erreur lors de la récupération des chantiers');
     } finally {
-      setProjectsLoading(false);
+      setWorkOrdersLoading(false);
     }
   }
 
-  function chooseSelectedProject() {
-    if (!selectedProject) {
+  function chooseSelectedWorkOrder() {
+    if (!selectedWorkOrder) {
       return;
     }
 
-    const importedProjectItems = selectedProject.items.map((projectItem, index) => ({
+    const importedWorkOrderItems = selectedWorkOrder.items.map((workOrderItem, index) => ({
       rowId: createQuoteItemRowId(),
-      type: projectItem.type,
+      type: workOrderItem.type,
       position: index,
-      title: projectItem.title,
-      description: projectItem.description ?? '',
-      quantity: Number(projectItem.quantity) || 0,
-      unit: projectItem.unit ?? '',
-      unitPrice: Number(projectItem.unitPrice) || 0,
-      vatRate: Number(projectItem.vatRate) || 0,
+      title: workOrderItem.title,
+      description: workOrderItem.description ?? '',
+      quantity: Number(workOrderItem.quantity) || 0,
+      unit: workOrderItem.unit ?? '',
+      unitPrice: Number(workOrderItem.unitPrice) || 0,
+      vatRate: Number(workOrderItem.vatRate) || 0,
       total: 0,
     }));
 
-    if (projectSelectionMode === 'fillForm') {
-      const filledQuoteItems = recomputeQuote(importedProjectItems);
+    if (workOrderSelectionMode === 'fillForm') {
+      const filledQuoteItems = recomputeQuote(importedWorkOrderItems);
 
       setForm((currentForm) => ({
         ...currentForm,
-        title: `Devis-${selectedProject.title}`,
-        projectTitle: selectedProject.title,
-        projectReference: selectedProject.reference || '',
-        projectStartDate: selectedProject.startDate ? toDatetimeLocal(new Date(selectedProject.startDate)) : '',
-        projectEndDate: selectedProject.endDate ? toDatetimeLocal(new Date(selectedProject.endDate)) : '',
-        customerMode: selectedProject.customerId ? 'existing' : currentForm.customerMode,
-        customerId: selectedProject.customerId || '',
-        projectAddressMode: selectedProject.addressId ? 'existing' : 'none',
-        projectAddressId: selectedProject.addressId || '',
+        title: `Devis-${selectedWorkOrder.title}`,
+        workOrderTitle: selectedWorkOrder.title,
+        workOrderReference: selectedWorkOrder.reference || '',
+        workOrderStartDate: selectedWorkOrder.startDate ? toDatetimeLocal(new Date(selectedWorkOrder.startDate)) : '',
+        workOrderEndDate: selectedWorkOrder.endDate ? toDatetimeLocal(new Date(selectedWorkOrder.endDate)) : '',
+        customerMode: selectedWorkOrder.customerId ? 'existing' : currentForm.customerMode,
+        customerId: selectedWorkOrder.customerId || '',
+        workOrderAddressMode: selectedWorkOrder.addressId ? 'existing' : 'none',
+        workOrderAddressId: selectedWorkOrder.addressId || '',
         ...filledQuoteItems,
       }));
     } else {
-      if (!selectedProject.items.length) {
-        setProjectsError('Le chantier sélectionné ne contient aucune étape.');
+      if (!selectedWorkOrder.items.length) {
+        setWorkOrdersError('Le chantier sélectionné ne contient aucune étape.');
         return;
       }
       updateQuoteItems((items) => [
         ...items,
-        ...importedProjectItems.map((projectItem, index) => ({
-          ...projectItem,
+        ...importedWorkOrderItems.map((workOrderItem, index) => ({
+          ...workOrderItem,
           position: items.length + index,
         })),
       ]);
     }
 
-    setShowProjectsList(false);
-    setSelectedProject(null);
-    setProjectsError('');
+    setShowWorkOrdersList(false);
+    setSelectedWorkOrder(null);
+    setWorkOrdersError('');
     setSuccess(
-      projectSelectionMode === 'fillForm'
+      workOrderSelectionMode === 'fillForm'
         ? 'Formulaire rempli depuis le chantier.'
         : 'Lignes importées depuis le chantier.',
     );
@@ -839,7 +839,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   async function openCatalogItemSelector() {
     setCatalogItemsError('');
     setShowCatalogItemsList(true);
-    setShowProjectsList(false);
+    setShowWorkOrdersList(false);
     setSelectedCatalogItem(null);
     setCatalogItemsLoading(true);
 
@@ -1009,13 +1009,13 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       return;
     }
 
-    if (form.projectAddressMode === 'existing' && !form.projectAddressId) {
+    if (form.workOrderAddressMode === 'existing' && !form.workOrderAddressId) {
       setError('Veuillez selectionner une adresse chantier existante.');
       return;
     }
 
-    if (form.projectAddressMode === 'new') {
-      const address = sanitizeAddress(form.projectAddress);
+    if (form.workOrderAddressMode === 'new') {
+      const address = sanitizeAddress(form.workOrderAddress);
       if (!address.street1 || !address.postalCode || !address.city) {
         setError('L\'adresse chantier est incomplete.');
         return;
@@ -1032,8 +1032,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       title: form.title.trim(),
       issueDate: form.issueDate,
       validUntil: trimToUndefined(form.validUntil),
-      projectReference: trimToUndefined(form.projectReference),
-      projectTitle: trimToUndefined(form.projectTitle),
+      workOrderReference: trimToUndefined(form.workOrderReference),
+      workOrderTitle: trimToUndefined(form.workOrderTitle),
       tenantName: tenantDefaults?.name?.trim() || '',
       tenantStreet1: tenantDefaults?.address?.street1?.trim() || '',
       tenantStreet2: trimToUndefined(tenantDefaults?.address?.street2),
@@ -1056,15 +1056,15 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       customerEmail: customerPayload.customerEmail,
       customerPhoneNumber: customerPayload.customerPhoneNumber,
       customerVatNumber: customerPayload.customerVatNumber,
-      projectStartDate: trimToUndefined(form.projectStartDate),
-      projectEndDate: trimToUndefined(form.projectEndDate),
-      projectAddressId:
-        form.projectAddressMode === 'existing'
-          ? trimToUndefined(form.projectAddressId)
+      workOrderStartDate: trimToUndefined(form.workOrderStartDate),
+      workOrderEndDate: trimToUndefined(form.workOrderEndDate),
+      workOrderAddressId:
+        form.workOrderAddressMode === 'existing'
+          ? trimToUndefined(form.workOrderAddressId)
           : undefined,
-      projectAddress:
-        form.projectAddressMode === 'new'
-          ? sanitizeAddress(form.projectAddress)
+      workOrderAddress:
+        form.workOrderAddressMode === 'new'
+          ? sanitizeAddress(form.workOrderAddress)
           : undefined,
       status: form.status,
       currency: form.currency.trim() || 'EUR',
@@ -1118,64 +1118,64 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           type="button"
           className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
           onClick={() => {
-            void openProjectSelector('fillForm');
+            void openWorkOrderSelector('fillForm');
           }}
         >
           Remplir les champs à partir d&apos;un projet existant
         </button>
       </div>
 
-        {showProjectsListTop && (
+        {showWorkOrdersListTop && (
           <div className="mb-4 rounded-md border-2 p-4">
             <div className="mb-3 flex items-center gap-2">
               <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
               <button
                 type="button"
                 className="ml-auto rounded border px-3 py-2"
-                onClick={() => setShowProjectsListTop(false)}
+                onClick={() => setShowWorkOrdersListTop(false)}
               >
                 Fermer la liste
               </button>
             </div>
-            {projectsLoading ? (
+            {workOrdersLoading ? (
               <p>Chargement des chantiers...</p>
             ) : (
-              <ProjectsList
-                projects={projects}
+              <WorkOrdersList
+                workOrders={workOrders}
                 onDelete={null}
-                handleSelectedProject={(project) => {
-                  setSelectedProject(project);
-                  setShowProjectsListTop(false);
-                  setProjectsError('');
+                handleSelectedWorkOrder={(workOrder) => {
+                  setSelectedWorkOrder(workOrder);
+                  setShowWorkOrdersListTop(false);
+                  setWorkOrdersError('');
                 }}
               />
             )}
           </div>
         )}
 
-        {!showProjectsListTop && doubleCheckShowProjectsListTop && selectedProject &&  (
+        {!showWorkOrdersListTop && doubleCheckShowWorkOrdersListTop && selectedWorkOrder &&  (
           <div className="mb-4 rounded-md border-2 p-4">
             <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
             <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-              <p><strong>Titre:</strong> {selectedProject.title}</p>
-              <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
-              <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items.length || 0}</p>
+              <p><strong>Titre:</strong> {selectedWorkOrder.title}</p>
+              <p><strong>Description:</strong> {selectedWorkOrder.description || '-'}</p>
+              <p><strong>Référence:</strong> {selectedWorkOrder.reference || '-'}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedWorkOrder.items.length || 0}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={chooseSelectedProject}
+                onClick={chooseSelectedWorkOrder}
                 className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
               >
-                {projectSelectionMode === 'fillForm'
+                {workOrderSelectionMode === 'fillForm'
                   ? 'Remplir le devis avec ce chantier'
                   : 'Choisir ce chantier'}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setShowProjectsListTop(true);
+                  setShowWorkOrdersListTop(true);
                 }}
                 className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
               >
@@ -1248,9 +1248,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <input
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
               placeholder="Reference chantier"
-              value={form.projectReference}
+              value={form.workOrderReference}
               onChange={(event) =>
-                setForm({ ...form, projectReference: event.target.value })
+                setForm({ ...form, workOrderReference: event.target.value })
               }
             />
           </label>
@@ -1259,8 +1259,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <input
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
               placeholder="Titre chantier"
-              value={form.projectTitle}
-              onChange={(event) => setForm({ ...form, projectTitle: event.target.value })}
+              value={form.workOrderTitle}
+              onChange={(event) => setForm({ ...form, workOrderTitle: event.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -1268,9 +1268,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <input
               type="datetime-local"
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              value={form.projectStartDate}
+              value={form.workOrderStartDate}
               onChange={(event) =>
-                setForm({ ...form, projectStartDate: event.target.value })
+                setForm({ ...form, workOrderStartDate: event.target.value })
               }
             />
           </label>
@@ -1279,8 +1279,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <input
               type="datetime-local"
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              value={form.projectEndDate}
-              onChange={(event) => setForm({ ...form, projectEndDate: event.target.value })}
+              value={form.workOrderEndDate}
+              onChange={(event) => setForm({ ...form, workOrderEndDate: event.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1.5">
@@ -1355,8 +1355,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 setForm({
                   ...form,
                   customerId: event.target.value,
-                  projectAddressMode: 'none',
-                  projectAddressId: '',
+                  workOrderAddressMode: 'none',
+                  workOrderAddressId: '',
                 });
                 setAddressError('');
                 setAddressSuccess('');
@@ -1513,12 +1513,12 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.projectAddressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             onClick={() => {
               setForm({
                 ...form,
-                projectAddressMode: 'new',
-                projectAddressId: '',
+                workOrderAddressMode: 'new',
+                workOrderAddressId: '',
               });
               setAddressError('');
               setAddressSuccess('');
@@ -1528,11 +1528,11 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.projectAddressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             onClick={() => {
               setForm({
                 ...form,
-                projectAddressMode: 'existing',
+                workOrderAddressMode: 'existing',
               });
               setAddressError('');
               setAddressSuccess('');
@@ -1550,12 +1550,12 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.projectAddressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             onClick={() => {
               setForm({
                 ...form,
-                projectAddressMode: 'none',
-                projectAddressId: '',
+                workOrderAddressMode: 'none',
+                workOrderAddressId: '',
               });
               setAddressError('');
               setAddressSuccess('');
@@ -1565,17 +1565,17 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
         </div>
 
-        {form.projectAddressMode === 'new' ? (
+        {form.workOrderAddressMode === 'new' ? (
           <AddressForm
-            address={form.projectAddress}
-            onChange={(projectAddress) => setForm({ ...form, projectAddress })}
+            address={form.workOrderAddress}
+            onChange={(workOrderAddress) => setForm({ ...form, workOrderAddress })}
           />
-        ) : form.projectAddressMode === 'existing' ? (
+        ) : form.workOrderAddressMode === 'existing' ? (
           <SelectExistingAddress
-            selectedAddressId={form.projectAddressId}
-            onAddressChange={(projectAddressId) => {
-              setForm({ ...form, projectAddressId });
-              setAddressSuccess(projectAddressId ? 'Adresse selectionnee' : '');
+            selectedAddressId={form.workOrderAddressId}
+            onAddressChange={(workOrderAddressId) => {
+              setForm({ ...form, workOrderAddressId });
+              setAddressSuccess(workOrderAddressId ? 'Adresse selectionnee' : '');
             }}
             required={false}
           />
@@ -1601,7 +1601,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               type="button"
               className="rounded border bg-slate-200 px-3 py-2"
               onClick={() => {
-                void openProjectSelector('addLines');
+                void openWorkOrderSelector('addLines');
               }}
             >
               Ajouter des lignes à partir d&apos;un chantier
@@ -1618,64 +1618,64 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </div>
         </div>
 
-        {projectsError && (
-          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{projectsError}</div>
+        {workOrdersError && (
+          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{workOrdersError}</div>
         )}
         {catalogItemsError && (
           <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>
         )}
 
-        {showProjectsList && (
+        {showWorkOrdersList && (
           <div className="mb-4 rounded-md border-2 p-4">
             <div className="mb-3 flex items-center gap-2">
               <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
               <button
                 type="button"
                 className="ml-auto rounded border px-3 py-2"
-                onClick={() => setShowProjectsList(false)}
+                onClick={() => setShowWorkOrdersList(false)}
               >
                 Fermer la liste
               </button>
             </div>
-            {projectsLoading ? (
+            {workOrdersLoading ? (
               <p>Chargement des chantiers...</p>
             ) : (
-              <ProjectsList
-                projects={projects}
+              <WorkOrdersList
+                workOrders={workOrders}
                 onDelete={null}
-                handleSelectedProject={(project) => {
-                  setSelectedProject(project);
-                  setShowProjectsList(false);
-                  setProjectsError('');
+                handleSelectedWorkOrder={(workOrder) => {
+                  setSelectedWorkOrder(workOrder);
+                  setShowWorkOrdersList(false);
+                  setWorkOrdersError('');
                 }}
               />
             )}
           </div>
         )}
 
-        {!showProjectsList && !doubleCheckShowProjectsListTop && selectedProject && (
+        {!showWorkOrdersList && !doubleCheckShowWorkOrdersListTop && selectedWorkOrder && (
           <div className="mb-4 rounded-md border-2 p-4">
             <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
             <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-              <p><strong>Titre:</strong> {selectedProject.title}</p>
-              <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
-              <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items.length || 0}</p>
+              <p><strong>Titre:</strong> {selectedWorkOrder.title}</p>
+              <p><strong>Description:</strong> {selectedWorkOrder.description || '-'}</p>
+              <p><strong>Référence:</strong> {selectedWorkOrder.reference || '-'}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedWorkOrder.items.length || 0}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={chooseSelectedProject}
+                onClick={chooseSelectedWorkOrder}
                 className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
               >
-                {projectSelectionMode === 'fillForm'
+                {workOrderSelectionMode === 'fillForm'
                   ? 'Remplir le devis avec ce chantier'
                   : 'Choisir ce chantier'}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setShowProjectsList(true);
+                  setShowWorkOrdersList(true);
                 }}
                 className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
               >

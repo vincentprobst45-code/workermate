@@ -20,12 +20,12 @@ export interface Invoice {
 	id: string;
 	tenantId: string;
 	customerId: string;
-	projectId?: string;
+	workOrderId?: string;
 	number: string;
 	issueDate: string;
 	dueDate?: string;
-	projectReference: string;
-	projectTitle: string;
+	workOrderReference: string;
+	workOrderTitle: string;
 	tenantName: string;
 	tenantStreet1: string;
 	tenantStreet2?: string;
@@ -46,11 +46,11 @@ export interface Invoice {
 	customerEmail?: string;
 	customerPhoneNumber?: string;
 	customerVatNumber?: string;
-	projectStartDate?: string;
-	projectEndDate?: string;
-	projectAddress?: string;
-	projectPostalCode?: string;
-	projectCity?: string;
+	workOrderStartDate?: string;
+	workOrderEndDate?: string;
+	workOrderAddress?: string;
+	workOrderPostalCode?: string;
+	workOrderCity?: string;
 	status: InvoiceStatus;
 	currency: string;
 	subtotal: number;
@@ -129,8 +129,8 @@ export default function NewInvoice({
 					<p className={styles.invoiceMuted}>Numero: {invoice.number}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(invoice.issueDate, locale)}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(invoice.dueDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Reference chantier: {invoice.projectReference || '-'}</p>
-					<p className={styles.invoiceMuted}>Chantier: {invoice.projectTitle}</p>
+					<p className={styles.invoiceMuted}>Reference chantier: {invoice.workOrderReference || '-'}</p>
+					<p className={styles.invoiceMuted}>Chantier: {invoice.workOrderTitle}</p>
 				</div>
 
 				<div className={styles.rightBlock}>
@@ -155,9 +155,9 @@ export default function NewInvoice({
 
 				<div className={styles.rightBlock}>
 					<h3 className={styles.invoiceSectionTitle}>Infos chantier</h3>
-					<p className={styles.invoiceMuted}>Debut: {formatDate(invoice.projectStartDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Fin: {formatDate(invoice.projectEndDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(invoice.projectAddress, undefined, invoice.projectPostalCode, invoice.projectCity)}</p>
+					<p className={styles.invoiceMuted}>Debut: {formatDate(invoice.workOrderStartDate, locale)}</p>
+					<p className={styles.invoiceMuted}>Fin: {formatDate(invoice.workOrderEndDate, locale)}</p>
+					<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(invoice.workOrderAddress, undefined, invoice.workOrderPostalCode, invoice.workOrderCity)}</p>
 				</div>
 			</section>
 

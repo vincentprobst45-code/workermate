@@ -10,11 +10,11 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { ProjectStatus } from '@prisma/client';
+import { WorkOrderStatus } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
-import { CreateProjectItemDto } from 'src/projectitem/create-project-item.dto';
+import { CreateWorkOrderItemDto } from 'src/workorderitem/create-workorder-item.dto';
 
-export class CreateProjectDto {
+export class CreateWorkOrderDto {
   @IsString()
   customerId?: string;
 
@@ -29,7 +29,7 @@ export class CreateProjectDto {
   @Type(() => CreateAddressDto)
   address?: CreateAddressDto;
 
-  // Projet
+  // Chantier
   @IsString()
   reference!: string;
 
@@ -41,8 +41,8 @@ export class CreateProjectDto {
   description?: string;
 
   @IsOptional()
-  @IsEnum(ProjectStatus)
-  status?: ProjectStatus;
+  @IsEnum(WorkOrderStatus)
+  status?: WorkOrderStatus;
 
   @IsOptional()
   // @IsDateString()
@@ -57,8 +57,8 @@ export class CreateProjectDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => CreateProjectItemDto)
-  projectItems?: CreateProjectItemDto[];
+  @Type(() => CreateWorkOrderItemDto)
+  items?: CreateWorkOrderItemDto[];
 
   @IsOptional()
   @IsInt()

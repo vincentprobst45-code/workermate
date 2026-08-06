@@ -2,10 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
-import AddProjectForm from '../components/AddProjectForm';
-import ProjectsList, { type Project } from '../components/ProjectsList';
+import AddWorkOrderForm from '../components/AddWorkOrderForm';
+import WorkOrdersList, { type WorkOrder } from '../components/WorkOrdersList';
 
-// enum ProjectStatus {
+// enum WorkOrderStatus {
 //   DRAFT,
 //   PLANNED,
 //   IN_PROGRESS,
@@ -13,7 +13,7 @@ import ProjectsList, { type Project } from '../components/ProjectsList';
 //   CANCELLED,
 // }
 
-export function createEmptyProject(): Project {
+export function createEmptyWorkOrder(): WorkOrder {
   return {
     id: '',
     title: '',
@@ -26,7 +26,7 @@ export function createEmptyProject(): Project {
 
     status: 'DRAFT',
 
-    projectItems: [],
+    items: [],
     
     customerId: '',
     addressId: '',
@@ -36,14 +36,14 @@ export function createEmptyProject(): Project {
   };
 }
 
-export default function ProjectsPage() {
+export default function WorkOrdersPage() {
   const api = useApiClient();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAddProjectForm, setShowAddProjectForm] = useState(false)
-  const [projectFormWasOpened, setProjectFormWasOpened] = useState(false)
-  // const [newProject, setNewProject] = useState<Project>(createEmptyProject());
+  const [showAddWorkOrderForm, setShowAddWorkOrderForm] = useState(false)
+  const [workOrderFormWasOpened, setWorkOrderFormWasOpened] = useState(false)
+  // const [newWorkOrder, setNewWorkOrder] = useState<WorkOrder>(createEmptyWorkOrder());
   // const [addressMode, setAddressMode] = useState<AddressMode>('new');
   // const [selectedAddressId, setSelectedAddressId] = useState('');
   // const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
@@ -51,13 +51,13 @@ export default function ProjectsPage() {
   //   , latitude: '', longitude: ''
   //   , accessCode: '', floor: '', apartment: '', note: ''
   //  });
-  //  const [projectItems, setProjectItems] = useState<ProjectItem[]>([])
+  //  const [workOrderItems, setWorkOrderItems] = useState<WorkOrderItem[]>([])
 
    
-  // function createEmptyProjectItem(): ProjectItem {
+  // function createEmptyWorkOrderItem(): WorkOrderItem {
   //   return {
   //     id: '',
-  //     position: projectItems.length,
+  //     position: workOrderItems.length,
   //     type: 'LABOR',
 
   //     title: '',
@@ -76,13 +76,13 @@ export default function ProjectsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadProjects() {
+    async function loadWorkOrders() {
       try {
-        const res = await api.get('/projects');
+        const res = await api.get('/workOrders');
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
         if (!cancelled) {
-          setProjects(data);
+          setWorkOrders(data);
         }
       } catch {
         if (!cancelled) {
@@ -95,29 +95,29 @@ export default function ProjectsPage() {
       }
     };
 
-    void loadProjects();
+    void loadWorkOrders();
 
     return () => {
       cancelled = true;
     };
   }, [api]);
   
-  console.log(projects)
+  console.log(workOrders)
 
-  // async function handleAddProject(e: React.FormEvent) {
+  // async function handleAddWorkOrder(e: React.FormEvent) {
   //   e.preventDefault();
   //   try {
 
-  //     let projectToAdd = addressMode === 'new' ? { ...newProject, address: newAddress }
-  //                         : addressMode === 'existing' ? { ...newProject, addressId: selectedAddressId }
-  //                         : {...newProject }
-  //     projectToAdd = projectItems.length > 0 ? {...projectToAdd, projectItems: projectItems} : projectToAdd
-  //     // setNewProject({...newProject, projectItems:projectItems})
-  //     const res = await api.post('/projects', projectToAdd);
+  //     let workOrderToAdd = addressMode === 'new' ? { ...newWorkOrder, address: newAddress }
+  //                         : addressMode === 'existing' ? { ...newWorkOrder, addressId: selectedAddressId }
+  //                         : {...newWorkOrder }
+  //     workOrderToAdd = workOrderItems.length > 0 ? {...workOrderToAdd, workOrderItems: workOrderItems} : workOrderToAdd
+  //     // setNewWorkOrder({...newWorkOrder, workOrderItems:workOrderItems})
+  //     const res = await api.post('/workOrders', workOrderToAdd);
   //     if (!res.ok) throw new Error('Erreur');
   //     const data = await res.json();
-  //     setProjects([data, ...projects]);
-  //     setNewProject(createEmptyProject());
+  //     setWorkOrders([data, ...workOrders]);
+  //     setNewWorkOrder(createEmptyWorkOrder());
   //     setAddressMode('new');
   //   } catch {
   //     setError('Erreur lors de l\'ajout');
@@ -127,9 +127,9 @@ export default function ProjectsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Confirmer la suppression?')) return;
     try {
-      const res = await api.delete(`/projects/${id}`);
+      const res = await api.delete(`/workOrders/${id}`);
       if (!res.ok) throw new Error('Erreur');
-      setProjects(projects.filter((p) => p.id !== id));
+      setWorkOrders(workOrders.filter((p) => p.id !== id));
     } catch {
       setError('Erreur lors de la suppression');
     }
@@ -146,69 +146,69 @@ export default function ProjectsPage() {
           className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
                     rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
                     hover:bg-blue-600 active:bg-blue-900' 
-          onClick={() => {setShowAddProjectForm(!showAddProjectForm);setProjectFormWasOpened(true);}}>
-            {showAddProjectForm ? ("Fermer") : projectFormWasOpened ? ("Ouvrir") : ("Ajouter un projet")}
+          onClick={() => {setShowAddWorkOrderForm(!showAddWorkOrderForm);setWorkOrderFormWasOpened(true);}}>
+            {showAddWorkOrderForm ? ("Fermer") : workOrderFormWasOpened ? ("Ouvrir") : ("Ajouter un projet")}
         </button>
-        {projectFormWasOpened &&
+        {workOrderFormWasOpened &&
         <button
           className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
                     rounded-sm mx-4 my-2 py-2 px-3 float-right bg-red-400
                     hover:bg-red-600 active:bg-red-900' 
-          onClick={() => {setShowAddProjectForm(false);setProjectFormWasOpened(false);}}>
+          onClick={() => {setShowAddWorkOrderForm(false);setWorkOrderFormWasOpened(false);}}>
             Effacer le formulaire
         </button>
         }
-        {projectFormWasOpened &&
-        <AddProjectForm show={showAddProjectForm} onCreated={(data)=> {setProjects((currentProjects) => [data, ...currentProjects])}} />
+        {workOrderFormWasOpened &&
+        <AddWorkOrderForm show={showAddWorkOrderForm} onCreated={(data)=> {setWorkOrders((currentWorkOrders) => [data, ...currentWorkOrders])}} />
         }
-        {/* <form onSubmit={handleAddProject} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
+        {/* <form onSubmit={handleAddWorkOrder} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               className="border px-3 py-2 rounded"
               placeholder="Titre du chantier"
-              value={newProject.title}
-              onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+              value={newWorkOrder.title}
+              onChange={(e) => setNewWorkOrder({ ...newWorkOrder, title: e.target.value })}
               required
             />
             <input
               className="border px-3 py-2 rounded"
               placeholder="Description"
-              value={newProject.description}
-              onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+              value={newWorkOrder.description}
+              onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })}
             />
             <input type="datetime-local"
               className="border px-3 py-2 rounded"
               placeholder="Start"
-              value={newProject.startDate}
-              onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
+              value={newWorkOrder.startDate}
+              onChange={(e) => setNewWorkOrder({ ...newWorkOrder, startDate: e.target.value })}
               required
             />
             <input type="datetime-local"
               className="border px-3 py-2 rounded"
               placeholder="End"
-              value={newProject.endDate}
-              onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
+              value={newWorkOrder.endDate}
+              onChange={(e) => setNewWorkOrder({ ...newWorkOrder, endDate: e.target.value })}
               required
             />
           </div>
           <div className='p-6 border-2 m-6'>
-            <button type="button" onClick={() => {setProjectItems([...projectItems, createEmptyProjectItem()])}}
+            <button type="button" onClick={() => {setWorkOrderItems([...workOrderItems, createEmptyWorkOrderItem()])}}
                     className='border-2 bg-blue-200 rounded-md p-2'
             >
               + Ajouter une étape
             </button>
             <div className='m-6'>
-            {projectItems.map((projectItem,i) => {
+            {workOrderItems.map((workOrderItem,i) => {
               return(
               <div key={i} className='p-6 mt-6 border-2 flex flex-wrap gap-4 items-center'>
                 <label htmlFor='title'>Titre : </label>
                 <input name="title"
                   className="border px-3 py-2 rounded"
                   placeholder="Titre"
-                  value={projectItem.title}
+                  value={workOrderItem.title}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, title: e.target.value }
@@ -220,18 +220,18 @@ export default function ProjectsPage() {
                 <label htmlFor='itemtype'>Type : </label>
                 <select name="itemtype"
                   className="border px-3 py-2 rounded"
-                  value={projectItem.type}
+                  value={workOrderItem.type}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
-                          ? { ...item, type: e.target.value as ProjectItemType }
+                          ? { ...item, type: e.target.value as WorkOrderItemType }
                           : item
                       )
                     );
                   }}
                 >
-                  {projectItemTypeOptions.map((option) => (
+                  {workOrderItemTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -241,9 +241,9 @@ export default function ProjectsPage() {
                 <input name="description"
                   className="border px-3 py-2 rounded"
                   placeholder="Description"
-                  value={projectItem.description}
+                  value={workOrderItem.description}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, description: e.target.value }
@@ -255,9 +255,9 @@ export default function ProjectsPage() {
                 <label htmlFor='quantity'>Quantité : </label>
                 <input type="number" name="quantity"
                   className="border px-3 py-2 rounded"
-                  value={projectItem.quantity}
+                  value={workOrderItem.quantity}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, quantity: e.target.valueAsNumber }
@@ -270,9 +270,9 @@ export default function ProjectsPage() {
                 <input name="unit"
                   className="border px-3 py-2 rounded"
                   placeholder="unité"
-                  value={projectItem.unit}
+                  value={workOrderItem.unit}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, unit: e.target.value }
@@ -285,9 +285,9 @@ export default function ProjectsPage() {
                 <input type="number" name="unitprice"
                   className="border px-3 py-2 rounded"
                   placeholder="Prix à l'unité"
-                  value={projectItem.unitPrice}
+                  value={workOrderItem.unitPrice}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, unitPrice: e.target.valueAsNumber }
@@ -300,9 +300,9 @@ export default function ProjectsPage() {
                 <input type="number" name="vat"
                   className="border px-3 py-2 rounded"
                   placeholder="Taux de TVA"
-                  value={projectItem.vatRate}
+                  value={workOrderItem.vatRate}
                   onChange={(e) => {
-                    setProjectItems((currentItems) =>
+                    setWorkOrderItems((currentItems) =>
                       currentItems.map((item, index) =>
                         index === i
                           ? { ...item, vatRate: e.target.valueAsNumber }
@@ -313,7 +313,7 @@ export default function ProjectsPage() {
                 />
                 <button type="button"
                   className='py-2 px-3 border-2 rounded-md bg-red-300 hover:bg-red-500 active:bg-red-800'
-                  onClick={() => setProjectItems((currentItems) => {
+                  onClick={() => setWorkOrderItems((currentItems) => {
                     const filtered = currentItems.filter((item, index) => 
                        index !== i 
                     )
@@ -367,7 +367,7 @@ export default function ProjectsPage() {
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <ProjectsList projects={projects} onDelete={handleDelete} />
+          <WorkOrdersList workOrders={workOrders} onDelete={handleDelete} />
         )}
       </main>
     </ProtectedRoute>

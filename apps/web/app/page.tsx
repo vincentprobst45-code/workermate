@@ -51,12 +51,12 @@ export default function Home() {
             </div>
           </a>
 
-          <a href="/projects" className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
+          <a href="/workorders" className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/80 ring-1 ring-slate-200 hover:shadow-xl transition cursor-pointer">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Chantiers</p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Crée et suis tes projets.
+                  Crée et suis tes chantiers.
                 </p>
               </div>
               <div className="rounded-2xl bg-blue-100 px-3 py-2 text-xs font-medium text-blue-700">

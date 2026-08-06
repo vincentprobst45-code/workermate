@@ -21,12 +21,12 @@ export interface Invoice {
   id: string;
   tenantId: string;
   customerId: string;
-  projectId?: string;
+  workOrderId?: string;
   number: string;
   issueDate: string;
   dueDate?: string;
-  projectReference: string;
-  projectTitle: string;
+  workOrderReference: string;
+  workOrderTitle: string;
   tenantName: string;
   tenantStreet1: string;
   tenantStreet2?: string;
@@ -47,11 +47,11 @@ export interface Invoice {
   customerEmail?: string;
   customerPhoneNumber?: string;
   customerVatNumber?: string;
-  projectStartDate?: string;
-  projectEndDate?: string;
-  projectAddress?: string;
-  projectPostalCode?: string;
-  projectCity?: string;
+  workOrderStartDate?: string;
+  workOrderEndDate?: string;
+  workOrderAddress?: string;
+  workOrderPostalCode?: string;
+  workOrderCity?: string;
   status: InvoiceStatus;
   currency: string;
   subtotal: number;
@@ -276,9 +276,9 @@ export default function InvoicesList({ invoices, onDelete }: InvoicesListProps) 
               adresse : {selectedInvoice.customerStreet1} {selectedInvoice.customerStreet2 || ''} {selectedInvoice.customerPostalCode} {selectedInvoice.customerCity}
             </p>
 
-            <p className="mt-4 font-semibold">Projet</p>
-            <p>reference : {selectedInvoice.projectReference || '-'}</p>
-            <p>titre : {selectedInvoice.projectTitle || '-'}</p>
+            <p className="mt-4 font-semibold">Chantier</p>
+            <p>reference : {selectedInvoice.workOrderReference || '-'}</p>
+            <p>titre : {selectedInvoice.workOrderTitle || '-'}</p>
 
             <p className="mt-4 font-semibold">Montants</p>
             <p>sous-total HT : {formatMoney(selectedInvoice.subtotal, selectedInvoice.currency)}</p>

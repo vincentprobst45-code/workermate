@@ -19,7 +19,7 @@ export type AddCalendarEventFormData = {
   address: AddAddressFormData;
 
   // customerId: '',
-  // projectId: '',
+  // workOrderId: '',
   // createdById: '',
 };
 
@@ -28,7 +28,7 @@ export type AddCalendarEventFormData = {
 //   onChange: (calendarEvent: AddCalendarEventFormData) => void;
 // };
 
-interface Project {
+interface WorkOrder {
   id: string;
   title: string;
   description?: string;
@@ -47,8 +47,8 @@ interface CalendarEvent {
   
   customerId?: string;
   customerName?: string;
-  projectId?: string;
-  projectName?: string;
+  workOrderId?: string;
+  workOrderName?: string;
   addressId?: string;
   addressName?: string;
   createdById?: string;
@@ -72,7 +72,7 @@ export function createEmptyCalendarEvent(): AddCalendarEventFormData {
     address: createEmptyAddress(),
     
     // customerId: '',
-    // projectId: '',
+    // workOrderId: '',
     // createdById: '',
   };
 }
@@ -85,33 +85,33 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
   const api = useApiClient();
   const [newCalendarEvent, setNewCalendarEvent] = useState<AddCalendarEventFormData>(createEmptyCalendarEvent());
 
-  const [projectsLoading, setProjectsLoading] = useState(true);
-  const [projectsListOpen, setProjectsListOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState("")
+  const [workOrdersLoading, setWorkOrdersLoading] = useState(true);
+  const [workOrdersListOpen, setWorkOrdersListOpen] = useState(false)
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState("")
 //   const [addressMode, setAddressMode] = useState<AddressMode>('new');
-  const [projectsLite, setProjectsLite] = useState<Project[]>([]);
+  const [workOrdersLite, setWorkOrdersLite] = useState<WorkOrder[]>([]);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  function handleSelectedProject(e: React.ChangeEvent<HTMLSelectElement>){
-    setSelectedProject(e.target.value);
+  function handleSelectedWorkOrder(e: React.ChangeEvent<HTMLSelectElement>){
+    setSelectedWorkOrder(e.target.value);
   }
   
   useEffect(() => {
-    console.log("go get /projects")
-    if(projectsListOpen && projectsLoading)
+    console.log("go get /workOrders")
+    if(workOrdersListOpen && workOrdersLoading)
     {
       let cancelled = false;
 
-      async function loadProjectsLite() {
-        console.log("loadprojectelite")
+      async function loadWorkOrdersLite() {
+        console.log("loadworkOrderelite")
         try {
-          const res = await api.get('/projects');
+          const res = await api.get('/workOrders');
           if (!res.ok) throw new Error('Erreur');
           const data = await res.json();
           if (!cancelled) {
-            setProjectsLite(data);
+            setWorkOrdersLite(data);
           }
         } catch {
           if (!cancelled) {
@@ -120,19 +120,19 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
         } finally {
           if (!cancelled) {
             console.log("finally")
-            setProjectsLoading(false);
-            console.log("estprojload ; ", projectsLoading)
+            setWorkOrdersLoading(false);
+            console.log("estprojload ; ", workOrdersLoading)
           }
         }
       };
 
-      void loadProjectsLite();
+      void loadWorkOrdersLite();
 
       return () => {
         cancelled = true;
       };
     }
-  }, [api,projectsListOpen, projectsLoading]);
+  }, [api,workOrdersListOpen, workOrdersLoading]);
 
   async function handleAddCalendarEvent(e: React.FormEvent) {
     e.preventDefault();
@@ -142,7 +142,7 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
         return;
       }
 
-      const basePayload = { ...newCalendarEvent, projectId: selectedProject };
+      const basePayload = { ...newCalendarEvent, workOrderId: selectedWorkOrder };
       // const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, address: undefined }
       //                           : addressMode === 'new' ? { ...basePayload, addressId: undefined }
       //                           : {...basePayload, address:undefined,addressId:undefined};
@@ -222,19 +222,19 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
           onChange={(e) => setNewCalendarEvent({ ...newCalendarEvent, notes: e.target.value })}
           required
         />
-        {/* <button type="button" className="border py-2 px-2" onClick={() => {setProjectsListOpen(true)}}>
+        {/* <button type="button" className="border py-2 px-2" onClick={() => {setWorkOrdersListOpen(true)}}>
           Associer à un chantier*
         </button>
-        {projectsListOpen ? ( 
+        {workOrdersListOpen ? ( 
           <div>
-           {projectsLoading ? (
+           {workOrdersLoading ? (
             <p>Chargement...</p>
           ) : (
-          <select className='flex' value={selectedProject} onChange={handleSelectedProject}>
+          <select className='flex' value={selectedWorkOrder} onChange={handleSelectedWorkOrder}>
               <option value="">--Veuillez choisir un chantier--</option>
-            {projectsLite.map((project) => (
-            <option key={project.id} value={project.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
-                {project.title}
+            {workOrdersLite.map((workOrder) => (
+            <option key={workOrder.id} value={workOrder.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
+                {workOrder.title}
               </option>
             ))}
           </select>
@@ -286,19 +286,19 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
         <span></span>
         )}
 
-        <button type="button" className="border py-2 px-2" onClick={() => {setProjectsListOpen(true)}}>
+        <button type="button" className="border py-2 px-2" onClick={() => {setWorkOrdersListOpen(true)}}>
           Associer à un chantier*
         </button>
-        {projectsListOpen ? ( 
+        {workOrdersListOpen ? ( 
           <div>
-           {projectsLoading ? (
+           {workOrdersLoading ? (
             <p>Chargement...</p>
           ) : (
-          <select className='flex' value={selectedProject} onChange={handleSelectedProject}>
+          <select className='flex' value={selectedWorkOrder} onChange={handleSelectedWorkOrder}>
               <option value="">--Veuillez choisir un chantier--</option>
-            {projectsLite.map((project) => (
-            <option key={project.id} value={project.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
-                {project.title}
+            {workOrdersLite.map((workOrder) => (
+            <option key={workOrder.id} value={workOrder.id} className="p-4 bg-white rounded-lg shadow flex justify-between items-center">
+                {workOrder.title}
               </option>
             ))}
           </select>
