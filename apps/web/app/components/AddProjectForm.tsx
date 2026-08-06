@@ -28,6 +28,7 @@ type ProjectItemType = 'LABOR' | 'MATERIAL' | 'EQUIPMENT' | 'TRAVEL' | 'SERVICE'
 
 type AddressMode = 'new' | 'existing' | 'none';
 type CustomerMode = 'existing' | 'none';
+type QuoteSelectionMode = 'fillForm' | 'addLines';
 
 interface CustomerOption {
   id: string;
@@ -85,6 +86,21 @@ function createProjectItemRowId(): string {
   return crypto.randomUUID();
 }
 
+function toDatetimeLocal(value?: string): string {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 type SortableProjectLineProps = {
   projectItem: ProjectItem;
   index: number;
@@ -129,9 +145,10 @@ function SortableProjectLine({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-6 mt-6 border-2 flex flex-wrap gap-4 items-center ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+      className={`mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
     >
-      <div className="flex flex-col gap-2 mr-2">
+      <div className="flex gap-3">
+      <div className="mr-1 flex flex-col gap-2">
         <button
           type="button"
           className="cursor-grab rounded border px-2 py-1 text-sm active:cursor-grabbing"
@@ -163,65 +180,95 @@ function SortableProjectLine({
           ↓
         </button>
       </div>
-      <label htmlFor='title'>Titre : </label>
-      <input name="title"
-        className="border px-3 py-2 rounded"
-        placeholder="Titre"
-        value={projectItem.title}
-        onChange={(e) => onTitleChange(e.target.value)}
-      />
-      <label htmlFor='itemtype'>Type : </label>
-      <select name="itemtype"
-        className="border px-3 py-2 rounded"
-        value={projectItem.type}
-        onChange={(e) => onTypeChange(e.target.value as ProjectItemType)}
-      >
-        {projectItemTypeOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <label htmlFor='description'>Description : </label>
-      <input name="description"
-        className="border px-3 py-2 rounded"
-        placeholder="Description"
-        value={projectItem.description}
-        onChange={(e) => onDescriptionChange(e.target.value)}
-      />
-      <label htmlFor='quantity'>Quantité : </label>
-      <input type="number" name="quantity"
-        className="border px-3 py-2 rounded"
-        value={projectItem.quantity}
-        onChange={(e) => onQuantityChange(e.target.valueAsNumber)}
-      />
-      <label htmlFor='unit'>Unité : </label>
-      <input name="unit"
-        className="border px-3 py-2 rounded"
-        placeholder="unité"
-        value={projectItem.unit}
-        onChange={(e) => onUnitChange(e.target.value)}
-      />
-      <label htmlFor="unitprice">{`Prix à l'unité : `}</label>
-      <input type="number" name="unitprice"
-        className="border px-3 py-2 rounded"
-        placeholder="Prix à l'unité"
-        value={projectItem.unitPrice}
-        onChange={(e) => onUnitPriceChange(e.target.valueAsNumber)}
-      />
-      <label htmlFor="vat">TVA : </label>
-      <input type="number" name="vat"
-        className="border px-3 py-2 rounded"
-        placeholder="Taux de TVA"
-        value={projectItem.vatRate}
-        onChange={(e) => onVatRateChange(e.target.valueAsNumber)}
-      />
-      <button type="button"
-        className='py-2 px-3 border-2 rounded-md bg-red-300 hover:bg-red-500 active:bg-red-800'
-        onClick={onDelete}
-      >
-        {"Supprimer l'étape"}
-      </button>
+      <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Titre</span>
+          <input
+            name="title"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Titre"
+            value={projectItem.title}
+            onChange={(e) => onTitleChange(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Type</span>
+          <select
+            name="itemtype"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            value={projectItem.type}
+            onChange={(e) => onTypeChange(e.target.value as ProjectItemType)}
+          >
+            {projectItemTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 sm:col-span-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Description</span>
+          <input
+            name="description"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Description"
+            value={projectItem.description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Quantité</span>
+          <input
+            type="number"
+            name="quantity"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            value={projectItem.quantity}
+            onChange={(e) => onQuantityChange(e.target.valueAsNumber)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Unité</span>
+          <input
+            name="unit"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Unité"
+            value={projectItem.unit}
+            onChange={(e) => onUnitChange(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Prix unitaire</span>
+          <input
+            type="number"
+            name="unitprice"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Prix unitaire"
+            value={projectItem.unitPrice}
+            onChange={(e) => onUnitPriceChange(e.target.valueAsNumber)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">TVA (%)</span>
+          <input
+            type="number"
+            name="vat"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Taux de TVA"
+            value={projectItem.vatRate}
+            onChange={(e) => onVatRateChange(e.target.valueAsNumber)}
+          />
+        </label>
+        <div className="flex items-end">
+          <button
+            type="button"
+            className="w-full rounded-md border border-red-300 bg-red-100 px-3 py-2 text-sm text-red-700 transition hover:bg-red-200"
+            onClick={onDelete}
+          >
+            Supprimer l&apos;étape
+          </button>
+        </div>
+      </div>
+      </div>
     </div>
   );
 }
@@ -322,7 +369,10 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     const [quotesLoading, setQuotesLoading] = useState(false);
     const [quotesError, setQuotesError] = useState('');
     const [showQuotesList, setShowQuotesList] = useState(false);
+    const [showQuotesListTop, setShowQuotesListTop] = useState(false);
+    const [doubleCheckShowQuotesListTop, setDoubleCheckShowQuotesListTop] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+    const [quoteSelectionMode, setQuoteSelectionMode] = useState<QuoteSelectionMode>('addLines');
     const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
     const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
     const [catalogItemsError, setCatalogItemsError] = useState('');
@@ -413,9 +463,18 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       });
     }
 
-    async function openQuoteSelector() {
+    async function openQuoteSelector(mode: QuoteSelectionMode) {
+      setQuoteSelectionMode(mode);
       setQuotesError('');
-      setShowQuotesList(true);
+      setShowQuotesList(false);
+      setShowQuotesListTop(false);
+      if (mode === 'addLines') {
+        setDoubleCheckShowQuotesListTop(false);
+        setShowQuotesList(true);
+      } else {
+        setDoubleCheckShowQuotesListTop(true);
+        setShowQuotesListTop(true);
+      }
       setShowCatalogItemsList(false);
       setSelectedQuote(null);
       setQuotesLoading(true);
@@ -441,17 +500,16 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         return;
       }
 
-      if (!selectedQuote.items?.length) {
+      if (!selectedQuote.items.length) {
         setQuotesError('Le devis sélectionné ne contient aucune ligne.');
         return;
       }
 
-      setNewProject((currentProject) => {
-        const basePosition = currentProject.projectItems.length;
-        const importedItems: ProjectItem[] = selectedQuote.items!.map((quoteItem, index) => ({
+      if (quoteSelectionMode === 'fillForm') {
+        const filledItems: ProjectItem[] = selectedQuote.items.map((quoteItem, index) => ({
           id: '',
           rowId: createProjectItemRowId(),
-          position: basePosition + index,
+          position: index,
           type: 'SERVICE',
           title: quoteItem.title,
           description: quoteItem.description,
@@ -461,16 +519,50 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           vatRate: quoteItem.vatRate,
         }));
 
-        return {
+        setNewProject((currentProject) => ({
           ...currentProject,
-          projectItems: [...currentProject.projectItems, ...importedItems],
-        };
-      });
+          title: selectedQuote.projectTitle || selectedQuote.title || '',
+          description: selectedQuote.notes || '',
+          reference: selectedQuote.projectReference || selectedQuote.number || '',
+          startDate: toDatetimeLocal(selectedQuote.projectStartDate),
+          endDate: toDatetimeLocal(selectedQuote.projectEndDate),
+          customerMode: selectedQuote.customerId ? 'existing' : currentProject.customerMode,
+          customerId: selectedQuote.customerId || '',
+          addressMode: 'none',
+          addressId: '',
+          projectItems: filledItems,
+        }));
+
+        setSuccess('Formulaire rempli depuis le devis.');
+      } else {
+        setNewProject((currentProject) => {
+          const basePosition = currentProject.projectItems.length;
+          const importedItems: ProjectItem[] = selectedQuote.items.map((quoteItem, index) => ({
+            id: '',
+            rowId: createProjectItemRowId(),
+            position: basePosition + index,
+            type: 'SERVICE',
+            title: quoteItem.title,
+            description: quoteItem.description,
+            quantity: quoteItem.quantity,
+            unit: quoteItem.unit ?? '',
+            unitPrice: quoteItem.unitPrice,
+            vatRate: quoteItem.vatRate,
+          }));
+
+          return {
+            ...currentProject,
+            projectItems: [...currentProject.projectItems, ...importedItems],
+          };
+        });
+
+        setSuccess('Étapes importées depuis le devis.');
+      }
 
       setShowQuotesList(false);
-      setSelectedQuote(null)
+      setShowQuotesListTop(false);
+      setSelectedQuote(null);
       setQuotesError('');
-      setSuccess('Étapes importées depuis le devis.');
     }
 
     async function openCatalogItemSelector() {
@@ -564,7 +656,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         // if(newProject.customerMode == 'none'){
         //   setNewProject({...newProject, customerId: undefined})
         // }
-        console.log(newProject)
         const res = await api.post('/projects', {
           ...newProject,
           customerId: newProject.customerId || undefined,
@@ -581,38 +672,124 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     }
 
     return(
-        <form onSubmit={handleAddProject} className={`mb-8 p-5 bg-white rounded-lg shadow border-2 ${!show && "hidden"}`}>
-          <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Titre du chantier"
-              value={newProject.title}
-              onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
-              required
-            />
-            <input
-              className="border px-3 py-2 rounded"
-              placeholder="Description"
-              value={newProject.description}
-              onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-            />
-            <input type="datetime-local"
-              className="border px-3 py-2 rounded"
-              placeholder="Start"
-              value={newProject.startDate}
-              onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
-              required
-            />
-            <input type="datetime-local"
-              className="border px-3 py-2 rounded"
-              placeholder="End"
-              value={newProject.endDate}
-              onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
-              required
-            />
+        <form onSubmit={handleAddProject} className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show && "hidden"}`}>
+          <h3 className="text-lg font-semibold text-zinc-900">Ajouter un chantier</h3>
+          <div>
+            <button
+              type="button"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+              onClick={() => {
+                void openQuoteSelector('fillForm');
+              }}
+            >
+              Remplir les champs à partir d&apos;un devis existant
+            </button>
           </div>
-          <div className='p-6 border-2 m-6'>
+
+          {showQuotesListTop && (
+            <div className="rounded-md border-2 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <h4 className="text-lg font-semibold">Sélectionner un devis</h4>
+                <button
+                  type="button"
+                  className="ml-auto rounded border px-3 py-2"
+                  onClick={() => setShowQuotesListTop(false)}
+                >
+                  Fermer la liste
+                </button>
+              </div>
+              {quotesLoading ? (
+                <p>Chargement des devis...</p>
+              ) : (
+                <QuotesList
+                  quotes={quotes}
+                  onDelete={null}
+                  handleSelectedQuote={(quote) => {
+                    setSelectedQuote(quote);
+                    setShowQuotesListTop(false);
+                    setQuotesError('');
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {!showQuotesListTop && doubleCheckShowQuotesListTop && selectedQuote && (
+            <div className="rounded-md border-2 p-4">
+              <h4 className="mb-3 text-lg font-semibold">Devis sélectionné</h4>
+              <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
+                <p><strong>Titre:</strong> {selectedQuote.title}</p>
+                <p><strong>Référence:</strong> {selectedQuote.projectReference || selectedQuote.number || '-'}</p>
+                <p><strong>Projet:</strong> {selectedQuote.projectTitle || '-'}</p>
+                <p><strong>Nombre de lignes:</strong> {selectedQuote.items.length || 0}</p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={chooseSelectedQuote}
+                  className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+                >
+                  Remplir le chantier avec ce devis
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuotesListTop(true);
+                  }}
+                  className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                >
+                  Choisir un autre devis
+                </button>
+              </div>
+            </div>
+          )}
+
+          <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Informations générales</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Titre du chantier</span>
+                <input
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  placeholder="Titre du chantier"
+                  value={newProject.title}
+                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Description</span>
+                <input
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  placeholder="Description"
+                  value={newProject.description}
+                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Début</span>
+                <input type="datetime-local"
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  placeholder="Start"
+                  value={newProject.startDate}
+                  onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Fin</span>
+                <input type="datetime-local"
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                  placeholder="End"
+                  value={newProject.endDate}
+                  onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
+                  required
+                />
+              </label>
+            </div>
+          </section>
+          <section className='rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5'>
+            <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Étapes du chantier</h4>
             <div className="mb-4 flex flex-wrap gap-3">
               <button type="button" 
                   onClick={() => {
@@ -621,16 +798,16 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                       createEmptyProjectItem(),
                     ]);
                   }}
-                  className='border-2 bg-blue-200 rounded-md p-2'
+                  className='rounded-md border border-blue-300 bg-blue-100 px-3 py-2 text-sm text-blue-900 transition hover:bg-blue-200'
               >
                 + Ajouter une étape
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  void openQuoteSelector();
+                  void openQuoteSelector('addLines');
                 }}
-                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
               >
                 Ajouter des étapes à partir d&apos;un devis
               </button>
@@ -639,7 +816,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 onClick={() => {
                   void openCatalogItemSelector();
                 }}
-                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
               >
                 Ajouter une étape à partir du catalogue
               </button>
@@ -680,7 +857,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </div>
             )}
 
-            {!showQuotesList && selectedQuote && (
+            {!showQuotesList && !doubleCheckShowQuotesListTop && selectedQuote && (
               <div className="mb-4 rounded-md border-2 p-4">
                 <h4 className="mb-3 text-lg font-semibold">Devis sélectionné</h4>
                 <div className="mt-4 flex flex-wrap gap-3">
@@ -767,7 +944,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 </div>
               </div>
             )}
-            <div className='m-6'>
+            <div className='mt-4'>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleProjectItemDragEnd}>
               <SortableContext
                 items={newProject.projectItems.map((item) => item.rowId)}
@@ -860,8 +1037,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </SortableContext>
             </DndContext>
             </div>
-          </div>
-          <div className='border-2 rounded-md p-4 m-4'>
+          </section>
+          <section className='rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5'>
             <h3 className="py-2 text-xl font-bold">Associer à un client :</h3>
             {error && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{error}</div>}
             {success && <div className="mb-3 rounded bg-green-100 p-3 text-green-700">{success}</div>}
@@ -967,8 +1144,8 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }} 
                 />
             ) : <span></span>}
-          </div>
-          <button type="submit" className="mt-3 bg-slate-900 text-white px-4 py-2 rounded">
+          </section>
+          <button type="submit" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700">
             Ajouter
           </button>
         </form>

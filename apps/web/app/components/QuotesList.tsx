@@ -79,7 +79,7 @@ export interface Quote {
   createdAt: string;
   updatedAt: string;
 
-  items?: QuoteItem[];
+  items: QuoteItem[];
 }
 
 interface QuotesListProps {

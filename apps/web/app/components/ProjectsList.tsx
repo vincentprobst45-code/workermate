@@ -23,7 +23,7 @@ export interface Project {
 	startDate?: string;
 	endDate?: string;
 	status: ProjectStatus;
-	items?: ProjectItem[];
+	items: ProjectItem[];
 	customerId?: string;
 	addressId?: string;
 	createdById?: string;
@@ -44,7 +44,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 	const [sortBy, setSortBy] = useState<'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc'>('createdAtDesc');
 	const [statusFilter, setStatusFilter] = useState<'ALL' | ProjectStatus>('ALL');
 	const [futureOnly, setFutureOnly] = useState(false);
-    const totalPrice = selectedProject?.items?.reduce(
+    const totalPrice = selectedProject?.items.reduce(
       (total, item) => total + item.unitPrice * item.quantity,
       0
     );

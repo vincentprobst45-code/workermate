@@ -133,7 +133,7 @@ export interface Quote {
   pdfFileId?: string;
   createdAt: string;
   updatedAt: string;
-  items?: QuoteItem[];
+  items: QuoteItem[];
 }
 
 export interface AddQuoteItemFormData {
@@ -376,7 +376,7 @@ function SortableQuoteLine({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-lg border border-slate-200 p-4 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+      className={`rounded-xl border border-slate-200 bg-white p-4 sm:p-5 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
     >
       <div className="flex gap-3">
         <div className="flex flex-col gap-2">
@@ -412,79 +412,102 @@ function SortableQuoteLine({
           </button>
         </div>
         <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select
-            className="rounded border px-3 py-2"
-            value={item.type}
-            onChange={(event) => onTypeChange(event.target.value as ProjectItemType)}
-          >
-            {quoteItemTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="rounded border px-3 py-2 lg:col-span-2"
-            placeholder="Titre"
-            value={item.title}
-            onChange={(event) => onTitleChange(event.target.value)}
-            required
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="rounded border px-3 py-2"
-            placeholder="Quantite"
-            value={item.quantity}
-            onChange={(event) =>
-              onQuantityChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
-            }
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Unite"
-            value={item.unit || ''}
-            onChange={(event) => onUnitChange(event.target.value)}
-          />
-          <textarea
-            className="min-h-24 rounded border px-3 py-2 sm:col-span-2 lg:col-span-4"
-            placeholder="Description"
-            value={item.description}
-            onChange={(event) => onDescriptionChange(event.target.value)}
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="rounded border px-3 py-2"
-            placeholder="Prix unitaire"
-            value={item.unitPrice}
-            onChange={(event) =>
-              onUnitPriceChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
-            }
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="rounded border px-3 py-2"
-            placeholder="TVA %"
-            value={item.vatRate}
-            onChange={(event) =>
-              onVatRateChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
-            }
-          />
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Type</span>
+            <select
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              value={item.type}
+              onChange={(event) => onTypeChange(event.target.value as ProjectItemType)}
+            >
+              {quoteItemTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 lg:col-span-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Titre</span>
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Titre"
+              value={item.title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Quantité</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Quantite"
+              value={item.quantity}
+              onChange={(event) =>
+                onQuantityChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Unité</span>
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Unite"
+              value={item.unit || ''}
+              onChange={(event) => onUnitChange(event.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Description</span>
+            <textarea
+              className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Description"
+              value={item.description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Prix unitaire</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Prix unitaire"
+              value={item.unitPrice}
+              onChange={(event) =>
+                onUnitPriceChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">TVA (%)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="TVA %"
+              value={item.vatRate}
+              onChange={(event) =>
+                onVatRateChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)
+              }
+            />
+          </label>
+          <div className="flex items-end rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             Total ligne: {item.total.toFixed(2)} {currency || 'EUR'}
           </div>
-          <button
-            type="button"
-            className="rounded border bg-red-300 px-3 py-2 hover:bg-red-500"
-            onClick={onDelete}
-          >
-            Supprimer la ligne
-          </button>
+          <div className="flex items-end">
+            <button
+              type="button"
+              className="w-full rounded-md border border-red-300 bg-red-100 px-3 py-2 text-sm text-red-700 transition hover:bg-red-200"
+              onClick={onDelete}
+            >
+              Supprimer la ligne
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -760,11 +783,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       return;
     }
 
-    if (!selectedProject.items?.length) {
-      setProjectsError('Le chantier sélectionné ne contient aucune étape.');
-      return;
-    }
-
     const importedProjectItems = selectedProject.items.map((projectItem, index) => ({
       rowId: createQuoteItemRowId(),
       type: projectItem.type,
@@ -795,6 +813,10 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         ...filledQuoteItems,
       }));
     } else {
+      if (!selectedProject.items.length) {
+        setProjectsError('Le chantier sélectionné ne contient aucune étape.');
+        return;
+      }
       updateQuoteItems((items) => [
         ...items,
         ...importedProjectItems.map((projectItem, index) => ({
@@ -1084,17 +1106,17 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className={`mb-8 rounded-lg border-2 bg-white p-5 shadow ${!show ? 'hidden' : ''}`}
+      className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
     >
-      <h3 className="mb-4 font-semibold">Ajouter un devis</h3>
+      <h3 className="text-lg font-semibold text-zinc-900">Ajouter un devis</h3>
 
       {error && <div className="mb-4 rounded bg-red-100 p-3 text-red-700">{error}</div>}
       {success && <div className="mb-4 rounded bg-green-100 p-3 text-green-700">{success}</div>}
 
-      <div className="mb-6">
+      <div>
         <button
           type="button"
-          className="rounded border bg-slate-200 px-3 py-2"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
           onClick={() => {
             void openProjectSelector('fillForm');
           }}
@@ -1138,7 +1160,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               <p><strong>Titre:</strong> {selectedProject.title}</p>
               <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
               <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items?.length || 0}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items.length || 0}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -1163,93 +1185,123 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </div>
         )}
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Informations du devis</h4>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Titre du devis"
-            value={form.title}
-            onChange={(event) => setForm({ ...form, title: event.target.value })}
-            required
-          />
-          <select
-            className="rounded border px-3 py-2"
-            value={form.status}
-            onChange={(event) =>
-              setForm({ ...form, status: event.target.value as QuoteStatus })
-            }
-          >
-            {quoteStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="datetime-local"
-            className="rounded border px-3 py-2"
-            value={form.issueDate}
-            onChange={(event) => setForm({ ...form, issueDate: event.target.value })}
-            required
-          />
-          <input
-            type="datetime-local"
-            className="rounded border px-3 py-2"
-            value={form.validUntil}
-            onChange={(event) => setForm({ ...form, validUntil: event.target.value })}
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Devise"
-            value={form.currency}
-            onChange={(event) => setForm({ ...form, currency: event.target.value })}
-            required
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Reference chantier"
-            value={form.projectReference}
-            onChange={(event) =>
-              setForm({ ...form, projectReference: event.target.value })
-            }
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder="Titre chantier"
-            value={form.projectTitle}
-            onChange={(event) => setForm({ ...form, projectTitle: event.target.value })}
-          />
-          <input
-            type="datetime-local"
-            className="rounded border px-3 py-2"
-            value={form.projectStartDate}
-            onChange={(event) =>
-              setForm({ ...form, projectStartDate: event.target.value })
-            }
-          />
-          <input
-            type="datetime-local"
-            className="rounded border px-3 py-2"
-            value={form.projectEndDate}
-            onChange={(event) => setForm({ ...form, projectEndDate: event.target.value })}
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="rounded border px-3 py-2"
-            placeholder="Acompte"
-            value={form.depositAmount}
-            onChange={(event) =>
-              setForm({
-                ...form,
-                depositAmount: Number.isNaN(event.target.valueAsNumber)
-                  ? 0
-                  : event.target.valueAsNumber,
-              })
-            }
-          />
+      <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+        <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Informations du devis</h4>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex flex-col gap-1.5 lg:col-span-2">
+            <span className="text-sm font-medium text-zinc-700">Titre du devis</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Titre du devis"
+              value={form.title}
+              onChange={(event) => setForm({ ...form, title: event.target.value })}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Statut</span>
+            <select
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              value={form.status}
+              onChange={(event) =>
+                setForm({ ...form, status: event.target.value as QuoteStatus })
+              }
+            >
+              {quoteStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Date d&apos;émission</span>
+            <input
+              type="datetime-local"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              value={form.issueDate}
+              onChange={(event) => setForm({ ...form, issueDate: event.target.value })}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Valable jusqu&apos;au</span>
+            <input
+              type="datetime-local"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              value={form.validUntil}
+              onChange={(event) => setForm({ ...form, validUntil: event.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Devise</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Devise"
+              value={form.currency}
+              onChange={(event) => setForm({ ...form, currency: event.target.value })}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Référence chantier</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Reference chantier"
+              value={form.projectReference}
+              onChange={(event) =>
+                setForm({ ...form, projectReference: event.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Titre chantier</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Titre chantier"
+              value={form.projectTitle}
+              onChange={(event) => setForm({ ...form, projectTitle: event.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Début chantier</span>
+            <input
+              type="datetime-local"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              value={form.projectStartDate}
+              onChange={(event) =>
+                setForm({ ...form, projectStartDate: event.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Fin chantier</span>
+            <input
+              type="datetime-local"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              value={form.projectEndDate}
+              onChange={(event) => setForm({ ...form, projectEndDate: event.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Acompte</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Acompte"
+              value={form.depositAmount}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  depositAmount: Number.isNaN(event.target.valueAsNumber)
+                    ? 0
+                    : event.target.valueAsNumber,
+                })
+              }
+            />
+          </label>
         </div>
       </section>
 
@@ -1608,7 +1660,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               <p><strong>Titre:</strong> {selectedProject.title}</p>
               <p><strong>Description:</strong> {selectedProject.description || '-'}</p>
               <p><strong>Référence:</strong> {selectedProject.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items?.length || 0}</p>
+              <p><strong>Nombre d&apos;étapes:</strong> {selectedProject.items.length || 0}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
