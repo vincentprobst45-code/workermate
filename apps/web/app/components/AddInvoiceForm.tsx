@@ -1432,6 +1432,11 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 		<>
 		<form
 			onSubmit={handleSubmit}
+			onKeyDown={(event) => {
+				if (event.key === 'Enter') {
+					event.preventDefault();
+				}
+			}}
 			className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
 		>
 			<h3 className="text-lg font-semibold text-zinc-900">Créer une facture</h3>

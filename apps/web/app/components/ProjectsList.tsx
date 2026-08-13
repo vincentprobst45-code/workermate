@@ -3,6 +3,7 @@
 import { ProjectStatus } from '@prisma/client';
 import { useMemo, useState } from 'react';
 import type { Project } from './AddProjectForm';
+import ProjectDetailsContainer from './projects/ProjectDetailsContainer';
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'referenceAsc' | 'referenceDesc';
 
@@ -10,19 +11,6 @@ interface ProjectsListProps {
   projects: Project[];
   onDelete: ((id: string) => void | Promise<void>) | null;
   handleSelectedProject?: ((project: Project) => void | Promise<void>) | null;
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return '-';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '-';
-  }
-
-  return date.toLocaleDateString('fr-FR');
 }
 
 function statusLabel(status: ProjectStatus): string {
@@ -221,42 +209,13 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
             setSelectedProject(null);
           }}
         >
-          <div
-            className="w-full max-w-3xl rounded-lg bg-white p-6 shadow-lg"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 className="mb-3 text-xl font-semibold">{selectedProject.reference} - {selectedProject.title}</h3>
-            <p className="mb-2 text-sm text-slate-600">Statut: {statusLabel(selectedProject.status)}</p>
-            <p className="mb-2 text-sm text-slate-600">Description: {selectedProject.description || '-'}</p>
-            <p className="mb-4 text-sm text-slate-600">Notes: {selectedProject.notes || '-'}</p>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded border bg-slate-50 p-3 text-sm">
-                <p><strong>Clients:</strong> {selectedProject.customers.length}</p>
-                <p><strong>Liste:</strong> {formatCustomerNames(selectedProject)}</p>
-              </div>
-              <div className="rounded border bg-slate-50 p-3 text-sm">
-                <p><strong>Devis:</strong> {selectedProject._count?.quotes ?? 0}</p>
-                <p><strong>Chantiers:</strong> {selectedProject._count?.workOrders ?? 0}</p>
-                <p><strong>Factures:</strong> {selectedProject._count?.invoices ?? 0}</p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-xs text-slate-500">Créé le {formatDate(selectedProject.createdAt)}</p>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                className="rounded border bg-slate-100 px-3 py-2 hover:bg-slate-200"
-                onClick={() => {
-                  setShowProjectDetails(false);
-                  setSelectedProject(null);
-                }}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
+          <ProjectDetailsContainer
+            project={selectedProject}
+            onClose={() => {
+              setShowProjectDetails(false);
+              setSelectedProject(null);
+            }}
+          />
         </div>
       )}
     </>
