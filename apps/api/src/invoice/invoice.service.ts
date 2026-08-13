@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, WorkOrderItemType } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
@@ -30,8 +30,50 @@ export class InvoiceService {
     return Number(value.toFixed(2));
   }
 
+  private parseRequiredDate(value: unknown, fieldName: string): Date {
+    const date = value instanceof Date ? value : new Date(String(value));
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`${fieldName} must be a valid date.`);
+    }
+    return date;
+  }
+
+  private parseOptionalDate(value: unknown): Date | undefined {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
+    }
+
+    let date: Date;
+    if (value instanceof Date) {
+      date = value;
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      date = new Date(value);
+    } else {
+      throw new BadRequestException('Invalid optional date value.');
+    }
+
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid optional date value.');
+    }
+
+    return date;
+  }
+
   private isTransactionRetryable(error: unknown): boolean {
     return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  }
+
+  private isInvoiceNumberConflict(error: unknown): boolean {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+      return false;
+    }
+
+    const target = error.meta?.target;
+    if (Array.isArray(target)) {
+      return target.includes('number');
+    }
+
+    return typeof target === 'string' && target.includes('number');
   }
 
   private async generateInvoiceNumber(
@@ -67,9 +109,106 @@ export class InvoiceService {
   }
 
   async create(tenantId: string, dto: CreateInvoiceDto) {
-    return this.prisma.invoice.create({
-      data: { ...dto, tenantId },
+    if (!dto.invoiceItems?.length) {
+      throw new BadRequestException('La facture doit contenir au moins une ligne.');
+    }
+
+    let subtotal = 0;
+    let vatAmount = 0;
+
+    const items = dto.invoiceItems.map((item, index) => {
+      if (!item.title?.trim()) {
+        throw new BadRequestException('Chaque ligne de la facture doit avoir un titre.');
+      }
+
+      const quantity = this.toNumber(item.quantity);
+      const unitPrice = this.toNumber(item.unitPrice);
+      const vatRate = this.toNumber(item.vatRate);
+      const lineSubtotal = this.roundMoney(quantity * unitPrice);
+      const lineVat = this.roundMoney(lineSubtotal * (vatRate / 100));
+      const total = this.roundMoney(lineSubtotal + lineVat);
+
+      subtotal += lineSubtotal;
+      vatAmount += lineVat;
+
+      return {
+        type: item.type ?? WorkOrderItemType.OTHER,
+        position: index,
+        title: item.title.trim(),
+        description: item.description?.trim() ?? '',
+        quantity,
+        unit: item.unit?.trim() || undefined,
+        unitPrice,
+        vatRate,
+        total,
+      };
     });
+
+    subtotal = this.roundMoney(subtotal);
+    vatAmount = this.roundMoney(vatAmount);
+    const discountAmount = this.roundMoney(this.toNumber(dto.discountAmount));
+    const depositAmount = this.roundMoney(this.toNumber(dto.depositAmount));
+    const grossTotal = this.roundMoney(subtotal + vatAmount);
+    const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
+
+    const { invoiceItems: _ignoredInvoiceItems, number: _ignoredFrontendNumber, ...invoiceData } = dto;
+    void _ignoredInvoiceItems;
+    void _ignoredFrontendNumber;
+    const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
+    const dueDate = this.parseOptionalDate(dto.dueDate);
+    const workOrderStartDate = this.parseOptionalDate(dto.workOrderStartDate);
+    const workOrderEndDate = this.parseOptionalDate(dto.workOrderEndDate);
+    const paidAt = this.parseOptionalDate(dto.paidAt);
+
+    for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const invoiceNumber = await this.generateInvoiceNumber(tx, tenantId);
+
+            return tx.invoice.create({
+              data: {
+                ...invoiceData,
+                number: invoiceNumber,
+                issueDate,
+                dueDate,
+                workOrderStartDate,
+                workOrderEndDate,
+                paidAt,
+                tenantId,
+                subtotal,
+                vatAmount,
+                total,
+                depositAmount: depositAmount > 0 ? depositAmount : undefined,
+                discountAmount: discountAmount > 0 ? discountAmount : undefined,
+                items: {
+                  create: items,
+                },
+              },
+              include: {
+                items: {
+                  orderBy: {
+                    position: 'asc',
+                  },
+                },
+              },
+            });
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (error) {
+        const canRetry =
+          this.isTransactionRetryable(error) || this.isInvoiceNumberConflict(error);
+
+        if (!canRetry || attempt === InvoiceService.INVOICE_NUMBER_RETRY_LIMIT - 1) {
+          throw error;
+        }
+      }
+    }
+
+    throw new BadRequestException('Unable to generate invoice number.');
   }
 
   async createFromWorkOrder(
@@ -232,6 +371,13 @@ export class InvoiceService {
     const results = await this.prisma.invoice.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
     });
     return results;
   }
@@ -239,6 +385,13 @@ export class InvoiceService {
   async findOne(tenantId: string, id: string) {
     const results = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
+      include: {
+        items: {
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
     });
     return results;
 

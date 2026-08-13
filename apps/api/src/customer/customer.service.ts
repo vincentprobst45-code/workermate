@@ -72,8 +72,8 @@ export class CustomerService {
     };
   } else if (this.hasAddress(address)) {
     if (!address?.street1?.trim() || !address?.postalCode?.trim() || !address?.city?.trim()) {
-  throw new BadRequestException("Rue, code postal et ville obligatoires.");
-}
+      throw new BadRequestException("Rue, code postal et ville obligatoires.");
+    }
 
     data.address = {
       create: {

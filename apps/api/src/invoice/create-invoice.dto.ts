@@ -3,14 +3,18 @@ import {
   InvoiceStatus,
   PaymentMethod,
 } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDate,
   IsDecimal,
   IsEmail,
   IsEnum,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { CreateInvoiceItemDto } from './create-invoice-item.dto';
 
 export class CreateInvoiceDto {
   @IsString()
@@ -20,8 +24,9 @@ export class CreateInvoiceDto {
   @IsString()
   workOrderId?: string;
 
+  @IsOptional()
   @IsString()
-  number!: string;
+  number?: string;
 
   @IsDate({ message: 'issueDate must be a date' })
   issueDate!: Date;
@@ -187,4 +192,10 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsString()
   quoteNumber?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateInvoiceItemDto)
+  invoiceItems?: CreateInvoiceItemDto[];
 }

@@ -14,7 +14,6 @@ export type AddCalendarEventFormData = {
   color: string;
   notes: string;
 
-  addressMode: AddressMode;
   addressId: string;
   address: AddAddressFormData;
 
@@ -67,7 +66,6 @@ export function createEmptyCalendarEvent(): AddCalendarEventFormData {
     color:'',
     notes:'',
     
-    addressMode: 'none',
     addressId: '',
     address: createEmptyAddress(),
     
@@ -88,7 +86,7 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
   const [workOrdersLoading, setWorkOrdersLoading] = useState(true);
   const [workOrdersListOpen, setWorkOrdersListOpen] = useState(false)
   const [selectedWorkOrder, setSelectedWorkOrder] = useState("")
-//   const [addressMode, setAddressMode] = useState<AddressMode>('new');
+  const [addressMode, setAddressMode] = useState<AddressMode>('new');
   const [workOrdersLite, setWorkOrdersLite] = useState<WorkOrder[]>([]);
 
   const [error, setError] = useState('');
@@ -105,7 +103,6 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
       let cancelled = false;
 
       async function loadWorkOrdersLite() {
-        console.log("loadworkOrderelite")
         try {
           const res = await api.get('/workOrders');
           if (!res.ok) throw new Error('Erreur');
@@ -119,9 +116,7 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
           }
         } finally {
           if (!cancelled) {
-            console.log("finally")
             setWorkOrdersLoading(false);
-            console.log("estprojload ; ", workOrdersLoading)
           }
         }
       };
@@ -137,16 +132,12 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
   async function handleAddCalendarEvent(e: React.FormEvent) {
     e.preventDefault();
     try {
-      if (newCalendarEvent.addressMode === 'existing' && !newCalendarEvent.addressId) {
+      if (addressMode === 'existing' && !newCalendarEvent.addressId) {
         setError('Veuillez sélectionner une adresse existante');
         return;
       }
 
       const basePayload = { ...newCalendarEvent, workOrderId: selectedWorkOrder };
-      // const calendarEventToAdd = addressMode === 'existing' ? { ...basePayload, address: undefined }
-      //                           : addressMode === 'new' ? { ...basePayload, addressId: undefined }
-      //                           : {...basePayload, address:undefined,addressId:undefined};
-      // console.log("calendareventToAdd ::", calendarEventToAdd)
       const res = await api.post('/calendarevents', basePayload);
       console.log(res.status)
       console.log(res.statusText)
@@ -163,13 +154,6 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
     }
   }
   
-//   const [addressMode, setAddressMode] = useState<AddressMode>('none');
-//   const [selectedAddressId, setSelectedAddressId] = useState('');
-//   const [newAddress, setNewAddress] = useState({ street1: '', street2: ''
-//     , postalCode: '', city: '', region: '', countryCode: ''
-//     , latitude: '', longitude: ''
-//     , accessCode: '', floor: '', apartment: '', note: ''
-//    });
 
 
     console.log("addcalendareventform")
@@ -245,37 +229,37 @@ export default function AddCalendarEventForm({ onCreated }: AddCalendarEventForm
         <div className="flex gap-2 px-3 pb-3">
           <button
             type="button"
-            className={`border py-2 px-3 rounded ${newCalendarEvent.addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`border py-2 px-3 rounded ${addressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             // onClick={() => setAddressMode('new')}
-            onClick={() => {setNewCalendarEvent({ ...newCalendarEvent, addressMode: 'new' })}}
+            onClick={() => {setAddressMode('new')}}
           >
             Nouvelle adresse
           </button>
           <button
             type="button"
-            className={`border py-2 px-3 rounded ${newCalendarEvent.addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`border py-2 px-3 rounded ${addressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             // onClick={() => setAddressMode('existing')}
-            onClick={() => {setNewCalendarEvent({ ...newCalendarEvent, addressMode: 'existing' })}}
+            onClick={() => {setAddressMode('existing')}}
           >
             Utiliser une adresse existante
           </button>
           <button
             type="button"
-            className={`border py-2 px-3 rounded ${newCalendarEvent.addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`border py-2 px-3 rounded ${addressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
             // onClick={() => setAddressMode('none')}
-            onClick={() => {setNewCalendarEvent({ ...newCalendarEvent, addressMode: 'none' })}}
+            onClick={() => {setAddressMode('none')}}
           >
             {`Ne pas ajouter d'adresse`}
           </button>
         </div>
 
-        {newCalendarEvent.addressMode === 'new' ? (
+        {addressMode === 'new' ? (
             // <AddressForm address={newAddress} onChange={setNewAddress} />
             <AddressForm 
                 address={newCalendarEvent.address} 
                 onChange={(address) => {setNewCalendarEvent({ ...newCalendarEvent, address})}}
             />
-        ) : newCalendarEvent.addressMode === 'existing' ? (
+        ) : addressMode === 'existing' ? (
             // <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
 
             <SelectExistingAddress 
