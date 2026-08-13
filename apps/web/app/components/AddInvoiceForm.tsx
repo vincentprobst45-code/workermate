@@ -721,6 +721,7 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 	const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
 	const [showCustomerFields, setShowCustomerFields] = useState(false);
 	const [showWorkOrderFields, setShowWorkOrderFields] = useState(false);
+	const [showTenantFields, setShowTenantFields] = useState(false);
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
 	const sensors = useSensors(useSensor(PointerSensor));
@@ -2013,17 +2014,19 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 			</section>
 
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Facture</h4>
+				<div className="flex items-center justify-between gap-3">
+					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Entreprise</h4>
+					<button
+						type="button"
+						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+						onClick={() => setShowTenantFields((current) => !current)}
+					>
+						{showTenantFields ? 'Fermer' : 'Modifier'}
+					</button>
+				</div>
+
+				{showTenantFields && (
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-					<FieldLabel label="Numéro facture" required>
-						<input className={`${fieldClassName} bg-zinc-100`} value={computedInvoiceNumber} readOnly required />
-					</FieldLabel>
-					<FieldLabel label="Date d'émission" required>
-						<input type="datetime-local" className={fieldClassName} value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} required />
-					</FieldLabel>
-					<FieldLabel label="Date d'échéance">
-						<input type="datetime-local" className={fieldClassName} value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} />
-					</FieldLabel>
 					<FieldLabel label="Entreprise" required>
 						<input className={fieldClassName} value={form.tenantName} onChange={(event) => setForm({ ...form, tenantName: event.target.value })} required />
 					</FieldLabel>
@@ -2056,6 +2059,22 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 					</FieldLabel>
 					<FieldLabel label="BIC">
 						<input className={fieldClassName} value={form.tenantBic} onChange={(event) => setForm({ ...form, tenantBic: event.target.value })} />
+					</FieldLabel>
+				</div>
+				)}
+			</section>
+
+			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Infos facture</h4>
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					<FieldLabel label="Numéro facture" required>
+						<input className={`${fieldClassName} bg-zinc-100`} value={computedInvoiceNumber} readOnly required />
+					</FieldLabel>
+					<FieldLabel label="Date d'émission" required>
+						<input type="datetime-local" className={fieldClassName} value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} required />
+					</FieldLabel>
+					<FieldLabel label="Date d'échéance">
+						<input type="datetime-local" className={fieldClassName} value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} />
 					</FieldLabel>
 					<FieldLabel label="Statut">
 						<select className={fieldClassName} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InvoiceStatus })}>

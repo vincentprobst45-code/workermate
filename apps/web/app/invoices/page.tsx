@@ -13,6 +13,7 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [draftInvoice, setDraftInvoice] = useState<DraftInvoice | null>(null);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,16 +70,33 @@ export default function InvoicesPage() {
         </div>
 
         {isCreatingInvoice && (
-          <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start">
-            <AddInvoiceForm
-              show={true}
-              onChange={setDraftInvoice}
-              onCreated={(invoice) => {
-                setInvoices((current) => [invoice, ...current]);
-              }}
-            />
-            <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 p-4 shadow-sm">
-              {draftInvoice && <NewInvoice invoice={draftInvoice} />}
+          <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start">
+            <div className="min-w-0 flex-1">
+              <AddInvoiceForm
+                show={true}
+                onChange={setDraftInvoice}
+                onCreated={(invoice) => {
+                  setInvoices((current) => [invoice, ...current]);
+                }}
+              />
+            </div>
+            <div className="flex min-w-0 xl:sticky xl:top-6 xl:self-start">
+              <button
+                type="button"
+                aria-label={isPreviewCollapsed ? 'Réélargir l’aperçu de la facture' : 'Réduire l’aperçu de la facture'}
+                title={isPreviewCollapsed ? 'Réélargir l’aperçu' : 'Réduire l’aperçu'}
+                onClick={() => setIsPreviewCollapsed((current) => !current)}
+                className="hidden w-10 shrink-0 self-stretch rounded-l-xl border border-r-0 border-zinc-300 bg-white text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 xl:block"
+              >
+                {isPreviewCollapsed ? '<-' : '->'}
+              </button>
+              <div
+                className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${
+                  isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(220mm,calc(100vw-8rem))]'
+                }`}
+              >
+                {draftInvoice && <NewInvoice invoice={draftInvoice} />}
+              </div>
             </div>
           </div>
         )}
