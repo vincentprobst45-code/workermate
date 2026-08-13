@@ -34,6 +34,12 @@ export class CreateCatalogItemDto {
   @Min(0)
   unitPrice!: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  unitCost?: number;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)

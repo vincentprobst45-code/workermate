@@ -13,6 +13,7 @@ export interface CatalogItem {
   defaultQuantity: number;
   unit?: string;
   unitPrice: number;
+  unitCost?: number;
   vatRate: number;
   createdAt: string;
   updatedAt: string;
@@ -25,6 +26,7 @@ export interface AddCatalogItemFormData {
   defaultQuantity: number;
   unit: string;
   unitPrice: number;
+  unitCost: number | '';
   vatRate: number;
 }
 
@@ -35,6 +37,7 @@ export interface CreateCatalogItemDto {
   defaultQuantity?: number;
   unit?: string;
   unitPrice: number;
+  unitCost?: number;
   vatRate: number;
 }
 
@@ -55,6 +58,7 @@ function createEmptyCatalogItem(): AddCatalogItemFormData {
     defaultQuantity: 1,
     unit: '',
     unitPrice: 0,
+    unitCost: '',
     vatRate: 20,
   };
 }
@@ -96,6 +100,7 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
           : 1,
         unit: trimToUndefined(newCatalogItem.unit),
         unitPrice: Number.isFinite(newCatalogItem.unitPrice) ? newCatalogItem.unitPrice : 0,
+        unitCost: newCatalogItem.unitCost === '' ? undefined : newCatalogItem.unitCost,
         vatRate: Number.isFinite(newCatalogItem.vatRate) ? newCatalogItem.vatRate : 0,
       };
 
@@ -202,13 +207,13 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Prix unitaire</span>
+            <span className="text-sm font-medium text-zinc-700">Prix de vente unitaire</span>
             <input
               type="number"
               min="0"
               step="0.01"
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              placeholder="Prix unitaire"
+              placeholder="Prix de vente unitaire"
               value={newCatalogItem.unitPrice}
               onChange={(event) =>
                 setNewCatalogItem({
@@ -219,6 +224,24 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
                 })
               }
               required
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Coût d&apos;achat unitaire</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Coût d'achat unitaire"
+              value={newCatalogItem.unitCost}
+              onChange={(event) =>
+                setNewCatalogItem({
+                  ...newCatalogItem,
+                  unitCost: Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber,
+                })
+              }
             />
           </label>
 

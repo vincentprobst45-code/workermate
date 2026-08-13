@@ -40,6 +40,17 @@ export class ProjectController {
     return this.projectService.findOne(tenantId, id);
   }
 
+  @Post(':id/work-orders/:workOrderId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async associateWorkOrder(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('workOrderId') workOrderId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.associateWorkOrder(tenantId, id, workOrderId);
+  }
+
   @Put(':id')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async update(

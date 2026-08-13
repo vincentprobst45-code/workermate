@@ -319,8 +319,41 @@ export class ProjectService {
             id: true,
             reference: true,
             title: true,
+            description: true,
             status: true,
+            startDate: true,
+            endDate: true,
             createdAt: true,
+            customer: {
+              select: {
+                firstName: true,
+                lastName: true,
+                company: true,
+              },
+            },
+            address: {
+              select: {
+                street1: true,
+                postalCode: true,
+                city: true,
+              },
+            },
+            items: {
+              select: {
+                id: true,
+                position: true,
+                type: true,
+                title: true,
+                description: true,
+                quantity: true,
+                unit: true,
+                unitPrice: true,
+                vatRate: true,
+              },
+              orderBy: {
+                position: 'asc',
+              },
+            },
           },
           orderBy: {
             createdAt: 'desc',
@@ -346,6 +379,34 @@ export class ProjectService {
     }
 
     return project;
+  }
+
+  async associateWorkOrder(tenantId: string, projectId: string, workOrderId: string) {
+    const [project, workOrder] = await Promise.all([
+      this.prisma.project.findFirst({
+        where: { id: projectId, tenantId },
+        select: { id: true },
+      }),
+      this.prisma.workOrder.findFirst({
+        where: { id: workOrderId, tenantId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!project) {
+      throw new NotFoundException('Projet introuvable pour ce tenant.');
+    }
+
+    if (!workOrder) {
+      throw new NotFoundException('Chantier introuvable pour ce tenant.');
+    }
+
+    await this.prisma.workOrder.update({
+      where: { id: workOrder.id },
+      data: { projectId: project.id },
+    });
+
+    return this.findOne(tenantId, project.id);
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateProjectDto>) {

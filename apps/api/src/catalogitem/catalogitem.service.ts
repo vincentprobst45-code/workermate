@@ -34,6 +34,7 @@ export class CatalogItemService {
       defaultQuantity: this.toNumber(dto.defaultQuantity, 1),
       unit: this.normalizeOptionalString(dto.unit),
       unitPrice: this.toNumber(dto.unitPrice, 0),
+      unitCost: dto.unitCost !== undefined ? this.toNumber(dto.unitCost, 0) : undefined,
       vatRate: this.toNumber(dto.vatRate, 0),
     };
 
@@ -68,6 +69,7 @@ export class CatalogItemService {
         dto.defaultQuantity !== undefined ? this.toNumber(dto.defaultQuantity, 1) : undefined,
       unit: dto.unit !== undefined ? this.normalizeOptionalString(dto.unit) : undefined,
       unitPrice: dto.unitPrice !== undefined ? this.toNumber(dto.unitPrice, 0) : undefined,
+      unitCost: dto.unitCost !== undefined ? this.toNumber(dto.unitCost, 0) : undefined,
       vatRate: dto.vatRate !== undefined ? this.toNumber(dto.vatRate, 0) : undefined,
     };
 
