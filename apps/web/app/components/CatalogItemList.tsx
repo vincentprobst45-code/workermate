@@ -13,6 +13,7 @@ export interface CatalogItem {
   unit?: string;
   unitPrice: number;
   unitCost?: number;
+  purchaseVatRate?: number;
   vatRate: number;
   createdAt: string;
   updatedAt: string;
@@ -215,6 +216,7 @@ export default function CatalogItemList({
             <p>unite : {selectedItem.unit || '-'}</p>
             <p>prix de vente unitaire : {toNumber(selectedItem.unitPrice).toFixed(2)}</p>
       			<p>Coût d&apos;achat unitaire : {selectedItem.unitCost === undefined || selectedItem.unitCost === null ? '-' : toNumber(selectedItem.unitCost).toFixed(2)}</p>
+      			<p>TVA achat : {selectedItem.purchaseVatRate === undefined || selectedItem.purchaseVatRate === null ? '-' : `${toNumber(selectedItem.purchaseVatRate).toFixed(2)}%`}</p>
             <p>tva : {toNumber(selectedItem.vatRate).toFixed(2)}%</p>
             <p>createdAt : {formatDate(selectedItem.createdAt)}</p>
             <p>updatedAt : {formatDate(selectedItem.updatedAt)}</p>

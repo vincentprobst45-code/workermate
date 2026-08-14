@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -37,6 +38,17 @@ export class QuoteController {
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.quoteService.findOne(tenantId, id);
+  }
+
+  @Put(':id')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async update(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateQuoteDto>,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.quoteService.update(tenantId, id, dto);
   }
 
   @Delete(':id')

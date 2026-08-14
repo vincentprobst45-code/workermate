@@ -14,6 +14,7 @@ export interface CatalogItem {
   unit?: string;
   unitPrice: number;
   unitCost?: number;
+  purchaseVatRate?: number;
   vatRate: number;
   createdAt: string;
   updatedAt: string;
@@ -27,6 +28,7 @@ export interface AddCatalogItemFormData {
   unit: string;
   unitPrice: number;
   unitCost: number | '';
+  purchaseVatRate: number | '';
   vatRate: number;
 }
 
@@ -38,6 +40,7 @@ export interface CreateCatalogItemDto {
   unit?: string;
   unitPrice: number;
   unitCost?: number;
+  purchaseVatRate?: number;
   vatRate: number;
 }
 
@@ -59,6 +62,7 @@ function createEmptyCatalogItem(): AddCatalogItemFormData {
     unit: '',
     unitPrice: 0,
     unitCost: '',
+    purchaseVatRate: '',
     vatRate: 20,
   };
 }
@@ -101,6 +105,8 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
         unit: trimToUndefined(newCatalogItem.unit),
         unitPrice: Number.isFinite(newCatalogItem.unitPrice) ? newCatalogItem.unitPrice : 0,
         unitCost: newCatalogItem.unitCost === '' ? undefined : newCatalogItem.unitCost,
+        purchaseVatRate:
+          newCatalogItem.purchaseVatRate === '' ? undefined : newCatalogItem.purchaseVatRate,
         vatRate: Number.isFinite(newCatalogItem.vatRate) ? newCatalogItem.vatRate : 0,
       };
 
@@ -240,6 +246,24 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
                 setNewCatalogItem({
                   ...newCatalogItem,
                   unitCost: Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber,
+                })
+              }
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">TVA achat (%)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="TVA achat"
+              value={newCatalogItem.purchaseVatRate}
+              onChange={(event) =>
+                setNewCatalogItem({
+                  ...newCatalogItem,
+                  purchaseVatRate: Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber,
                 })
               }
             />

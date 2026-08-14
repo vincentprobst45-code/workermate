@@ -68,6 +68,7 @@ export class WorkLogService {
         quantity,
         unit: dto.unit?.trim() || undefined,
         unitCost,
+        purchaseVatRate: dto.purchaseVatRate !== undefined ? Number(dto.purchaseVatRate) : undefined,
         totalCost: quantity * unitCost,
         type: dto.type,
       },

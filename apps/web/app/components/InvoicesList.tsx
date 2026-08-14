@@ -76,7 +76,8 @@ export interface Invoice {
 
 interface InvoicesListProps {
   invoices: Invoice[];
-  onDelete: (id: string) => void | Promise<void>;
+  onDelete: ((id: string) => void | Promise<void>) | null;
+  handleSelectedInvoice?: ((invoice: Invoice) => void | Promise<void>) | null;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -101,7 +102,11 @@ function formatDate(value?: string) {
   return date.toLocaleDateString('fr-FR');
 }
 
-export default function InvoicesList({ invoices, onDelete }: InvoicesListProps) {
+export default function InvoicesList({
+  invoices,
+  onDelete,
+  handleSelectedInvoice = null,
+}: InvoicesListProps) {
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoicesPerPage, setInvoicesPerPage] = useState(5);
@@ -174,8 +179,12 @@ export default function InvoicesList({ invoices, onDelete }: InvoicesListProps) 
             key={invoice.id}
             className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
             onClick={() => {
-              setShowInvoiceDetails(true);
-              setSelectedInvoice(invoice);
+              if (handleSelectedInvoice) {
+                void handleSelectedInvoice(invoice);
+              } else {
+                setShowInvoiceDetails(true);
+                setSelectedInvoice(invoice);
+              }
             }}
           >
             <div>
@@ -187,15 +196,17 @@ export default function InvoicesList({ invoices, onDelete }: InvoicesListProps) 
                 {formatDate(invoice.issueDate)} - {formatMoney(invoice.total, invoice.currency)}
               </p>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                void onDelete(invoice.id);
-              }}
-              className="text-red-600 hover:text-red-800"
-            >
-              Supprimer
-            </button>
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onDelete(invoice.id);
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         ))}
       </section>

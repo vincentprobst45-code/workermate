@@ -49,6 +49,8 @@ interface WorkOrderItem{
   quantity : number;
   unit?: string;
   unitPrice: number;
+  unitCost?: number;
+  purchaseVatRate?: number;
   vatRate: number;
 
   // createdAt: string;
@@ -113,6 +115,8 @@ type SortableWorkOrderLineProps = {
   onQuantityChange: (value: number) => void;
   onUnitChange: (value: string) => void;
   onUnitPriceChange: (value: number) => void;
+  onUnitCostChange: (value: number) => void;
+  onPurchaseVatRateChange: (value: number) => void;
   onVatRateChange: (value: number) => void;
   onDelete: () => void;
 };
@@ -129,6 +133,8 @@ function SortableWorkOrderLine({
   onQuantityChange,
   onUnitChange,
   onUnitPriceChange,
+  onUnitCostChange,
+  onPurchaseVatRateChange,
   onVatRateChange,
   onDelete,
 }: SortableWorkOrderLineProps) {
@@ -248,6 +254,32 @@ function SortableWorkOrderLine({
           />
         </label>
         <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Coût d&apos;achat unitaire</span>
+          <input
+            type="number"
+            name="unitcost"
+            min="0"
+            step="0.01"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Coût d'achat unitaire"
+            value={workOrderItem.unitCost ?? ''}
+            onChange={(e) => onUnitCostChange(e.target.valueAsNumber)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-600">TVA achat (%)</span>
+          <input
+            type="number"
+            name="purchasevat"
+            min="0"
+            step="0.01"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="TVA achat"
+            value={workOrderItem.purchaseVatRate ?? ''}
+            onChange={(e) => onPurchaseVatRateChange(e.target.valueAsNumber)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wide text-slate-600">TVA (%)</span>
           <input
             type="number"
@@ -330,7 +362,7 @@ export function createEmptyWorkOrder(): AddWorkOrderFormData {
   };
 }
 
-interface WorkOrder {
+export interface WorkOrder {
   id: string;
   title: string;
   description?: string;
@@ -351,14 +383,45 @@ interface WorkOrder {
   // createdAt: string;
 }
 
+export type WorkOrderEditInput = Omit<WorkOrder, 'items'> & {
+  items: Array<Omit<WorkOrderItem, 'rowId'> & { rowId?: string }>;
+};
+
 type AddWorkOrderFormProps = {
   onCreated : (workOrder: WorkOrder) => void;
+  onUpdated?: (workOrder: WorkOrder) => void;
+  initialWorkOrder?: WorkOrderEditInput;
   show : boolean;
 };
 
-export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormProps){
+export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrder, show }: AddWorkOrderFormProps){
     const api = useApiClient();
-    const [newWorkOrder, setNewWorkOrder] = useState<AddWorkOrderFormData>(createEmptyWorkOrder());
+    const [newWorkOrder, setNewWorkOrder] = useState<AddWorkOrderFormData>(() => {
+      if (!initialWorkOrder) {
+        return createEmptyWorkOrder();
+      }
+
+      return {
+        ...createEmptyWorkOrder(),
+        title: initialWorkOrder.title,
+        description: initialWorkOrder.description ?? '',
+        reference: initialWorkOrder.reference,
+        startDate: toDatetimeLocal(initialWorkOrder.startDate),
+        endDate: toDatetimeLocal(initialWorkOrder.endDate),
+        status: initialWorkOrder.status,
+        customerMode: initialWorkOrder.customerId ? 'existing' : 'none',
+        customerId: initialWorkOrder.customerId ?? '',
+        addressMode: initialWorkOrder.addressId ? 'existing' : 'none',
+        addressId: initialWorkOrder.addressId ?? '',
+        items: initialWorkOrder.items.map((item, index) => ({
+          ...item,
+          rowId: item.rowId ?? createWorkOrderItemRowId(),
+          position: index,
+          description: item.description ?? '',
+          unit: item.unit ?? '',
+        })),
+      };
+    });
     const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
     const [customersLoading, setCustomersLoading] = useState(false);
     const [error, setError] = useState('');
@@ -422,6 +485,8 @@ export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormPr
         quantity: 1,
         unit: 'm2',
         unitPrice: 0,
+        unitCost: undefined,
+        purchaseVatRate: undefined,
         vatRate: 20,
 
 
@@ -605,6 +670,13 @@ export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormPr
           quantity: Number(selectedCatalogItem.defaultQuantity) || 1,
           unit: selectedCatalogItem.unit ?? '',
           unitPrice: Number(selectedCatalogItem.unitPrice) || 0,
+          unitCost: selectedCatalogItem.unitCost === undefined || selectedCatalogItem.unitCost === null
+            ? undefined
+            : Number(selectedCatalogItem.unitCost),
+          purchaseVatRate:
+            selectedCatalogItem.purchaseVatRate === undefined || selectedCatalogItem.purchaseVatRate === null
+              ? undefined
+              : Number(selectedCatalogItem.purchaseVatRate),
           vatRate: Number(selectedCatalogItem.vatRate) || 0,
         };
 
@@ -656,14 +728,39 @@ export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormPr
         // if(newWorkOrder.customerMode == 'none'){
         //   setNewWorkOrder({...newWorkOrder, customerId: undefined})
         // }
-        const res = await api.post('/workOrders', {
-          ...newWorkOrder,
+        const payload = {
+          reference: newWorkOrder.reference,
+          title: newWorkOrder.title,
+          description: newWorkOrder.description || undefined,
+          status: newWorkOrder.status,
+          startDate: newWorkOrder.startDate || undefined,
+          endDate: newWorkOrder.endDate || undefined,
           customerId: newWorkOrder.customerId || undefined,
-        });
+          addressId: newWorkOrder.addressId || undefined,
+          notes: newWorkOrder.notes || undefined,
+          items: newWorkOrder.items.map((item) => ({
+            position: item.position,
+            type: item.type,
+            title: item.title,
+            description: item.description,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            unitCost: item.unitCost,
+            purchaseVatRate: item.purchaseVatRate,
+            vatRate: item.vatRate,
+          })),
+        };
+        const res = initialWorkOrder
+          ? await api.put(`/workOrders/${initialWorkOrder.id}`, payload)
+          : await api.post('/workOrders', payload);
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
-        // setWorkOrders([data, ...workOrders]);
-        onCreated(data);
+        if (initialWorkOrder) {
+          onUpdated?.(data);
+        } else {
+          onCreated(data);
+        }
         setNewWorkOrder(createEmptyWorkOrder());
         // setAddressMode('new');
       } catch {
@@ -1018,6 +1115,24 @@ export default function AddWorkOrderForm({ onCreated, show }: AddWorkOrderFormPr
                       updateWorkOrderItems((items) =>
                         items.map((item, index) =>
                           index === i ? { ...item, unitPrice: value } : item,
+                        ),
+                      )
+                    }
+                    onUnitCostChange={(value) =>
+                      updateWorkOrderItems((items) =>
+                        items.map((item, index) =>
+                          index === i
+                            ? { ...item, unitCost: Number.isNaN(value) ? undefined : value }
+                            : item,
+                        ),
+                      )
+                    }
+                    onPurchaseVatRateChange={(value) =>
+                      updateWorkOrderItems((items) =>
+                        items.map((item, index) =>
+                          index === i
+                            ? { ...item, purchaseVatRate: Number.isNaN(value) ? undefined : value }
+                            : item,
                         ),
                       )
                     }

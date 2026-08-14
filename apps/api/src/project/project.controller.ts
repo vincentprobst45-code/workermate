@@ -40,6 +40,28 @@ export class ProjectController {
     return this.projectService.findOne(tenantId, id);
   }
 
+  @Post(':id/quotes/:quoteId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async associateQuote(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('quoteId') quoteId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.associateQuote(tenantId, id, quoteId);
+  }
+
+  @Post(':id/invoices/:invoiceId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async associateInvoice(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.associateInvoice(tenantId, id, invoiceId);
+  }
+
   @Post(':id/work-orders/:workOrderId')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async associateWorkOrder(

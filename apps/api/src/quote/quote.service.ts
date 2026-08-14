@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, type WorkOrderItemType } from '@prisma/client';
+import { Prisma, WorkOrderItemType } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateCustomerDto } from '../customer/create-customer.dto';
 import { PrismaService } from '../prisma.service';
@@ -525,6 +525,62 @@ export class QuoteService {
     }
 
     return this.serializeQuote(quote);
+  }
+
+  async update(tenantId: string, id: string, dto: Partial<CreateQuoteDto>) {
+    const {
+      quoteItems,
+      customerId: _customerId,
+      customer: _customer,
+      workOrderAddress: _workOrderAddress,
+      workOrderAddressId: _workOrderAddressId,
+      ...quoteData
+    } = dto;
+    void _customerId;
+    void _customer;
+    void _workOrderAddress;
+    void _workOrderAddressId;
+    const existing = await this.prisma.quote.findFirst({
+      where: { id, tenantId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Devis introuvable pour ce tenant.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.quote.update({
+        where: { id: existing.id },
+        data: {
+          ...quoteData,
+          issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
+          validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
+          workOrderStartDate: dto.workOrderStartDate ? new Date(dto.workOrderStartDate) : undefined,
+          workOrderEndDate: dto.workOrderEndDate ? new Date(dto.workOrderEndDate) : undefined,
+        },
+      });
+
+      if (quoteItems) {
+        await tx.quoteItem.deleteMany({ where: { quoteId: existing.id } });
+        await tx.quoteItem.createMany({
+          data: quoteItems.map((item, index) => ({
+            quoteId: existing.id,
+            type: item.type ?? WorkOrderItemType.OTHER,
+            position: index,
+            title: item.title.trim(),
+            description: item.description?.trim() ?? '',
+            quantity: Number(item.quantity),
+            unit: item.unit?.trim() || undefined,
+            unitPrice: Number(item.unitPrice),
+            vatRate: Number(item.vatRate),
+            total: Number(item.total),
+          })),
+        });
+      }
+    });
+
+    return this.findOne(tenantId, id);
   }
 
   async delete(tenantId: string, id: string) {

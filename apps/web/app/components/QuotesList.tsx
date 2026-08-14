@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { QuoteStatus } from '@prisma/client';
 import NewQuote from './NewQuote';
+import UpdateQuoteForm from './UpdateQuoteForm';
 
 export interface QuoteItem {
   id: string;
@@ -114,6 +115,8 @@ function formatDate(value?: string) {
 export default function QuotesList({ quotes, onDelete, handleSelectedQuote = null }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [quoteBeingEdited, setQuoteBeingEdited] = useState<Quote | null>(null);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [quotesPerPage, setQuotesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
@@ -159,7 +162,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
         </select>
 
         <label htmlFor="quotes-per-page" className="text-sm text-slate-700">
-          Factures par page
+          Devis par page
         </label>
         <select
           id="quotes-per-page"
@@ -178,7 +181,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
       </div>
 
       <section className="grid gap-4">
-        <p>Cliquez sur une facture pour obtenir les details</p>
+        <p>Cliquez sur un devis pour obtenir les details</p>
         {currentQuotes.map((quote) => (
           <div
             key={quote.id}
@@ -217,7 +220,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
       </section>
 
       {sortedQuotes.length === 0 && (
-        <p className="mt-4 text-sm text-slate-600">Aucune facture a afficher.</p>
+        <p className="mt-4 text-sm text-slate-600">Aucun devis a afficher.</p>
       )}
 
       {sortedQuotes.length > 0 && (
@@ -265,7 +268,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
           >
             <div className="pb-4 flex items-center">
               <h3 className="inline-block text-2xl">
-                <strong>Details facture</strong>
+                <strong>Details devis</strong>
               </h3>
               <button
                 className="border-2 rounded-md px-3 py-2 ml-auto inline-block"
@@ -277,7 +280,19 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
                 Fermer X
               </button>
             </div>
-                <NewQuote quote={selectedQuote} />
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+                onClick={() => {
+                  setQuoteBeingEdited(selectedQuote);
+                  setIsPreviewCollapsed(false);
+                }}
+              >
+                Modifier le devis
+              </button>
+            </div>
+            <NewQuote quote={selectedQuote} />
             <p>id : {selectedQuote.id}</p>
             <p>numero : {selectedQuote.number}</p>
             <p>statut : {selectedQuote.status}</p>
@@ -307,7 +322,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
             <p>notes : {selectedQuote.notes || '-'}</p>
 
             <div className="mt-4">
-              <p className="font-semibold">Lignes de facture</p>
+              <p className="font-semibold">Lignes de devis</p>
               {selectedQuote.items && selectedQuote.items.length > 0 ? (
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                   {selectedQuote.items.map((item) => (
@@ -330,6 +345,50 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
                 Selectionner ce devis
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {quoteBeingEdited && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
+          onClick={() => setQuoteBeingEdited(null)}
+        >
+          <div
+            className="flex w-full max-w-7xl flex-col gap-6 xl:flex-row xl:items-start"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="min-w-0 flex-1 rounded-xl bg-white p-5 shadow-xl">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-xl font-semibold text-zinc-900">Modifier le devis</h3>
+                <button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setQuoteBeingEdited(null)}>
+                  Fermer
+                </button>
+              </div>
+              <UpdateQuoteForm
+                quote={quoteBeingEdited}
+                onChange={setQuoteBeingEdited}
+                onUpdated={(updatedQuote) => {
+                  setQuoteBeingEdited(null);
+                  setSelectedQuote(updatedQuote);
+                }}
+              />
+            </div>
+
+            <div className="flex min-w-0 xl:sticky xl:top-6 xl:self-start">
+              <button
+                type="button"
+                aria-label={isPreviewCollapsed ? 'Réélargir l’aperçu du devis' : 'Réduire l’aperçu du devis'}
+                title={isPreviewCollapsed ? 'Réélargir l’aperçu' : 'Réduire l’aperçu'}
+                onClick={() => setIsPreviewCollapsed((current) => !current)}
+                className="hidden w-10 shrink-0 self-stretch rounded-l-xl border border-r-0 border-zinc-300 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-100 xl:block"
+              >
+                {isPreviewCollapsed ? '<-' : '->'}
+              </button>
+              <div className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(58rem,calc(100vw-8rem))]'}`}>
+                <NewQuote quote={quoteBeingEdited} />
+              </div>
+            </div>
           </div>
         </div>
       )}

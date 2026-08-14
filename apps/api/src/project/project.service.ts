@@ -303,12 +303,13 @@ export class ProjectService {
           },
         },
         quotes: {
-          select: {
-            id: true,
-            number: true,
-            title: true,
-            status: true,
-            createdAt: true,
+          include: {
+            items: {
+              orderBy: {
+                position: 'asc',
+              },
+            },
+            workOrderAddress: true,
           },
           orderBy: {
             createdAt: 'desc',
@@ -317,6 +318,8 @@ export class ProjectService {
         workOrders: {
           select: {
             id: true,
+            customerId: true,
+            addressId: true,
             reference: true,
             title: true,
             description: true,
@@ -348,6 +351,8 @@ export class ProjectService {
                 quantity: true,
                 unit: true,
                 unitPrice: true,
+                unitCost: true,
+                purchaseVatRate: true,
                 vatRate: true,
               },
               orderBy: {
@@ -360,16 +365,43 @@ export class ProjectService {
           },
         },
         invoices: {
-          select: {
-            id: true,
-            number: true,
-            total: true,
-            status: true,
-            createdAt: true,
+          include: {
+            items: {
+              orderBy: {
+                position: 'asc',
+              },
+            },
           },
           orderBy: {
             createdAt: 'desc',
           },
+        },
+        workLogs: {
+          select: {
+            id: true,
+            date: true,
+            title: true,
+            description: true,
+            timePlannedMinutes: true,
+            timeSpentMinutes: true,
+            items: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                quantity: true,
+                unit: true,
+                unitCost: true,
+                purchaseVatRate: true,
+                totalCost: true,
+                type: true,
+              },
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
         },
       },
     });
@@ -378,7 +410,76 @@ export class ProjectService {
       throw new NotFoundException('Projet introuvable pour ce tenant.');
     }
 
-    return project;
+    const mappedQuotes = project.quotes.map((quote) => {
+      const { workOrderAddress, ...rest } = quote;
+      return {
+        ...rest,
+        workOrderAddress: workOrderAddress?.street1 ?? undefined,
+        workOrderPostalCode: workOrderAddress?.postalCode ?? undefined,
+        workOrderCity: workOrderAddress?.city ?? undefined,
+      };
+    });
+
+    return {
+      ...project,
+      quotes: mappedQuotes,
+    };
+  }
+
+  async associateQuote(tenantId: string, projectId: string, quoteId: string) {
+    const [project, quote] = await Promise.all([
+      this.prisma.project.findFirst({
+        where: { id: projectId, tenantId },
+        select: { id: true },
+      }),
+      this.prisma.quote.findFirst({
+        where: { id: quoteId, tenantId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!project) {
+      throw new NotFoundException('Projet introuvable pour ce tenant.');
+    }
+
+    if (!quote) {
+      throw new NotFoundException('Devis introuvable pour ce tenant.');
+    }
+
+    await this.prisma.quote.update({
+      where: { id: quote.id },
+      data: { projectId: project.id },
+    });
+
+    return this.findOne(tenantId, project.id);
+  }
+
+  async associateInvoice(tenantId: string, projectId: string, invoiceId: string) {
+    const [project, invoice] = await Promise.all([
+      this.prisma.project.findFirst({
+        where: { id: projectId, tenantId },
+        select: { id: true },
+      }),
+      this.prisma.invoice.findFirst({
+        where: { id: invoiceId, tenantId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!project) {
+      throw new NotFoundException('Projet introuvable pour ce tenant.');
+    }
+
+    if (!invoice) {
+      throw new NotFoundException('Facture introuvable pour ce tenant.');
+    }
+
+    await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { projectId: project.id },
+    });
+
+    return this.findOne(tenantId, project.id);
   }
 
   async associateWorkOrder(tenantId: string, projectId: string, workOrderId: string) {

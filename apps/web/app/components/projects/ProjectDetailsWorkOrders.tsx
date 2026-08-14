@@ -1,6 +1,6 @@
 'use client';
 
-import { WorkOrderStatus } from '@prisma/client';
+import { WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
 import { useEffect, useState } from 'react';
 import type { Project } from '../AddProjectForm';
 import { useApiClient } from '../../api-client';
@@ -14,6 +14,8 @@ type ProjectDetailsWorkOrdersProps = {
 
 type WorkOrderDetails = {
 	id: string;
+	customerId?: string | null;
+	addressId?: string | null;
 	reference: string;
 	title: string;
 	description?: string | null;
@@ -33,10 +35,15 @@ type WorkOrderDetails = {
 	items: Array<{
 		id: string;
 		position: number;
+		type: WorkOrderItemType;
 		title: string;
 		description?: string | null;
 		quantity: number;
 		unit?: string | null;
+		unitPrice: number;
+		unitCost?: number | null;
+		purchaseVatRate?: number | null;
+		vatRate: number;
 	}>;
 };
 
@@ -96,6 +103,7 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 	const [associationError, setAssociationError] = useState('');
 	const [associating, setAssociating] = useState(false);
 	const [workOrderForNewLog, setWorkOrderForNewLog] = useState<WorkOrderDetails | null>(null);
+	const [workOrderForEdit, setWorkOrderForEdit] = useState<WorkOrderDetails | null>(null);
 	const [workLogsRefreshKey, setWorkLogsRefreshKey] = useState(0);
 
 	useEffect(() => {
@@ -219,6 +227,13 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 					{workOrders.map((workOrder) => (
 						<article key={workOrder.id} className="grid gap-4 border border-zinc-200 bg-white p-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(20rem,1.5fr)_minmax(14rem,0.9fr)]">
 							<div className="space-y-2 text-sm">
+								<button
+									type="button"
+									className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
+									onClick={() => setWorkOrderForEdit(workOrder)}
+								>
+									Modifier le chantier
+								</button>
 								<p className="font-medium text-zinc-900">{workOrder.reference}</p>
 								<h4 className="text-base font-semibold text-zinc-900">{workOrder.title}</h4>
 								<p className="text-zinc-600"><strong className="text-zinc-900">Statut:</strong> {statusLabel(workOrder.status)}</p>
@@ -300,6 +315,39 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 							onCreated={() => {
 								setWorkOrderForNewLog(null);
 								setWorkLogsRefreshKey((currentKey) => currentKey + 1);
+							}}
+						/>
+					</div>
+				</div>
+			)}
+			{workOrderForEdit && (
+				<div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4" onClick={() => setWorkOrderForEdit(null)}>
+					<div className="w-full max-w-6xl rounded-lg bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+						<div className="mb-4 flex items-center justify-between gap-3">
+							<h4 className="text-xl font-semibold text-zinc-900">Modifier le chantier</h4>
+							<button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setWorkOrderForEdit(null)}>Fermer</button>
+						</div>
+						<AddWorkOrderForm
+							show={true}
+							initialWorkOrder={{
+								...workOrderForEdit,
+								description: workOrderForEdit.description ?? '',
+								customerId: workOrderForEdit.customerId ?? undefined,
+								addressId: workOrderForEdit.addressId ?? undefined,
+								startDate: workOrderForEdit.startDate ?? undefined,
+								endDate: workOrderForEdit.endDate ?? undefined,
+								items: workOrderForEdit.items.map((item) => ({
+									...item,
+									description: item.description ?? '',
+									unit: item.unit ?? '',
+									unitCost: item.unitCost ?? undefined,
+									purchaseVatRate: item.purchaseVatRate ?? undefined,
+								}))
+							}}
+							onCreated={() => undefined}
+							onUpdated={(updatedWorkOrder) => {
+								setWorkOrders((currentWorkOrders) => currentWorkOrders.map((current) => current.id === updatedWorkOrder.id ? updatedWorkOrder as WorkOrderDetails : current));
+								setWorkOrderForEdit(null);
 							}}
 						/>
 					</div>

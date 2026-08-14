@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
+import AddWorkOrderForm, { type WorkOrderEditInput } from './AddWorkOrderForm';
+import WorkOrderDetails from './WorkOrderDetails';
 
 export interface WorkOrderItem {
 	id: string;
@@ -10,6 +12,8 @@ export interface WorkOrderItem {
 	title: string;
 	description?: string;
 	quantity: number;
+	unitCost?: number;
+	purchaseVatRate?: number;
 	unit?: string;
 	unitPrice: number;
 	vatRate: number;
@@ -39,15 +43,12 @@ interface WorkOrdersListProps {
 export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWorkOrder }: WorkOrdersListProps) {
 	const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
 	const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
+	const [showEditWorkOrder, setShowEditWorkOrder] = useState(false);
 	const [workOrdersPerPage, setWorkOrdersPerPage] = useState(5);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [sortBy, setSortBy] = useState<'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc'>('createdAtDesc');
 	const [statusFilter, setStatusFilter] = useState<'ALL' | WorkOrderStatus>('ALL');
 	const [futureOnly, setFutureOnly] = useState(false);
-    const totalPrice = selectedWorkOrder?.items.reduce(
-      (total, item) => total + item.unitPrice * item.quantity,
-      0
-    );
 	const now = new Date();
 
 	const filteredWorkOrders = workOrders.filter((workOrder) => {
@@ -246,57 +247,42 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 						setSelectedWorkOrder(null);
 					}}
 				>
-					<div
-						className="bg-white rounded-lg p-6 max-w-2xl w-[92vw] max-h-[85vh] overflow-y-auto"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="pb-4 flex items-center gap-3">
-							<h3 className="text-2xl"><strong>Détails chantier</strong></h3>
-							<button
-								className="border-2 rounded-md px-3 py-2 ml-auto"
-								onClick={() => {
-									setShowWorkOrderDetails(false);
-									setSelectedWorkOrder(null);
-								}}
-							>
-								Fermer X
-							</button>
-						</div>
+					<WorkOrderDetails
+						workOrder={selectedWorkOrder}
+						onEdit={() => setShowEditWorkOrder(true)}
+						onClose={() => {
+							setShowWorkOrderDetails(false);
+							setSelectedWorkOrder(null);
+						}}
+						onSelect={handleSelectedWorkOrder ? () => void handleSelectedWorkOrder(selectedWorkOrder) : undefined}
+					/>
+				</div>
+			)}
 
-						<p>id : {selectedWorkOrder.id}</p>
-						<p>titre : {selectedWorkOrder.title}</p>
-						<p>description : {selectedWorkOrder.description || '-'}</p>
-						<p>reference : {selectedWorkOrder.reference || '-'}</p>
-						<p>status : {selectedWorkOrder.status}</p>
-						<p>startDate : {selectedWorkOrder.startDate || '-'}</p>
-						<p>endDate : {selectedWorkOrder.endDate || '-'}</p>
-						<p>customerId : {selectedWorkOrder.customerId || '-'}</p>
-						<p>addressId : {selectedWorkOrder.addressId || '-'}</p>
-						<p>createdById : {selectedWorkOrder.createdById || '-'}</p>
-						<p>createdAt : {selectedWorkOrder.createdAt || '-'}</p>
-						<div className="mt-4">
-							<p className="font-semibold">Étapes chantier</p>
-							{selectedWorkOrder.items && selectedWorkOrder.items.length > 0 ? (
-								<ul className="list-disc pl-5 mt-2 space-y-1">
-									{selectedWorkOrder.items.map((item) => (
-										<li key={item.id}>
-											{item.position}. {item.title} ({item.type}) - {item.quantity} {item.unit || ''} - {item.unitPrice} € par unité - {item.unitPrice*item.quantity} € au total
-										</li>
-									))}
-                                    <li>Total : {totalPrice} €</li>
-								</ul>
-							) : (
-								<p className="text-sm text-slate-600 mt-1">Aucune étape.</p>
-							)}
-						</div>
-						{handleSelectedWorkOrder && 
-						<button onClick={() => {handleSelectedWorkOrder?.(selectedWorkOrder)}}
-							className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
-                    rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
-                    hover:bg-blue-600 active:bg-blue-900'>
-								Sélectionner ce chantier
+			{showEditWorkOrder && selectedWorkOrder && (
+				<div
+					className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+					onClick={() => setShowEditWorkOrder(false)}
+				>
+					<div
+						className="w-full max-w-6xl rounded-lg bg-white p-5 shadow-xl"
+						onClick={(event) => event.stopPropagation()}
+					>
+						<div className="mb-4 flex items-center justify-between gap-3">
+							<h3 className="text-xl font-semibold text-zinc-900">Modifier le chantier</h3>
+							<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowEditWorkOrder(false)}>
+								Fermer
 							</button>
-						}
+						</div>
+						<AddWorkOrderForm
+							show={true}
+							initialWorkOrder={selectedWorkOrder as WorkOrderEditInput}
+							onCreated={() => undefined}
+							onUpdated={(updatedWorkOrder) => {
+								setSelectedWorkOrder(updatedWorkOrder);
+								setShowEditWorkOrder(false);
+							}}
+						/>
 					</div>
 				</div>
 			)}

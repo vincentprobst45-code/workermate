@@ -11,6 +11,7 @@ export type WorkLogItem = {
   quantity: number;
   unit?: string;
   unitCost: number;
+  purchaseVatRate?: number;
   totalCost: number;
   type: WorkLogItemType;
   createdAt: string;
@@ -24,6 +25,7 @@ type CatalogItem = {
   defaultQuantity: number;
   unit?: string;
   unitCost?: number;
+  purchaseVatRate?: number;
 };
 
 type WorkOrderItem = {
@@ -34,6 +36,7 @@ type WorkOrderItem = {
   quantity: number;
   unit?: string;
   unitPrice: number;
+  purchaseVatRate?: number;
 };
 
 type AddWorkLogItemFormProps = {
@@ -56,6 +59,7 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState('');
   const [unitCost, setUnitCost] = useState(0);
+  const [purchaseVatRate, setPurchaseVatRate] = useState<number | ''>('');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [workOrderItems, setWorkOrderItems] = useState<WorkOrderItem[]>([]);
   const [showCatalog, setShowCatalog] = useState(false);
@@ -63,9 +67,10 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  function fill(values: { type: WorkLogItemType; title: string; description?: string; quantity: number; unit?: string; unitCost: number }) {
+  function fill(values: { type: WorkLogItemType; title: string; description?: string; quantity: number; unit?: string; unitCost: number; purchaseVatRate?: number }) {
     setType(values.type); setTitle(values.title); setDescription(values.description ?? '');
     setQuantity(Number(values.quantity) || 0); setUnit(values.unit ?? ''); setUnitCost(Number(values.unitCost) || 0);
+    setPurchaseVatRate(values.purchaseVatRate === undefined || values.purchaseVatRate === null ? '' : Number(values.purchaseVatRate));
     setShowCatalog(false); setShowWorkOrderItems(false); setError('');
   }
 
@@ -91,7 +96,7 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setSubmitting(true);
     try {
-      const response = await api.post(`/worklogs/${workLogId}/items`, { type, title: title.trim(), description: description.trim() || undefined, quantity, unit: unit.trim() || undefined, unitCost });
+      const response = await api.post(`/worklogs/${workLogId}/items`, { type, title: title.trim(), description: description.trim() || undefined, quantity, unit: unit.trim() || undefined, unitCost, purchaseVatRate: purchaseVatRate === '' ? undefined : purchaseVatRate });
       if (!response.ok) throw new Error('Erreur');
       onCreated(await response.json() as WorkLogItem);
     } catch { setError('Erreur lors de la création de l’élément de suivi.'); }
@@ -110,6 +115,7 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
       <label className="flex flex-col gap-1 text-sm"><span>Quantité</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={quantity} onChange={(event) => setQuantity(event.target.valueAsNumber || 0)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Unité</span><input className="rounded border border-zinc-300 px-3 py-2" value={unit} onChange={(event) => setUnit(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Coût unitaire</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={unitCost} onChange={(event) => setUnitCost(event.target.valueAsNumber || 0)} /></label>
+      <label className="flex flex-col gap-1 text-sm"><span>TVA achat (%)</span><input min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={purchaseVatRate} onChange={(event) => setPurchaseVatRate(Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber)} /></label>
     </div>
     <button type="submit" disabled={submitting} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Création...' : 'Ajouter l’élément'}</button>
   </form>;

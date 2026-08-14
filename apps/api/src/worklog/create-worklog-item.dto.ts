@@ -24,6 +24,12 @@ export class CreateWorkLogItemDto {
   @Min(0)
   unitCost!: number;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  purchaseVatRate?: number;
+
   @IsEnum(WorkLogItemType)
   type!: WorkLogItemType;
 }

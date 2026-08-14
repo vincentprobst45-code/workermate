@@ -75,6 +75,8 @@ export class WorkOrderService {
           quantity: item.quantity,
           unit: item.unit,
           unitPrice: item.unitPrice,
+          unitCost: item.unitCost ?? undefined,
+          purchaseVatRate: item.purchaseVatRate ?? undefined,
 
           vatRate: item.vatRate,
         })),
@@ -161,9 +163,47 @@ export class WorkOrderService {
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateWorkOrderDto>) {
-    return this.prisma.workOrder.updateMany({
-      where: { id, tenantId },
-      data: dto,
+    const { items, address, addressId, customerId, startDate, endDate, ...workOrderData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.workOrder.updateMany({
+        where: { id, tenantId },
+        data: {
+          ...workOrderData,
+          customerId: customerId || undefined,
+          addressId: addressId || undefined,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+        },
+      });
+
+      if (!updated.count) {
+        return null;
+      }
+
+      if (items) {
+        await tx.workOrderItem.deleteMany({ where: { workOrderId: id } });
+        await tx.workOrderItem.createMany({
+          data: items.map((item, position) => ({
+            workOrderId: id,
+            type: item.type!,
+            position,
+            title: item.title!,
+            description: item.description,
+            quantity: item.quantity ?? 1,
+            unit: item.unit,
+            unitPrice: item.unitPrice!,
+            unitCost: item.unitCost,
+            purchaseVatRate: item.purchaseVatRate,
+            vatRate: item.vatRate!,
+          })),
+        });
+      }
+
+      return tx.workOrder.findFirst({
+        where: { id, tenantId },
+        include: { items: { orderBy: { position: 'asc' } }, address: true, customer: true },
+      });
     });
   }
 

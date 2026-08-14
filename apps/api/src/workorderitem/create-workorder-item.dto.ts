@@ -35,6 +35,14 @@ export class CreateWorkOrderItemDto {
   @IsDecimal()
   unitPrice!: number;
 
+  @IsOptional()
+  @IsDecimal()
+  unitCost?: number;
+
+  @IsOptional()
+  @IsDecimal()
+  purchaseVatRate?: number;
+
   @IsDecimal()
   vatRate!: number;
 }

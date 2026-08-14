@@ -37,4 +37,9 @@ export class CreateQuoteItemDto {
   @IsNumber()
   @Min(0)
   vatRate!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  total!: number;
 }
