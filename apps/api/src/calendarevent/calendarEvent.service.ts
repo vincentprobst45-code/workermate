@@ -56,7 +56,7 @@ export class CalendarEventService {
       this.logger.warn('create() called without tenantId');
       throw new Error('tenantId is required');
     }
-  const { addressId, address, workOrderId, customerId, ...calendarEventData } = dto;
+  const { addressId, address, workOrderId, customerId, projectId, ...calendarEventData } = dto;
   
   if (addressId && this.hasAddress(address)) {
     throw new BadRequestException(
@@ -122,6 +122,19 @@ export class CalendarEventService {
     }
 
     data.customer = { connect: { id: customer.id } };
+  }
+
+  if (projectId) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, tenantId },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new BadRequestException('Projet introuvable pour ce tenant.');
+    }
+
+    data.project = { connect: { id: project.id } };
   }
 
   if (user?.id) {
@@ -223,11 +236,32 @@ export class CalendarEventService {
     return result;
   }
 
-  async findAll(tenantId: string) {
-    
+  async findAll(tenantId: string, start?: string, end?: string, projectId?: string) {
+    const startDate = start ? new Date(start) : undefined;
+    const endDate = end ? new Date(end) : undefined;
+
+    if (startDate && Number.isNaN(startDate.getTime())) {
+      throw new BadRequestException('start must be a valid date.');
+    }
+
+    if (endDate && Number.isNaN(endDate.getTime())) {
+      throw new BadRequestException('end must be a valid date.');
+    }
+
+    if (startDate && endDate && startDate >= endDate) {
+      throw new BadRequestException('start must be before end.');
+    }
+
+    const dateFilter = startDate || endDate
+      ? {
+          ...(startDate ? { endDate: { gt: startDate } } : {}),
+          ...(endDate ? { startDate: { lt: endDate } } : {}),
+        }
+      : {};
+
     const results = await this.prisma.calendarEvent.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: 'desc' },
+      where: { tenantId, ...(projectId ? { projectId } : {}), ...dateFilter },
+      orderBy: { startDate: 'asc' },
     });
 
     return results;

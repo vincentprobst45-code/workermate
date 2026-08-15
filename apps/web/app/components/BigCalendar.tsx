@@ -9,10 +9,9 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 
 import { useApiClient } from '../api-client';
 import { useEffect, useState } from 'react'
-import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm'
-import SelectExistingAddress from './SelectExistingAddress'
+import type { AddAddressFormData } from './AddressForm'
 
-import AddCalendarEventForm,{ type AddCalendarEventFormData, createEmptyCalendarEvent } from './AddCalendarEventForm'
+import AddCalendarEventForm from './AddCalendarEventForm'
 
 // import { loadProjects } from '../projects/page'
 
@@ -61,6 +60,11 @@ interface CalendarEventApi {
   addressId?: string;
   createdById?: string;
 }
+
+type CalendarRange = {
+  start: Date;
+  end: Date;
+};
 
 // export function createEmptyCalendarEvent(): CalendarEventApi {
 //   return {
@@ -124,7 +128,6 @@ function BigCalendar() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [view, setView] = useState<View>('week');
   const [date, setDate] = useState(new Date());
   const [showAddEventModal,setShowAddEventModal] = useState(false)
@@ -229,13 +232,40 @@ function BigCalendar() {
   
     const scrollTo = new Date()
     scrollTo.setHours(7, 0, 0, 0)
+
+    const [visibleRange, setVisibleRange] = useState<CalendarRange>(() => {
+      const start = new Date();
+      start.setDate(start.getDate() - start.getDay());
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      return { start, end };
+    });
+
+    function handleRangeChange(range: Date[] | { start: Date; end: Date }) {
+      if (Array.isArray(range)) {
+        if (!range.length) return;
+        const start = new Date(Math.min(...range.map((value) => value.getTime())));
+        const end = new Date(Math.max(...range.map((value) => value.getTime())));
+        end.setDate(end.getDate() + 1);
+        setVisibleRange({ start, end });
+        return;
+      }
+
+      setVisibleRange({ start: range.start, end: range.end });
+    }
     
       useEffect(() => {
         let cancelled = false;
     
         const loadCalendarEvents = async () => {
           try {
-            const res = await api.get('/calendarEvents');
+            setLoading(true);
+            const params = new URLSearchParams({
+              start: visibleRange.start.toISOString(),
+              end: visibleRange.end.toISOString(),
+            });
+            const res = await api.get(`/calendarevents?${params.toString()}`);
             if (!res.ok) throw new Error('Erreur');
             // const data = await res.json();
             const data: CalendarEventApi[] = await res.json();
@@ -256,11 +286,10 @@ function BigCalendar() {
         };
     
         void loadCalendarEvents();
-      console.log("lolcalendar")
         return () => {
           cancelled = true;
         };
-      }, [api]);
+      }, [api, visibleRange]);
 
     useEffect(() => {
       if (!showAddEventModal) return;
@@ -289,7 +318,6 @@ function BigCalendar() {
         ) : ( */}
             <div className='relative'>
             {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
-            {success && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">{success}</div>}
             <button className='border py-2 px-2' onClick={() => setShowAddEventModal(true)}>Ajouter un événement</button>
             {showAddEventModal &&
               <div
@@ -337,6 +365,7 @@ function BigCalendar() {
   events={loading ? [] : calendarEvents}
   view={view}
   onView={setView}
+  onRangeChange={handleRangeChange}
   date={date}
   onNavigate={setDate}
   startAccessor="start"

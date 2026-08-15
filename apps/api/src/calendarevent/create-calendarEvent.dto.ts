@@ -47,4 +47,8 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @IsString({ message: 'customerId must be a string' })
   customerId?: string;
+
+  @IsOptional()
+  @IsString({ message: 'projectId must be a string' })
+  projectId?: string;
 }

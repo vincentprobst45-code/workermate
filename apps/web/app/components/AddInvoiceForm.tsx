@@ -330,8 +330,9 @@ function createEmptyInvoice(tenantDefaults?: TenantInvoiceDefaults): AddInvoiceF
 	};
 }
 
-function toFiniteNumber(value: number): number {
-	return Number.isFinite(value) ? value : 0;
+function toFiniteNumber(value: unknown): number {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function roundMoney(value: number): number {
@@ -593,6 +594,8 @@ function SortableInvoiceLine({
 
 type AddInvoiceFormProps = {
 	onCreated: (invoice: CreatedInvoice) => void;
+	onUpdated?: (invoice: CreatedInvoice) => void;
+	initialInvoice?: CreatedInvoice;
 	onChange?: (invoice: PreviewInvoice) => void;
 	show: boolean;
 };
@@ -688,10 +691,60 @@ function FieldLabel({ label, required = false, children, className = '' }: Field
 	);
 }
 
-export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoiceFormProps) {
+export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, onChange, show }: AddInvoiceFormProps) {
 	const api = useApiClient();
 	const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults | null>(null);
-	const [form, setForm] = useState<AddInvoiceFormData>(createEmptyInvoice());
+	const [form, setForm] = useState<AddInvoiceFormData>(() => {
+		if (!initialInvoice) {
+			return createEmptyInvoice();
+		}
+
+		const empty = createEmptyInvoice();
+		return {
+			...empty,
+			...initialInvoice,
+			number: initialInvoice.number ?? '',
+			workOrderId: initialInvoice.workOrderId ?? '',
+			tenantStreet2: initialInvoice.tenantStreet2 ?? '',
+			tenantIban: initialInvoice.tenantIban ?? '',
+			tenantBic: initialInvoice.tenantBic ?? '',
+			customerStreet2: initialInvoice.customerStreet2 ?? '',
+			customerEmail: initialInvoice.customerEmail ?? '',
+			customerPhoneNumber: initialInvoice.customerPhoneNumber ?? '',
+			customerVatNumber: initialInvoice.customerVatNumber ?? '',
+			workOrderStartDate: initialInvoice.workOrderStartDate ?? '',
+			workOrderEndDate: initialInvoice.workOrderEndDate ?? '',
+			workOrderAddress: initialInvoice.workOrderAddress ?? '',
+			workOrderPostalCode: initialInvoice.workOrderPostalCode ?? '',
+			workOrderCity: initialInvoice.workOrderCity ?? '',
+			paymentTerms: initialInvoice.paymentTerms ?? '',
+			legalMentions: initialInvoice.legalMentions ?? '',
+			notes: initialInvoice.notes ?? '',
+			depositAmount: Number(initialInvoice.depositAmount ?? 0),
+			discountAmount: Number(initialInvoice.discountAmount ?? 0),
+			paidAt: initialInvoice.paidAt ?? '',
+			pdfFileId: initialInvoice.pdfFileId ?? '',
+			pdpMessageId: initialInvoice.pdpMessageId ?? '',
+			quoteId: initialInvoice.quoteId ?? '',
+			quoteNumber: initialInvoice.quoteNumber ?? '',
+			currency: initialInvoice.currency ?? 'EUR',
+			issueDate: initialInvoice.issueDate,
+			dueDate: initialInvoice.dueDate ?? '',
+			paymentMethod: initialInvoice.paymentMethod ?? '',
+			invoiceItems: (initialInvoice.items ?? []).map((item, index) => ({
+				rowId: item.id || createInvoiceItemRowId(),
+				type: 'OTHER',
+				position: index,
+				title: item.title,
+				description: item.description ?? '',
+				quantity: Number(item.quantity) || 0,
+				unit: item.unit ?? '',
+				unitPrice: Number(item.unitPrice) || 0,
+				vatRate: Number(item.vatRate) || 0,
+				total: Number(item.total) || 0,
+			})),
+		};
+	});
 	const [invoiceSequenceByYear, setInvoiceSequenceByYear] = useState<Record<number, number>>({});
 	const [customers, setCustomers] = useState<CustomerOption[]>([]);
 	const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
@@ -715,8 +768,12 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 	const [showTopWorkOrdersList, setShowTopWorkOrdersList] = useState(false);
 	const [selectedTopWorkOrder, setSelectedTopWorkOrder] = useState<WorkOrderOption | null>(null);
 	const [topWorkOrdersError, setTopWorkOrdersError] = useState('');
-	const [customerMode, setCustomerMode] = useState<CustomerMode>('new');
-	const [workOrderMode, setWorkOrderMode] = useState<WorkOrderMode>('new');
+	const [customerMode, setCustomerMode] = useState<CustomerMode>(
+		initialInvoice?.customerId ? 'existing' : 'new',
+	);
+	const [workOrderMode, setWorkOrderMode] = useState<WorkOrderMode>(
+		initialInvoice?.workOrderId ? 'existing' : 'new',
+	);
 	const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
 	const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
 	const [showCustomerFields, setShowCustomerFields] = useState(false);
@@ -725,14 +782,15 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
 	const sensors = useSensors(useSensor(PointerSensor));
-	const computedInvoiceNumber = formatInvoiceNumber(
+	const generatedInvoiceNumber = formatInvoiceNumber(
 		getInvoiceYear(form.issueDate),
 		(invoiceSequenceByYear[getInvoiceYear(form.issueDate)] ?? 0) + 1,
 	);
+	const displayedInvoiceNumber = initialInvoice ? (form.number || initialInvoice.number || '') : generatedInvoiceNumber;
 
 	useEffect(() => {
-		onChange?.(createDraftPreviewInvoice({ ...form, number: computedInvoiceNumber }));
-	}, [computedInvoiceNumber, form, onChange]);
+		onChange?.(createDraftPreviewInvoice({ ...form, number: displayedInvoiceNumber }));
+	}, [displayedInvoiceNumber, form, onChange]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -780,14 +838,16 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 				const data: TenantInvoiceDefaults = await response.json();
 				if (!cancelled) {
 					setTenantDefaults(data);
-					setForm((currentForm) => ({
-						...createEmptyInvoice(data),
-						customerId: currentForm.customerId,
-						workOrderId: currentForm.workOrderId,
-						invoiceItems: currentForm.invoiceItems.length
-							? currentForm.invoiceItems
-							: [createEmptyInvoiceItem(0)],
-					}));
+					if (!initialInvoice) {
+						setForm((currentForm) => ({
+							...createEmptyInvoice(data),
+							customerId: currentForm.customerId,
+							workOrderId: currentForm.workOrderId,
+							invoiceItems: currentForm.invoiceItems.length
+								? currentForm.invoiceItems
+								: [createEmptyInvoiceItem(0)],
+						}));
+					}
 				}
 			} catch {
 				if (!cancelled) {
@@ -1316,7 +1376,7 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 		setError('');
 		setSuccess('');
 
-		if (!computedInvoiceNumber.trim()) {
+		if (!displayedInvoiceNumber.trim()) {
 			setError('Le numéro de facture est obligatoire.');
 			return;
 		}
@@ -1344,7 +1404,7 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 		const payload: CreateInvoiceDto = {
 			customerId: form.customerId.trim(),
 			workOrderId: trimToUndefined(form.workOrderId),
-			number: computedInvoiceNumber.trim(),
+			number: displayedInvoiceNumber.trim(),
 			issueDate: form.issueDate,
 			dueDate: trimToUndefined(form.dueDate),
 			workOrderReference: form.workOrderReference.trim(),
@@ -1405,7 +1465,9 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 		};
 
 		try {
-			const response = await api.post('/invoices', payload);
+			const response = initialInvoice
+				? await api.put(`/invoices/${initialInvoice.id}`, payload)
+				: await api.post('/invoices', payload);
 			if (!response.ok) {
 				throw new Error('Erreur');
 			}
@@ -1418,11 +1480,16 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 					[parsedNumber.year]: Math.max(currentMap[parsedNumber.year] ?? 0, parsedNumber.sequence),
 				}));
 			}
-			onCreated(data);
-			setForm(createEmptyInvoice(tenantDefaults || undefined));
-			setCustomerMode('new');
-			setWorkOrderMode('new');
-			setSuccess('Facture créée avec succès.');
+			if (initialInvoice) {
+				onUpdated?.(data);
+				setSuccess('Facture modifiée avec succès.');
+			} else {
+				onCreated(data);
+				setForm(createEmptyInvoice(tenantDefaults || undefined));
+				setCustomerMode('new');
+				setWorkOrderMode('new');
+				setSuccess('Facture créée avec succès.');
+			}
 		} catch {
 			setError('Erreur lors de la création de la facture.');
 		}
@@ -1439,7 +1506,9 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 			}}
 			className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
 		>
-			<h3 className="text-lg font-semibold text-zinc-900">Créer une facture</h3>
+			<h3 className="text-lg font-semibold text-zinc-900">
+				{initialInvoice ? 'Modifier la facture' : 'Créer une facture'}
+			</h3>
 			<div className="flex flex-wrap gap-2">
 				<button
 					type="button"
@@ -2073,7 +2142,7 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Infos facture</h4>
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					<FieldLabel label="Numéro facture" required>
-						<input className={`${fieldClassName} bg-zinc-100`} value={computedInvoiceNumber} readOnly required />
+						<input className={`${fieldClassName} bg-zinc-100`} value={displayedInvoiceNumber} readOnly required />
 					</FieldLabel>
 					<FieldLabel label="Date d'émission" required>
 						<input type="datetime-local" className={fieldClassName} value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} required />
@@ -2111,10 +2180,10 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 						<input className={fieldClassName} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
 					</FieldLabel>
 					<FieldLabel label="Acompte">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
+						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount ?? 0} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
 					</FieldLabel>
 					<FieldLabel label="Remise">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.discountAmount} onChange={(event) => updateInvoiceSummary({ discountAmount: toFiniteNumber(event.target.valueAsNumber) })} />
+						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.discountAmount ?? 0} onChange={(event) => updateInvoiceSummary({ discountAmount: toFiniteNumber(event.target.valueAsNumber) })} />
 					</FieldLabel>
 					<FieldLabel label="Date de paiement">
 						<input type="datetime-local" className={fieldClassName} value={form.paidAt} onChange={(event) => setForm({ ...form, paidAt: event.target.value })} />
@@ -2153,7 +2222,7 @@ export default function AddInvoiceForm({ onCreated, onChange, show }: AddInvoice
 			</section>
 
 			<button type="submit" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700">
-				Créer la facture
+				{initialInvoice ? 'Modifier' : 'Créer la facture'}
 			</button>
 		</form>
 

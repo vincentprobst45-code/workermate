@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { InvoicePdpStatus, InvoiceStatus, PaymentMethod } from '@prisma/client';
 import NewInvoice from './NewInvoice';
+import AddInvoiceForm from './AddInvoiceForm';
 
 export interface InvoiceItem {
   id: string;
@@ -109,6 +110,8 @@ export default function InvoicesList({
 }: InvoicesListProps) {
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [invoiceBeingEdited, setInvoiceBeingEdited] = useState<Invoice | null>(null);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [invoicesPerPage, setInvoicesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
@@ -263,6 +266,17 @@ export default function InvoicesList({
                 <strong>Details facture</strong>
               </h3>
               <button
+                type="button"
+                className="ml-auto mr-2 rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-700"
+                onClick={() => {
+                  setInvoiceBeingEdited(selectedInvoice);
+                  setIsPreviewCollapsed(false);
+                }}
+              >
+                Modifier la facture
+              </button>
+              <button
+                type="button"
                 className="border-2 rounded-md px-3 py-2 ml-auto inline-block"
                 onClick={() => {
                   setShowInvoiceDetails(false);
@@ -314,6 +328,52 @@ export default function InvoicesList({
               ) : (
                 <p className="text-sm text-slate-600 mt-1">Aucune ligne chargee.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoiceBeingEdited && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
+          onClick={() => setInvoiceBeingEdited(null)}
+        >
+          <div
+            className="flex w-full max-w-7xl flex-col gap-6 xl:flex-row xl:items-start"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="min-w-0 flex-1 rounded-xl bg-white p-5 shadow-xl">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <h3 className="text-xl font-semibold text-zinc-900">Modifier la facture</h3>
+                <button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setInvoiceBeingEdited(null)}>
+                  Fermer
+                </button>
+              </div>
+              <AddInvoiceForm
+                show={true}
+                initialInvoice={invoiceBeingEdited}
+                onCreated={() => undefined}
+                onChange={setInvoiceBeingEdited}
+                onUpdated={(updatedInvoice) => {
+                  setSelectedInvoice(updatedInvoice);
+                  setInvoiceBeingEdited(null);
+                }}
+              />
+            </div>
+
+            <div className="flex min-w-0 xl:sticky xl:top-6 xl:self-start">
+              <button
+                type="button"
+                aria-label={isPreviewCollapsed ? 'Réélargir l’aperçu de la facture' : 'Réduire l’aperçu de la facture'}
+                title={isPreviewCollapsed ? 'Réélargir l’aperçu' : 'Réduire l’aperçu'}
+                onClick={() => setIsPreviewCollapsed((current) => !current)}
+                className="hidden w-10 shrink-0 self-stretch rounded-l-xl border border-r-0 border-zinc-300 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-100 xl:block"
+              >
+                {isPreviewCollapsed ? '<-' : '->'}
+              </button>
+              <div className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(58rem,calc(100vw-8rem))]'}`}>
+                <NewInvoice invoice={invoiceBeingEdited} />
+              </div>
             </div>
           </div>
         </div>

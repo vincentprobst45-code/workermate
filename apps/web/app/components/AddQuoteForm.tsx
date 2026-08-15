@@ -585,7 +585,7 @@ export function createEmptyQuote(
     legalMentions: tenantDefaults?.defaultLegalMentions || '',
     notes: tenantDefaults?.defaultInvoiceNotes || '',
     depositAmount: 0,
-    quoteItems: [createEmptyQuoteItem(0)],
+    quoteItems: [],
   };
 }
 
@@ -639,7 +639,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             workOrderAddress: currentForm.workOrderAddress,
             quoteItems: currentForm.quoteItems.length
               ? currentForm.quoteItems
-              : [createEmptyQuoteItem(0)],
+              : [],
           }));
         }
       } catch {
@@ -1835,7 +1835,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                   onDelete={() =>
                     updateQuoteItems((items) =>
                       items.length === 1
-                        ? [createEmptyQuoteItem(0)]
+                        ? []
                         : items.filter((_, currentIndex) => currentIndex !== index),
                     )
                   }

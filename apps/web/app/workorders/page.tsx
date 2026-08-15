@@ -147,7 +147,7 @@ export default function WorkOrdersPage() {
                     rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
                     hover:bg-blue-600 active:bg-blue-900' 
           onClick={() => {setShowAddWorkOrderForm(!showAddWorkOrderForm);setWorkOrderFormWasOpened(true);}}>
-            {showAddWorkOrderForm ? ("Fermer") : workOrderFormWasOpened ? ("Ouvrir") : ("Ajouter un projet")}
+            {showAddWorkOrderForm ? ("Fermer") : workOrderFormWasOpened ? ("Ouvrir") : ("Ajouter un chantier")}
         </button>
         {workOrderFormWasOpened &&
         <button

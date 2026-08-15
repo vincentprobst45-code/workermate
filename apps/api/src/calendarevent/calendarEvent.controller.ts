@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseGuards, Logger } from '@nestjs/common';
 import { CalendarEventService  } from './calendarEvent.service';
 import { CreateCalendarEventDto } from './create-calendarEvent.dto'
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
@@ -27,10 +27,15 @@ export class CalendarEventController {
   }
 
   @Get()
-  async findAll(@Req() req: AuthenticatedRequest) {
+  async findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('projectId') projectId?: string,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
     const tenantId = requireTenantContext(req).tenant.id;
     this.debug(`Listing customers for tenantId=${tenantId}`);
-    const result = this.calendarEventService.findAll(tenantId);
+    const result = this.calendarEventService.findAll(tenantId, start, end, projectId);
     return result;
   }
 

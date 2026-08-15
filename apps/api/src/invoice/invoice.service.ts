@@ -398,10 +398,51 @@ export class InvoiceService {
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateInvoiceDto>) {
-    return this.prisma.invoice.updateMany({
+    const { invoiceItems, number: _number, ...invoiceData } = dto;
+    void _number;
+
+    const existing = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
-      data: dto,
+      select: { id: true },
     });
+
+    if (!existing) {
+      throw new NotFoundException('Facture introuvable pour ce tenant.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id: existing.id },
+        data: {
+          ...invoiceData,
+          issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+          workOrderStartDate: dto.workOrderStartDate ? new Date(dto.workOrderStartDate) : undefined,
+          workOrderEndDate: dto.workOrderEndDate ? new Date(dto.workOrderEndDate) : undefined,
+          paidAt: dto.paidAt ? new Date(dto.paidAt) : undefined,
+        },
+      });
+
+      if (invoiceItems) {
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: existing.id } });
+        await tx.invoiceItem.createMany({
+          data: invoiceItems.map((item, position) => ({
+            invoiceId: existing.id,
+            type: item.type ?? WorkOrderItemType.OTHER,
+            position,
+            title: item.title.trim(),
+            description: item.description?.trim() ?? '',
+            quantity: Number(item.quantity),
+            unit: item.unit?.trim() || undefined,
+            unitPrice: Number(item.unitPrice),
+            vatRate: Number(item.vatRate),
+            total: Number(item.total),
+          })),
+        });
+      }
+    });
+
+    return this.findOne(tenantId, id);
   }
 
   async delete(tenantId: string, id: string) {

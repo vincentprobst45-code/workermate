@@ -209,6 +209,8 @@ model CalendarEvent {
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
 
+  @@index([tenantId, startDate])
+  @@index([projectId, startDate])
 }
 
 model WorkOrder {

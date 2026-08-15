@@ -571,6 +571,10 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
       }
 
       if (quoteSelectionMode === 'fillForm') {
+        const selectedCustomer = customerOptions.find(
+          (customer) => customer.id === selectedQuote.customerId,
+        );
+        const selectedCustomerAddressId = selectedCustomer?.addressId ?? '';
         const filledItems: WorkOrderItem[] = selectedQuote.items.map((quoteItem, index) => ({
           id: '',
           rowId: createWorkOrderItemRowId(),
@@ -593,8 +597,8 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           endDate: toDatetimeLocal(selectedQuote.workOrderEndDate),
           customerMode: selectedQuote.customerId ? 'existing' : currentWorkOrder.customerMode,
           customerId: selectedQuote.customerId || '',
-          addressMode: 'none',
-          addressId: '',
+          addressMode: selectedCustomerAddressId ? 'existing' : 'none',
+          addressId: selectedCustomerAddressId,
           items: filledItems,
         }));
 
@@ -768,9 +772,12 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
       }
     }
 
+
     return(
         <form onSubmit={handleAddWorkOrder} className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show && "hidden"}`}>
-          <h3 className="text-lg font-semibold text-zinc-900">Ajouter un chantier</h3>
+          <h3 className="text-lg font-semibold text-zinc-900">
+            {initialWorkOrder ? 'Modifier un chantier' : 'Ajouter un chantier'}
+          </h3>
           <div>
             <button
               type="button"
@@ -1261,7 +1268,7 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
             ) : <span></span>}
           </section>
           <button type="submit" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700">
-            Ajouter
+            {initialWorkOrder ? 'Modifier' : 'Ajouter'}
           </button>
         </form>
     )
