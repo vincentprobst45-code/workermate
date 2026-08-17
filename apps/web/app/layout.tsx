@@ -42,6 +42,7 @@ import { getSession } from "./lib/auth";
 import { AuthProvider } from "./auth.context";
 import "./globals.css";
 import Header from "./components/Header";
+import VerticalHeader from "./components/VerticalHeader";
 
 export default async function RootLayout({
   children,
@@ -55,7 +56,10 @@ export default async function RootLayout({
       <body>
         <AuthProvider session={session}>
           <Header />
-          {children}
+          <div className="flex min-h-[calc(100vh)] items-stretch">
+            <VerticalHeader />
+            <main className="min-w-0 flex-1">{children}</main>
+          </div>
         </AuthProvider>
       </body>
     </html>

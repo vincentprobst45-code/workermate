@@ -19,15 +19,12 @@ function Header(){
   console.log(user)
 
     return(
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm py-5 px-5 shadow-sm shadow-slate-200/20 sm:px-6">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur-sm py-2 px-5 shadow-sm shadow-slate-200/20 sm:px-6">
+        <div className="mx-auto flex items-center justify-between gap-4">
           <Link href="/">
               <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  <h1 className="text-xl font-semibold uppercase tracking-[0.24em] text-slate-500">
                     Workermate
-                  </p>
-                  <h1 className="mt-2 text-2xs font-semibold tracking-tight sm:text-xl">
-                    Planning et gestion pour artisans
                   </h1>
               </div>
           </Link>
