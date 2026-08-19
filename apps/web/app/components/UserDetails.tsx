@@ -1,6 +1,7 @@
 'use client';
 
 import type { AuthUser, Session, TenantMembership } from '../lib/auth.types';
+import AddMembershipInvitationForm from './AddMembershipInvitationForm';
 
 type UserDetailsProps = {
   user: AuthUser;
@@ -57,6 +58,10 @@ export default function UserDetails({ user, activeTenant, tenants }: UserDetails
             </ul>
           ) : <p className="text-sm text-zinc-600">Aucun accès d’entreprise.</p>}
         </section>
+
+        {activeTenant && (activeTenant.role === 'OWNER' || activeTenant.role === 'ADMIN') && (
+          <AddMembershipInvitationForm />
+        )}
       </div>
     </section>
   );
