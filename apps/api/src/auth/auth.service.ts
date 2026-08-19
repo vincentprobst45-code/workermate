@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import type { Prisma, User } from '@prisma/client';
 import type { JwtPayload } from '../common/types/auth-request';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS } from './auth.constants';
 
@@ -197,6 +197,23 @@ export class AuthService {
     return this.buildAuthResult(user);
   }
 
+  async switchTenant(userId: string, tenantId: string): Promise<AuthResult> {
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+    });
+
+    if (!membership) {
+      throw new Error('User is not a member of this tenant');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { activeTenantId: tenantId },
+    });
+
+    return this.buildAuthResult(user);
+  }
+
   async refreshAccessToken(refreshToken: string): Promise<AuthResult> {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken);
@@ -213,5 +230,52 @@ export class AuthService {
     } catch {
       throw new Error('Invalid refresh token');
     }
+  }
+
+  async requestPasswordReset(email: string): Promise<{ message: string; resetUrl?: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const message = 'Si cette adresse existe, un lien de réinitialisation a été envoyé.';
+
+    if (!user) {
+      return { message };
+    }
+    
+    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    const rawToken = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    await this.prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt },
+    });
+
+    const resetUrl = `${process.env.WEB_URL ?? 'http://localhost:3000'}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.log(`Password reset URL for ${normalizedEmail}: ${resetUrl}`);
+      return { message, resetUrl };
+    }
+
+    return { message };
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ message: string }> {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!resetToken || resetToken.usedAt || resetToken.expiresAt.getTime() <= Date.now()) {
+      throw new Error('Invalid or expired password reset token');
+    }
+
+    const hashedPassword = await hashPassword(password);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
+      this.prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
+      this.prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId, id: { not: resetToken.id } } }),
+    ]);
+
+    return { message: 'Mot de passe modifié. Vous pouvez vous connecter.' };
   }
 }

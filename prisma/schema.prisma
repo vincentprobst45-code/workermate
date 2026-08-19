@@ -54,6 +54,9 @@ model Tenant {
   catalogItems CatalogItem[]
   projects Project[]
   workLogs WorkLog[]
+  notifications Notification[]
+  membershipRequests MembershipRequest[]
+  membershipInvitations MembershipInvitation[]
 }
 
 model User {
@@ -73,6 +76,25 @@ model User {
   createdCustomers Customer[] @relation("CustomerCreator")
   createdWorkOrders    WorkOrder[] @relation("WorkOrderCreator")
   createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
+  passwordResetTokens PasswordResetToken[]
+  receivedNotifications Notification[] @relation("NotificationRecipient")
+  sentNotifications Notification[] @relation("NotificationSender")
+  membershipRequests MembershipRequest[]
+  respondedMembershipRequests MembershipRequest[] @relation("MembershipRequestResponder")
+  sentMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationSender")
+  receivedMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationRecipient")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
 }
 
 model Membership {
@@ -683,6 +705,135 @@ model WorkLogItem {
   type WorkLogItemType
 
   createdAt DateTime @default(now())
+}
+
+model Notification {
+  id String @id @default(cuid())
+
+  tenantId String?
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  recipientId String
+  recipient User @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  senderId String?
+  sender User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  type NotificationType
+
+  title String?
+  message String
+
+  actions NotificationAction[]
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, createdAt])
+  @@index([recipientId, readAt])
+}
+
+enum NotificationType {
+  SYSTEM
+  USER_MESSAGE
+  MEMBERSHIP_REQUEST
+  PROJECT
+  QUOTE
+  INVOICE
+  CALENDAR
+  OTHER
+}
+
+model NotificationAction {
+  id String @id @default(cuid())
+
+  notificationId String
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  label String
+  type NotificationActionType
+
+  targetId String?
+
+  @@index([notificationId])
+}
+
+enum NotificationActionType {
+  OPEN_LINK
+  ACCEPT_MEMBERSHIP_REQUEST
+  REJECT_MEMBERSHIP_REQUEST
+  ACCEPT_MEMBERSHIP_INVITATION
+  REJECT_MEMBERSHIP_INVITATION
+}
+
+model MembershipRequest {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  message String?
+
+  status MembershipRequestStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  respondedAt DateTime?
+
+  respondedById String?
+  respondedBy User? @relation("MembershipRequestResponder", fields: [respondedById], references: [id])
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, status])
+}
+
+enum MembershipRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+model MembershipInvitation {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  invitedById String
+  invitedBy User @relation("MembershipInvitationSender", fields: [invitedById], references: [id])
+
+  // Si l'utilisateur existe déjà
+  invitedUserId String?
+  invitedUser User? @relation("MembershipInvitationRecipient",fields: [invitedUserId],references: [id],onDelete: SetNull)
+
+  // Toujours conservé car l'invitation peut viser quelqu'un sans compte
+  email String
+
+  role TenantRole
+
+  status MembershipInvitationStatus @default(PENDING)
+
+  tokenHash String @unique
+  expiresAt DateTime
+
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, status])
+  @@index([email, status])
+}
+
+enum MembershipInvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
 }
 
 enum TenantRole {

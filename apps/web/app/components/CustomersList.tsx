@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import CustomersDetails from './CustomersDetails';
 
 export interface AddressOneLine {
   street1?: string;
@@ -176,44 +177,13 @@ export default function CustomersList({ customers, onDelete }: CustomersListProp
             setSelectedCustomer(null);
           }}
         >
-          <div className="bg-white rounded-lg p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="pb-4 flex items-center">
-              <h3 className="inline-block text-2xl">
-                <strong>Details client</strong>
-              </h3>
-              <button
-                className="border-2 rounded-md px-3 py-2 ml-auto inline-block"
-                onClick={() => {
-                  setShowCustomerDetails(false);
-                  setSelectedCustomer(null);
-                }}
-              >
-                Fermer X
-              </button>
-            </div>
-
-            <p>id : {selectedCustomer.id}</p>
-            <p>tenantid : {selectedCustomer.tenantId}</p>
-            <p>createdById : {selectedCustomer.createdById}</p>
-
-            <p>{selectedCustomer.lastName}</p>
-            <p>{selectedCustomer.firstName}</p>
-            <p>{selectedCustomer.company}</p>
-
-            <p>{selectedCustomer.email}</p>
-            <p>{selectedCustomer.phone}</p>
-            <p>{selectedCustomer.mobile}</p>
-
-            <p>{selectedCustomer.addressId}</p>
-            <p>{`${selectedCustomer.address?.street1} ${selectedCustomer.address?.postalCode} ${selectedCustomer.address?.city}`}</p>
-
-            <p>{selectedCustomer.siret}</p>
-            <p>{selectedCustomer.vatNumber}</p>
-
-            <p>{selectedCustomer.notes}</p>
-
-            <p>createdAt : {selectedCustomer.createdAt}</p>
-          </div>
+          <CustomersDetails
+            customer={selectedCustomer}
+            onClose={() => {
+              setShowCustomerDetails(false);
+              setSelectedCustomer(null);
+            }}
+          />
         </div>
       )}
     </>

@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Home, Calendar, Users, FileText, LucideIcon, 
-  FolderOpenDot, Building2, UserRound, Hammer, NotepadText, ScrollText, BookOpenText } from 'lucide-react';
+import { Home, LucideIcon, 
+  FolderOpenDot, Building2, UserRound, Hammer, NotepadText, ScrollText, BookOpenText, Bell } from 'lucide-react';
 
 type NavigationItem = {
   href: string;
@@ -14,6 +14,8 @@ type NavigationItem = {
 
 const navigationItems: NavigationItem[] = [
   { href: '/', label: 'Accueil', icon: Home },
+  { href: '/user', label: 'Mon profil', icon: UserRound },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/tenant', label: 'Entreprise', icon: Building2 },
   { href: '/projects', label: 'Projets', icon: FolderOpenDot },
   { href: '/customers', label: 'Clients', icon: UserRound },

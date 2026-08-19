@@ -168,11 +168,18 @@ export function useAuth() {
 
 'use client';
 
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { Session } from './lib/auth.types';
 import { EMPTY_SESSION } from './lib/session';
 
-const AuthContext = createContext<Session>(EMPTY_SESSION);
+type AuthContextValue = Session & {
+  switchTenant: (tenantId: string) => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue>({
+  ...EMPTY_SESSION,
+  switchTenant: async () => undefined,
+});
 
 export function AuthProvider({
     session,
@@ -181,8 +188,34 @@ export function AuthProvider({
   session: Session;
     children: React.ReactNode;
 }) {
+    const [currentSession, setCurrentSession] = useState<Session>(session);
+
+    async function switchTenant(tenantId: string) {
+      const response = await fetch('http://localhost:4000/auth/switch-tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ tenantId }),
+      });
+
+      if (!response.ok) {
+        let message = 'Impossible de changer d’entreprise.';
+        try {
+          const body = await response.json() as { message?: string | string[] };
+          if (Array.isArray(body.message)) message = body.message.join(', ');
+          else if (body.message) message = body.message;
+        } catch {
+          // Keep the generic message when the API response is not JSON.
+        }
+        throw new Error(`${message} (HTTP ${response.status})`);
+      }
+
+      const nextSession = await response.json() as Session;
+      setCurrentSession(nextSession);
+    }
+
     return (
-        <AuthContext.Provider value={session}>
+        <AuthContext.Provider value={{ ...currentSession, switchTenant }}>
             {children}
         </AuthContext.Provider>
     );

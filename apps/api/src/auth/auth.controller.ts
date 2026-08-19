@@ -4,7 +4,10 @@ import { AuthService } from './auth.service';
 import type { SessionData } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from './auth.constants';
+import { requireUserContext, type AuthenticatedRequest } from '../common/types/auth-request';
 
 @Controller('auth')
 export class AuthController {
@@ -110,6 +113,38 @@ export class AuthController {
       let message = 'Invalid token';
       if (err instanceof Error) message = err.message;
       throw new HttpException({ message }, HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+  @Post('switch-tenant')
+  async switchTenant(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { tenantId?: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<SessionData> {
+    try {
+      const context = requireUserContext(req);
+      if (!body.tenantId) throw new Error('Missing tenant id');
+      const result = await this.authService.switchTenant(context.user.id, body.tenantId);
+      this.setAuthCookies(res, result.tokens.accessToken, result.tokens.refreshToken, result.tokens.accessTokenMaxAge, result.tokens.refreshTokenMaxAge);
+      return result.session;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to switch tenant';
+      throw new HttpException({ message }, HttpStatus.FORBIDDEN);
+    }
+  }
+
+  @Post('request-password-reset')
+  async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    try {
+      return await this.authService.resetPassword(dto.token, dto.password);
+    } catch {
+      throw new HttpException({ message: 'Lien invalide ou expiré.' }, HttpStatus.BAD_REQUEST);
     }
   }
 

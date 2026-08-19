@@ -1,4 +1,4 @@
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -9,6 +9,7 @@ import { CustomerModule } from './customer/customer.module';
 import { WorkOrderModule } from './workorder/workorder.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
+import { AuthenticationMiddleware } from './common/middleware/authentication.middleware';
 import { CalendarEventModule } from './calendarevent/calendarEvent.module';
 import { AddressModule } from './address/address.module';
 import { QuoteModule } from './quote/quote.module';
@@ -16,6 +17,8 @@ import { TenantModule } from './tenant/tenant.module';
 import { CatalogItemModule } from './catalogitem/catalogitem.module';
 import { ProjectModule } from './project/project.module';
 import { WorkLogModule } from './worklog/worklog.module';
+import { MembershipModule } from './membership/membership.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -34,6 +37,8 @@ import { WorkLogModule } from './worklog/worklog.module';
     CatalogItemModule,
     ProjectModule,
     WorkLogModule,
+    MembershipModule,
+    NotificationModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],
@@ -41,7 +46,42 @@ import { WorkLogModule } from './worklog/worklog.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
+      .apply(AuthenticationMiddleware)
+      .forRoutes(
+        { path: 'auth/switch-tenant', method: RequestMethod.POST },
+        { path: 'memberships/me', method: RequestMethod.GET },
+        { path: 'tenants', method: RequestMethod.POST },
+        { path: 'tenants/current', method: RequestMethod.ALL },
+        { path: 'tenants/current/quote-defaults', method: RequestMethod.ALL },
+        { path: 'notifications', method: RequestMethod.GET },
+        { path: 'notifications/recipients', method: RequestMethod.GET },
+        { path: 'notifications', method: RequestMethod.POST },
+        { path: 'notifications/:id/read', method: RequestMethod.PUT },
+        'customers',
+        'workorders',
+        'invoices',
+        'quotes',
+        'calendarevents',
+        'addresses',
+        'catalogitems',
+        'projects',
+        'worklogs',
+      )
       .apply(TenantMiddleware)
-      .forRoutes('customers', 'workorders', 'invoices', 'quotes', 'calendarevents', 'addresses', 'tenants', 'catalogitems', 'projects', 'worklogs');
+      .forRoutes(
+        { path: 'tenants/current', method: RequestMethod.ALL },
+        { path: 'tenants/current/quote-defaults', method: RequestMethod.ALL },
+        { path: 'notifications/recipients', method: RequestMethod.GET },
+        { path: 'notifications', method: RequestMethod.POST },
+        'customers',
+        'workorders',
+        'invoices',
+        'quotes',
+        'calendarevents',
+        'addresses',
+        'catalogitems',
+        'projects',
+        'worklogs',
+      );
   }
 }

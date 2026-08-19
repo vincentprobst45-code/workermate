@@ -8,6 +8,7 @@ import AddressForm, {
   type AddAddressFormData,
   createEmptyAddress,
 } from '../components/AddressForm';
+import AddTenantForm from '../components/AddTenantForm';
 
 interface TenantAddress {
   id: string;
@@ -112,6 +113,7 @@ export default function TenantPage() {
   const [form, setForm] = useState<TenantFormData>(createEmptyForm());
   const [addressMode, setAddressMode] = useState<AddressMode>('existing');
   const [newAddress, setNewAddress] = useState<AddAddressFormData>(createEmptyAddress());
+  const [showCreateTenantForm, setShowCreateTenantForm] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +200,28 @@ export default function TenantPage() {
             Configure les informations de ton entreprise utilisees pour les documents de facturation.
           </p>
         </header>
+
+        <div className="mb-6 flex justify-end">
+          <button
+            type="button"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            onClick={() => setShowCreateTenantForm((current) => !current)}
+          >
+            {showCreateTenantForm ? 'Fermer' : 'Créer une entreprise'}
+          </button>
+        </div>
+
+        {showCreateTenantForm && (
+          <div className="mb-6">
+            <AddTenantForm
+              onCancel={() => setShowCreateTenantForm(false)}
+              onCreated={() => {
+                setShowCreateTenantForm(false);
+                window.location.reload();
+              }}
+            />
+          </div>
+        )}
 
         {loading ? (
           <p>Chargement...</p>

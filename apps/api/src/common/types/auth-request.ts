@@ -32,6 +32,18 @@ export interface TenantScopedRequest extends AuthenticatedRequest {
   tenant: Tenant;
 }
 
+export interface UserScopedRequest extends AuthenticatedRequest {
+  user: User;
+}
+
+export function requireUserContext(req: AuthenticatedRequest): UserScopedRequest {
+  if (!req.user) {
+    throw new UnauthorizedException('Missing authentication context on request');
+  }
+
+  return req as UserScopedRequest;
+}
+
 export function requireTenantContext(req: AuthenticatedRequest): TenantScopedRequest {
   if (!req.user || !req.membership || !req.tenant) {
     throw new UnauthorizedException('Missing authentication or tenant context on request');

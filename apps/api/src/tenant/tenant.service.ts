@@ -3,10 +3,61 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { UpdateTenantDto } from './update-tenant.dto';
 import { CreateAddressDto } from '../address/create-address.dto';
+import { CreateTenantDto } from './create-tenant.dto';
 
 @Injectable()
 export class TenantService {
   constructor(private prisma: PrismaService) {}
+
+  async create(creatorId: string, dto: CreateTenantDto) {
+    const currentYear = new Date().getFullYear();
+    const tenant = await this.prisma.$transaction(async (tx) => {
+      const createdTenant = await tx.tenant.create({
+        data: {
+          name: dto.name.trim(),
+          email: this.normalizeOptionalString(dto.email),
+          phoneNumber: this.normalizeOptionalString(dto.phoneNumber),
+          siretNumber: this.normalizeOptionalString(dto.siretNumber),
+          vatNumber: this.normalizeOptionalString(dto.vatNumber),
+          iban: this.normalizeOptionalString(dto.iban),
+          bic: this.normalizeOptionalString(dto.bic),
+          logoFileId: this.normalizeOptionalString(dto.logoFileId),
+          defaultCurrency: dto.defaultCurrency?.trim() || 'EUR',
+          defaultPaymentTerms: this.normalizeOptionalString(dto.defaultPaymentTerms),
+          defaultLegalMentions: this.normalizeOptionalString(dto.defaultLegalMentions),
+          defaultInvoiceNotes: this.normalizeOptionalString(dto.defaultInvoiceNotes),
+          invoiceNumberYear: currentYear,
+          quoteNumberYear: currentYear,
+        },
+      });
+
+      if (dto.address) {
+        const address = await tx.address.create({
+          data: {
+            street1: dto.address.street1.trim(),
+            street2: dto.address.street2?.trim() || undefined,
+            postalCode: dto.address.postalCode.trim(),
+            city: dto.address.city.trim(),
+            countryCode: dto.address.countryCode?.trim() || 'FR',
+            tenant: { connect: { id: createdTenant.id } },
+          },
+        });
+
+        await tx.tenant.update({
+          where: { id: createdTenant.id },
+          data: { addressId: address.id },
+        });
+      }
+
+      await tx.membership.create({
+        data: { userId: creatorId, tenantId: createdTenant.id, role: 'OWNER' },
+      });
+
+      return createdTenant;
+    });
+
+    return this.findCurrent(tenant.id);
+  }
 
   private hasAddress(address?: CreateAddressDto): boolean {
     if (!address) {
