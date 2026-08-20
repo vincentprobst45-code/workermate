@@ -9,6 +9,7 @@ import AddressForm, {
   createEmptyAddress,
 } from '../components/AddressForm';
 import AddTenantForm from '../components/AddTenantForm';
+import EmployeesList from '../components/EmployeesList';
 
 interface TenantAddress {
   id: string;
@@ -406,6 +407,10 @@ export default function TenantPage() {
             </button>
           </form>
         )}
+
+        <div className="mt-6">
+          <EmployeesList />
+        </div>
       </main>
     </ProtectedRoute>
   );

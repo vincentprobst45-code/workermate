@@ -70,6 +70,8 @@ export function useApiClient() {
       request(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) }),
     put: (endpoint: string, body?: unknown, options?: FetchOptions) =>
       request(endpoint, { ...options, method: 'PUT', body: JSON.stringify(body) }),
+    patch: (endpoint: string, body?: unknown, options?: FetchOptions) =>
+      request(endpoint, { ...options, method: 'PATCH', body: JSON.stringify(body) }),
     delete: (endpoint: string, options?: FetchOptions) =>
       request(endpoint, { ...options, method: 'DELETE' }),
   }), [request]);

@@ -1,6 +1,6 @@
 'use client';
 
-import type { AuthUser, Session, TenantMembership } from '../lib/auth.types';
+import type { AuthUser, TenantMembership } from '../lib/auth.types';
 import AddMembershipInvitationForm from './AddMembershipInvitationForm';
 
 type UserDetailsProps = {
