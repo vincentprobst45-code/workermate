@@ -57,6 +57,9 @@ model Tenant {
   notifications Notification[]
   membershipRequests MembershipRequest[]
   membershipInvitations MembershipInvitation[]
+  payments Payment[]
+  companyExpenses CompanyExpense[]
+  bankTransactions BankTransaction[]
 }
 
 model User {
@@ -185,6 +188,7 @@ model Customer {
   calendarevents CalendarEvent[]
   invoices Invoice[]
   projects ProjectCustomer[]
+  payments Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
@@ -442,6 +446,14 @@ model Invoice {
   updatedAt DateTime @updatedAt
 
   items InvoiceItem[]
+  payments Payment[]
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
 }
 
 model InvoiceItem {
@@ -837,6 +849,105 @@ enum MembershipInvitationStatus {
   CANCELLED
 }
 
+model Payment {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  invoiceId String
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  customerId String?
+  customer Customer? @relation(fields: [customerId], references: [id])
+  
+  bankTransactionId String? 
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId],references: [id],onDelete: SetNull)
+
+  amount Decimal @db.Decimal(12, 2)
+  paidAt DateTime
+
+  method PaymentMethod?
+  reference String?
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId, paidAt])
+  @@index([tenantId, paidAt])
+  @@index([customerId, paidAt])
+}
+
+model CompanyExpense {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  label String
+  category CompanyExpenseCategory
+
+  amount Decimal @db.Decimal(12,2)
+
+  vatRate Decimal? @db.Decimal(5,2)
+
+  dueDate DateTime
+
+  paidAt DateTime?
+
+  recurring Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, dueDate])
+}
+enum CompanyExpenseCategory{
+  PURCHASE
+  SOCIAL_COST
+  RENT
+  INSURANCE
+  SUBSCRIPTION
+  VAT_DUE
+  TAXES
+  LOAN_REPAYMENT
+}
+model EmployeeCost {
+  id String @id @default(cuid())
+
+  tenantId String
+
+  userId String?
+
+  label String
+
+  monthlyCost Decimal @db.Decimal(12,2)
+
+  startDate DateTime
+  endDate DateTime?
+}
+
+model BankTransaction {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  amount Decimal @db.Decimal(12, 2)
+  transactionDate DateTime
+
+  label String?
+  reference String?
+
+  // identifiant fourni par la banque / agrégateur
+  externalId String?
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, transactionDate])
+}
+
 enum TenantRole {
   OWNER
   ADMIN
@@ -880,13 +991,6 @@ enum PaymentMethod {
   CASH
   CHECK
   OTHER
-}
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  CANCELLED
 }
 
 enum InvoicePdpStatus {
