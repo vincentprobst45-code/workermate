@@ -310,7 +310,7 @@ model WorkOrderItem {
   workOrderId String
   workOrder WorkOrder @relation(fields:[workOrderId], references:[id], onDelete:Cascade)
 
-  type WorkOrderItemType
+  type LineItemType
 
   position Int
 
@@ -366,7 +366,7 @@ model DocumentItem {
 
   position Int
 
-  type WorkOrderItemType
+  type LineItemType
 
   title String
 
@@ -1224,7 +1224,7 @@ model InvoiceItem {
   //
   // Exemples : MATERIAL, LABOR, EQUIPMENT, SERVICE...
   // Ce champ ne doit pas être confondu avec une catégorie normalisée FE.
-  type WorkOrderItemType
+  type LineItemType
 
 
   // ==========================================================================
@@ -1566,105 +1566,382 @@ model InvoiceVatBreakdown {
 model Quote {
   id String @id @default(cuid())
 
+  // ==========================================================================
+  // RELATIONS WORKERMATE
+  // ==========================================================================
+
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Restrict)
 
   customerId String
-  customer Customer @relation(fields: [customerId], references: [id])
+  customer Customer @relation(fields: [customerId],references: [id],onDelete: Restrict)
 
   workOrderId String?
-  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
 
   projectId String?
-  project Project? @relation(fields: [projectId], references: [id])
+  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // IDENTIFICATION DU DEVIS
+  // ==========================================================================
+
+  // Numéro métier du devis.
+  // Contrairement aux factures, pas besoin d'une séquence fiscale
+  // chronologique continue, mais le numéro doit être unique dans le tenant.
+  number String
 
   title String
 
-  number String @unique
+  // Nature / périmètre détaillé des travaux proposés.
+  description String?
 
   issueDate DateTime
   validUntil DateTime?
 
+  status QuoteStatus @default(DRAFT)
+
+  // Historique métier utile notamment pour devis accepté par acompte.
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+
+
+  // ==========================================================================
+  // RÉFÉRENCES MÉTIER — SNAPSHOTS
+  // ==========================================================================
+
+  projectReference String?
+  projectTitle String?
+
   workOrderReference String?
   workOrderTitle String?
 
-  // Coordonnées de l'entreprise (snapshot)
-  tenantName String
+
+  // ==========================================================================
+  // SNAPSHOT ENTREPRISE
+  // ==========================================================================
+
+  tenantLegalName String
+  tenantTradingName String?
+
+  tenantLegalForm String?
+  tenantShareCapital Decimal? @db.Decimal(19, 2)
+  tenantRegistrationMention String?
+
+  tenantSirenNumber String
+  tenantSiretNumber String?
+  tenantVatNumber String?
+
   tenantStreet1 String
   tenantStreet2 String?
   tenantPostalCode String
   tenantCity String
-  tenantSiretNumber String
-  tenantVatNumber String
-  tenantEmail String
-  tenantPhoneNumber String
+  tenantCountryCode String @default("FR")
+
+  tenantEmail String?
+  tenantPhoneNumber String?
+
+  // Peut être utile notamment lorsqu'un acompte doit être versé.
   tenantIban String?
   tenantBic String?
 
-  // Coordonnées du client (snapshot)
-  customerFirstName String
-  customerLastName String
+
+  // ==========================================================================
+  // ASSURANCE PROFESSIONNELLE — SNAPSHOT
+  // ==========================================================================
+
+  // À renseigner uniquement pour les activités concernées.
+  tenantInsurancePolicyNumber String?
+  tenantInsurerName String?
+  tenantInsurerAddress String?
+  tenantInsuranceGeographicCoverage String?
+
+
+  // ==========================================================================
+  // SNAPSHOT CLIENT
+  // ==========================================================================
+
+  // Nom exact devant apparaître sur le document.
+  // Particulier : "Jean Dupont"
+  // Société     : "Dupont Électricité SARL"
+  customerName String
+
+  customerFirstName String?
+  customerLastName String?
+  customerCompany String?
+
+  customerSirenNumber String?
+  customerSiretNumber String?
+  customerVatNumber String?
+
   customerStreet1 String
   customerStreet2 String?
   customerPostalCode String
   customerCity String
+  customerCountryCode String @default("FR")
+
   customerEmail String?
   customerPhoneNumber String?
-  customerVatNumber String?
 
-  // Adresse du chantier
+
+  // ==========================================================================
+  // LIEU / PÉRIODE DES TRAVAUX — SNAPSHOT
+  // ==========================================================================
+
   workOrderStartDate DateTime?
   workOrderEndDate DateTime?
 
-  workOrderaddressId   String?
-  workOrderAddress     Address?  @relation(fields: [workOrderaddressId], references: [id])
+  // On peut conserver la relation pour naviguer dans Workermate...
+  workOrderAddressId String?
+  workOrderAddress Address? @relation(fields: [workOrderAddressId],references: [id],onDelete: SetNull)
 
-  status QuoteStatus @default(DRAFT)
+  // ...mais le devis émis doit conserver son propre snapshot.
+  workOrderStreet1 String?
+  workOrderStreet2 String?
+  workOrderPostalCode String?
+  workOrderCity String?
+  workOrderCountryCode String?
+
+
+  // ==========================================================================
+  // DEVIS PAYANT / GRATUIT
+  // ==========================================================================
+
+  // 0 = devis gratuit.
+  // Montant facturé pour l'établissement du devis si celui-ci est payant.
+  quotePreparationFee Decimal @default(0) @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // MONTANTS
+  // ==========================================================================
 
   currency String @default("EUR")
 
-  subtotal Decimal @db.Decimal(12,2)
-  vatAmount Decimal @db.Decimal(12,2)
-  total Decimal @db.Decimal(12,2)
+  // Somme des montants nets HT des QuoteItem.
+  lineNetTotal Decimal @db.Decimal(19, 2)
+
+  // Remises au niveau global du devis.
+  allowanceTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // Frais / charges au niveau global du devis.
+  chargeTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // lineNetTotal - allowanceTotal + chargeTotal
+  taxExclusiveAmount Decimal @db.Decimal(19, 2)
+
+  vatAmount Decimal @db.Decimal(19, 2)
+
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // ACOMPTE DEMANDÉ
+  // ==========================================================================
+
+  // Exemple : 30.00 signifie 30 %.
+  // Nullable pour permettre un acompte fixé directement en euros.
+  depositRate Decimal? @db.Decimal(7, 4)
+
+  // Snapshot du montant effectivement demandé.
+  //
+  // Exemple :
+  // depositRate   = 30
+  // depositAmount = 3 600 €
+  //
+  // Important : ce n'est PAS un paiement reçu.
+  depositAmount Decimal? @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // CONDITIONS / MENTIONS
+  // ==========================================================================
 
   paymentTerms String?
+
   legalMentions String?
+
+  // Conditions d'acceptation, limites de prestation, exclusions, etc.
+  termsAndConditions String?
+
   notes String?
 
-  depositAmount Decimal?
+  customerKeepsReplacedParts Boolean?
+
+
+  // ==========================================================================
+  // SOUS-MODÈLES
+  // ==========================================================================
+
+  items QuoteItem[]
+
+  // Remises / charges globales.
+  adjustments QuoteAdjustment[]
+
+  // Ventilation de TVA figée sur le devis.
+  vatBreakdowns QuoteVatBreakdown[]
+
+  invoices Invoice[]
+
+
+  // ==========================================================================
+  // DOCUMENT
+  // ==========================================================================
 
   pdfFileId String?
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items QuoteItem[]
-  invoices Invoice[]
+  @@unique([tenantId, number])
+
+  @@index([tenantId, issueDate])
+  @@index([tenantId, status])
+  @@index([customerId, issueDate])
+  @@index([projectId])
+  @@index([workOrderId])
 }
 
 model QuoteItem {
   id String @id @default(cuid())
 
   quoteId String
-  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
 
-  type WorkOrderItemType
+
+  // ==========================================================================
+  // IDENTIFICATION / AFFICHAGE
+  // ==========================================================================
 
   position Int
 
+  // Enum commun à QuoteItem / WorkOrderItem / InvoiceItem.
+  type LineItemType
+
+  // Snapshot éventuel de la référence CatalogItem.
+  sellerItemIdentifier String?
+
   title String
+  description String?
 
-  description String
 
-  quantity Decimal @db.Decimal(10,2)
+  // ==========================================================================
+  // QUANTITÉ / UNITÉ
+  // ==========================================================================
 
-  unit String?
+  quantity Decimal @db.Decimal(19, 6)
 
-  unitPrice Decimal @db.Decimal(12,2)
+  // Code normalisé qui pourra être directement recopié dans InvoiceItem
+  // puis devenir BT-130.
+  //
+  // Exemples : C62, HUR, KGM, MTR...
+  unitCode String
 
-  vatRate Decimal @db.Decimal(5,2)
+  // Affichage humain : "unité", "heure", "kg", "m"...
+  unitLabel String?
 
-  total Decimal @db.Decimal(12,2)
+
+  // ==========================================================================
+  // PRIX
+  // ==========================================================================
+
+  // Prix net unitaire HT.
+  unitPrice Decimal @db.Decimal(19, 6)
+
+  // Permet par exemple un prix exprimé pour 100 unités.
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  baseQuantityUnitCode String?
+
+  // Montant net HT de la ligne après remises/charges de ligne.
+  subtotal Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // TVA
+  // ==========================================================================
+
+  // Même enum que InvoiceItem.
+  vatCategory VatCategory
+
+  vatRate Decimal? @db.Decimal(5, 2)
+
+
+  // ==========================================================================
+  // REMISES / CHARGES DE LIGNE
+  // ==========================================================================
+
+  adjustments QuoteItemAdjustment[]
+
+  @@unique([quoteId, position])
+  @@index([quoteId])
+}
+
+model QuoteItemAdjustment {
+  id String @id @default(cuid())
+
+  quoteItemId String
+  quoteItem QuoteItem @relation(fields: [quoteItemId],references: [id],onDelete: Cascade)
+
+  position Int @default(0)
+
+  type InvoiceAdjustmentType
+
+  amount Decimal @db.Decimal(19, 2)
+  baseAmount Decimal? @db.Decimal(19, 2)
+  percentage Decimal? @db.Decimal(9, 6)
+
+  reason String?
+  reasonCode String?
+
+  @@unique([quoteItemId, position])
+  @@index([quoteItemId])
+}
+
+model QuoteAdjustment {
+  id String @id @default(cuid())
+
+  quoteId String
+  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
+
+  position Int @default(0)
+
+  type InvoiceAdjustmentType
+
+  amount Decimal @db.Decimal(19, 2)
+  baseAmount Decimal? @db.Decimal(19, 2)
+  percentage Decimal? @db.Decimal(9, 6)
+
+  vatCategory VatCategory
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  reason String?
+  reasonCode String?
+
+  @@unique([quoteId, position])
+  @@index([quoteId])
+}
+
+model QuoteVatBreakdown {
+  id String @id @default(cuid())
+
+  quoteId String
+  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
+
+  taxableAmount Decimal @db.Decimal(19, 2)
+  vatAmount Decimal @db.Decimal(19, 2)
+
+  vatCategory VatCategory
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  exemptionReason String?
+  exemptionReasonCode String?
 
   @@index([quoteId])
 }
@@ -1675,7 +1952,7 @@ model CatalogItem {
   tenantId String
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  type WorkOrderItemType
+  type LineItemType
 
   title String
 
@@ -2043,7 +2320,7 @@ enum WorkOrderStatus {
   CANCELLED
 }
 
-enum WorkOrderItemType {
+enum LineItemType {
   LABOR
   MATERIAL
   EQUIPMENT
