@@ -103,6 +103,7 @@ model User {
   respondedMembershipRequests MembershipRequest[] @relation("MembershipRequestResponder")
   sentMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationSender")
   receivedMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationRecipient")
+  createdWorkLogs WorkLog[] @relation("WorkLogCreator")
 }
 
 model PasswordResetToken {
@@ -248,6 +249,8 @@ model CalendarEvent {
   color     String?
 
   notes     String?
+
+  workLogs WorkLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
@@ -455,6 +458,8 @@ model WorkOrderItem {
   // CONTRAINTES
   // ==========================================================================
 
+  workLogItems WorkLogItem[]
+  
   @@unique([workOrderId, position])
   @@index([workOrderId])
 }
@@ -2266,11 +2271,19 @@ model WorkLog {
   tenantId String
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   workOrderId String
-  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+
+  // Qui a créé le compte rendu.
+  createdById String?
+  createdBy User? @relation("WorkLogCreator",fields: [createdById],references: [id],onDelete: SetNull)
+
+  // Possibilitée de rattacher à un événement de planning.
+  calendarEventId String?
+  calendarEvent CalendarEvent? @relation(fields: [calendarEventId],references: [id],onDelete: SetNull)
 
   date DateTime
 
@@ -2297,24 +2310,75 @@ model WorkLogItem {
   id String @id @default(cuid())
 
   workLogId String
-  workLog WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
+  workLog WorkLog @relation(fields: [workLogId],references: [id],onDelete: Cascade)
+
+  // Ligne prévue à l'origine de cette consommation, si elle existe.
+  //
+  // Très utile pour comparer prévu / réel.
+  workOrderItemId String?
+  workOrderItem WorkOrderItem? @relation(fields: [workOrderItemId],references: [id],onDelete: SetNull)
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  type LineItemType
+
+  position Int
+
+  // Snapshot de CatalogItem.reference / WorkOrderItem.reference.
+  reference String?
 
   title String
   description String?
 
-  quantity Decimal @db.Decimal(10,2)
-  unit String?
+  // ==========================================================================
+  // QUANTITÉ RÉELLEMENT CONSOMMÉE / UTILISÉE
+  // ==========================================================================
 
-  // coût réel pour l'artisan
-  unitCost Decimal @db.Decimal(12,2)
+  quantity Decimal @db.Decimal(19, 6)
 
-  totalCost Decimal @db.Decimal(12,2)
+  // Code normalisé commun avec le catalogue et le WorkOrder.
+  // C62, HUR, KGM, MTR...
+  unitCode String
 
-  purchaseVatRate Decimal? @db.Decimal(5,2)
+  // Libellé utilisateur : unité, heure, kg, m...
+  unitLabel String?
 
-  type WorkLogItemType
+  // Permet de représenter un coût exprimé par 100 unités, etc.
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  baseQuantityUnitCode String?
+
+  // ==========================================================================
+  // COÛT RÉEL / CONSTATÉ
+  // ==========================================================================
+
+  // Coût unitaire HT constaté au moment de l'utilisation.
+  //
+  // Il peut être différent du WorkOrderItem.unitCost prévu.
+  unitCost Decimal @db.Decimal(19, 6)
+
+  // Coût HT total réellement imputé au WorkLog.
+  //
+  // Normalement calculé par le backend :
+  // quantity / baseQuantity * unitCost
+  //
+  // On le persiste comme snapshot du coût constaté.
+  totalCost Decimal @db.Decimal(19, 2)
+
+  // TVA d'achat indicative.
+  //
+  // Ne constitue pas une donnée comptable définitive :
+  // la future facture fournisseur sera la source de vérité.
+  purchaseVatRate Decimal? @db.Decimal(5, 2)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workLogId, position])
+  @@index([workLogId])
+  @@index([workOrderItemId])
 }
 
 model Notification {
@@ -2617,13 +2681,4 @@ enum ProjectStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
-}
-
-enum WorkLogItemType {
-  LABOR
-  MATERIAL
-  EQUIPMENT
-  TRAVEL
-  SERVICE
-  OTHER
 }
