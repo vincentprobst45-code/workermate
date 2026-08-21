@@ -27,6 +27,8 @@ model Tenant {
   nextInvoiceNumber Int @default(1)
   invoiceNumberYear   Int
 
+  vatAccountingMode VatAccountingMode?
+
   quoteNumberPrefix String @default("DEV")
   nextQuoteNumber Int @default(1)
   quoteNumberYear   Int
@@ -41,6 +43,16 @@ model Tenant {
   defaultInvoiceNotes String?
 
   defaultVatRate Decimal?
+
+  //ASSURANCE
+  insuranceName String?
+  insurancePolicyNumber String?
+
+  insurerName String?
+  insurerAddress String?
+
+  insuranceGeographicCoverage String?
+
 
   createdAt DateTime  @default(now())
 
@@ -60,6 +72,11 @@ model Tenant {
   payments Payment[]
   companyExpenses CompanyExpense[]
   bankTransactions BankTransaction[]
+}
+
+enum VatAccountingMode {
+  CASH
+  DEBITS
 }
 
 model User {
@@ -364,123 +381,1186 @@ model DocumentItem {
   vatRate Decimal @db.Decimal(4,2)
 }
 
-model Invoice {
-  id String @id @default(cuid())
-
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
-  customerId String
-  customer Customer @relation(fields: [customerId], references: [id])
-
-  workOrderId String?
-  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
-
-  projectId String?
-  project Project? @relation(fields: [projectId], references: [id])
-
-  number String @unique
-  
-  issueDate DateTime
-  dueDate DateTime?
-  workOrderReference String
-  workOrderTitle String
-
-  tenantName String
-  tenantStreet1 String
-  tenantStreet2 String?
-  tenantPostalCode String
-  tenantCity String
-  tenantSiretNumber String
-  tenantVatNumber String
-  tenantEmail String
-  tenantPhoneNumber String
-  
-  tenantIban String?
-  tenantBic String?
-
-  customerFirstName String
-  customerLastName String
-  customerStreet1 String
-  customerStreet2 String?
-  customerPostalCode String
-  customerCity String
-  customerEmail String?
-  customerPhoneNumber String?
-  customerVatNumber String?
-
-  workOrderStartDate DateTime?
-  workOrderEndDate DateTime?
-  workOrderAddress String?
-  workOrderPostalCode String?
-  workOrderCity String?
-
-  status InvoiceStatus @default(DRAFT)
-
-  currency String @default("EUR")
-
-  subtotal Decimal @db.Decimal(12,2)
-  vatAmount Decimal @db.Decimal(12,2)
-  total Decimal @db.Decimal(12,2)
-
-  paymentTerms String?
-  legalMentions String?
-  notes String?
-
-  depositAmount Decimal?
-  discountAmount Decimal?
-  
-  paidAt DateTime?
-  paymentMethod PaymentMethod?
-
-  pdfFileId String?
-
-  pdpStatus InvoicePdpStatus @default(NOT_SENT)
-  pdpMessageId String?
-
-  //Devis
-  quoteId String?
-  quoteNumber String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  items InvoiceItem[]
-  payments Payment[]
+enum InvoiceKind {
+  STANDARD
+  DEPOSIT
+  PROGRESS
+  BALANCE
+  CORRECTIVE
+  CREDIT_NOTE
 }
 
 enum InvoiceStatus {
   DRAFT
-  SENT
-  PAID
+  ISSUED
+  REPLACED
   CANCELLED
 }
 
-model InvoiceItem {
+enum InvoicePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+model InvoiceAdjustment {
+  // WM — Identifiant technique.
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
 
-  type WorkOrderItemType
+  // WM — Ordre d'affichage.
+  position Int @default(0)
 
-  position Int
+  // WM :
+  //
+  // ALLOWANCE -> remise globale / BG-20
+  // CHARGE    -> charge globale / BG-21
+  type InvoiceAdjustmentType
 
-  title String
 
-  description String
+  // ==========================================================================
+  // MONTANT
+  // ==========================================================================
 
-  quantity Decimal @db.Decimal(10,2)
+  // FE :
+  //
+  // ALLOWANCE -> BT-92
+  // CHARGE    -> BT-99
+  amount Decimal @db.Decimal(19, 2)
 
-  unit String?
+  // FE :
+  //
+  // ALLOWANCE -> BT-93
+  // CHARGE    -> BT-100
+  baseAmount Decimal? @db.Decimal(19, 2)
 
-  unitPrice Decimal @db.Decimal(12,2)
+  // FE :
+  //
+  // ALLOWANCE -> BT-94
+  // CHARGE    -> BT-101
+  percentage Decimal? @db.Decimal(9, 6)
 
-  vatRate Decimal @db.Decimal(5,2)
 
-  total Decimal @db.Decimal(12,2)
+  // ==========================================================================
+  // TVA
+  // ==========================================================================
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-95
+  // CHARGE    -> BT-102
+  //
+  // Une remise/charge documentaire doit être rattachée
+  // à une catégorie TVA.
+  vatCategory VatCategory
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-96
+  // CHARGE    -> BT-103
+  vatRate Decimal? @db.Decimal(5, 2)
+
+
+  // ==========================================================================
+  // MOTIF
+  // ==========================================================================
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-97
+  // CHARGE    -> BT-104
+  reason String?
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-98
+  // CHARGE    -> BT-105
+  reasonCode String?
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
+}
+
+model Invoice {
+  // ==========================================================================
+  // IDENTITÉ WORKERMATE
+  // ==========================================================================
+
+  // WM — Identifiant technique interne Workermate.
+  // Aucune correspondance directe avec la facture électronique.
+  id String @id @default(cuid())
+
+  // WM — Entreprise propriétaire de la facture.
+  // Sert notamment à garantir le cloisonnement multi-tenant.
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Restrict)
+
+  // WM — Client Workermate auquel appartient la facture.
+  customerId String
+  customer Customer @relation(fields: [customerId],references: [id],onDelete: Restrict)
+
+  // WM — WorkOrder à l'origine de la facture, si applicable.
+  workOrderId String?
+  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
+
+  // WM — Projet auquel la facture appartient, si applicable.
+  projectId String?
+  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+
+  // WM — Devis à l'origine de la facture, si applicable.
+  quoteId String?
+  quote Quote? @relation(fields: [quoteId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // IDENTIFICATION DU DOCUMENT
+  // ==========================================================================
+
+  // FE BT-1 — Numéro de facture.
+  //
+  // Nullable tant que la facture est DRAFT :
+  // le vrai numéro est attribué au moment de l'émission afin de préserver
+  // une séquence chronologique et continue.
+  number String?
+
+  // WM → FE BT-3 — Nature métier du document.
+  //
+  // Mapping typique :
+  // STANDARD   -> 380
+  // DEPOSIT    -> 386
+  // PROGRESS   -> 380
+  // BALANCE    -> 380
+  // CORRECTIVE -> 384
+  // CREDIT_NOTE-> 381
+  //
+  // Le mapper électronique reste responsable du code BT-3 réel.
+  kind InvoiceKind @default(STANDARD)
+
+  // WM — État métier du document dans Workermate.
+  //
+  // DRAFT     : non émise
+  // ISSUED    : document officiellement émis
+  // REPLACED  : remplacée par une CORRECTIVE
+  // CANCELLED : annulée selon les règles métier autorisées
+  //
+  // Ne doit pas être confondu avec les statuts de cycle de vie électroniques.
+  status InvoiceStatus @default(DRAFT)
+
+  // FE BT-2 — Date d'émission de la facture.
+  //
+  // Nullable en DRAFT et obligatoire lors du passage à ISSUED.
+  issueDate DateTime?
+
+  // WM — Horodatage technique précis du passage à ISSUED.
+  // Différent de BT-2 qui représente la date portée sur le document.
+  issuedAt DateTime?
+
+  // FE BT-9 — Date d'échéance / date limite de paiement.
+  dueDate DateTime?
+
+
+  // ==========================================================================
+  // CADRE DE FACTURATION
+  // ==========================================================================
+
+  // WM → FE BT-23 — Catégorie générale de l'opération :
+  // GOODS / SERVICES / MIXED.
+  //
+  // Attention : BT-23 est plus riche que cette seule valeur.
+  // Le backend l'utilise avec kind et le contexte pour déterminer par exemple :
+  // B1 / S1 / M1, B4 / S4 / M4, S5, S6, etc.
+  operationCategory InvoiceOperationCategory
+
+  // FE BT-23 — Snapshot du code de cadre de facturation finalement déterminé
+  // au moment de l'émission.
+  //
+  // Exemples actuels : B1, S1, M1, B4, S4, M4, S5...
+  //
+  // Cela évite d'avoir à recalculer plusieurs années plus tard le code
+  // électronique qui avait été utilisé pour cette facture.
+  billingFrameworkCode String?
+
+  // WM → FE BT-8 — Régime d'exigibilité de TVA pertinent notamment
+  // pour distinguer TVA sur les débits / TVA sur les encaissements.
+  //
+  // Le mapper transforme l'enum métier en valeur normative.
+  vatAccountingMode VatAccountingMode?
+
+
+  // ==========================================================================
+  // DEVISES
+  // ==========================================================================
+
+  // FE BT-5 — Devise de la facture, code ISO 4217.
+  currency String @default("EUR")
+
+  // FE BT-6 — Devise de comptabilité.
+  //
+  // Notamment nécessaire lorsque la facture est dans une autre devise
+  // et que la TVA doit également être fournie en EUR.
+  accountingCurrency String?
+
+  // FE BT-111 — Montant de TVA dans la devise de comptabilité.
+  // Principalement utile lorsque currency != EUR.
+  vatAmountAccountingCurrency Decimal? @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // RÉFÉRENCES COMMERCIALES
+  // ==========================================================================
+
+  // FE BT-10 — Référence fournie par l'acheteur.
+  buyerReference String?
+
+  // FE BT-11 — Référence de projet.
+  projectReference String?
+
+  // WM — Snapshot lisible du titre du projet.
+  // Pas de BT direct.
+  projectTitle String?
+
+  // FE BT-12 — Référence de contrat lorsqu'elle existe.
+  contractReference String?
+
+  // FE BT-13 — Référence du bon de commande de l'acheteur.
+  purchaseOrderReference String?
+
+  // FE BT-14 — Référence de commande du vendeur.
+  salesOrderReference String?
+
+  // WM — Snapshot du devis Workermate.
+  // Ne doit pas être automatiquement assimilé à BT-13 ou BT-14 :
+  // le mapper choisira la sémantique appropriée selon le cas.
+  quoteNumber String?
+
+  // WM — Snapshot du WorkOrder.
+  workOrderReference String?
+
+  // WM — Snapshot du titre du WorkOrder.
+  workOrderTitle String?
+
+
+  // ==========================================================================
+  // FACTURE RECTIFICATIVE
+  // ==========================================================================
+
+  // WM — Relation métier "annule et remplace".
+  //
+  // Obligatoire lorsque kind = CORRECTIVE.
+  // Une CORRECTIVE doit viser exactement une facture précédente.
+  correctedInvoiceId String?
+
+  correctedInvoice Invoice? @relation("InvoiceCorrection",fields: [correctedInvoiceId],references: [id],onDelete: Restrict)
+
+  // WM — Permet de retrouver la ou les tentatives de correction de cette facture.
+  correctingInvoices Invoice[] @relation("InvoiceCorrection")
+
+  // FE BT-25 — Snapshot du numéro de la facture directement rectifiée.
+  //
+  // On le conserve même si correctedInvoice existe encore en base :
+  // le document émis reste autonome.
+  correctedInvoiceNumber String?
+
+  // FE BT-26 — Snapshot de la date de la facture directement rectifiée.
+  correctedInvoiceIssueDate DateTime?
+
+
+  // ==========================================================================
+  // FACTURES ANTÉRIEURES
+  // ==========================================================================
+
+  // FE BG "Référence à une facture antérieure", notamment BT-25 / BT-26
+  // selon le scénario d'export.
+  //
+  // Utilisé par exemple par une PROGRESS ou une BALANCE pour conserver
+  // les facturations précédentes nécessaires au récapitulatif.
+  //
+  // Pour une CORRECTIVE 384, la référence de correction réglementaire
+  // provient de correctedInvoice* ; references[] reste le contexte historique.
+  references InvoiceReference[] @relation("InvoiceReferenceSource")
+
+  // WM — Relation inverse :
+  // factures qui citent cette facture dans leur historique.
+  referencedBy InvoiceReference[] @relation("InvoiceReferenceTarget")
+
+
+  // ==========================================================================
+  // SNAPSHOT DU VENDEUR
+  // ==========================================================================
+
+  // FE BT-27 — Nom / raison sociale du vendeur.
+  tenantName String
+
+  // FE BT-28
+  tenantTradingName String?
+
+  // FE BT-30 — SIREN du vendeur.
+  // Donnée particulièrement importante dans la réforme française.
+  tenantSirenNumber String
+
+  // FE BT-29 avec schemeID 0009 — SIRET du vendeur.
+  tenantSiretNumber String?
+
+  // FE BT-31 — Numéro de TVA intracommunautaire du vendeur.
+  tenantVatNumber String?
+
+  // FE BT-33 / affichage légal
+  tenantLegalForm String?
+
+  // Mention PDF légale
+  tenantShareCapital Decimal? @db.Decimal(19, 2)
+
+  // Exemple : "RCS Orléans 123 456 789"
+  tenantRegistrationMention String?
+
+  //ASSURANCE
+  tenantInsuranceName String?
+  tenantInsurancePolicyNumber String?
+
+  tenantInsurerName String?
+  tenantInsurerAddress String?
+
+  tenantInsuranceGeographicCoverage String?
+
+  // FE BT-35 — Ligne 1 de l'adresse du vendeur.
+  tenantStreet1 String
+
+  // FE BT-36 — Ligne 2 de l'adresse du vendeur.
+  tenantStreet2 String?
+
+  // FE BT-37 — Ville du vendeur.
+  tenantCity String
+
+  // FE BT-38 — Code postal du vendeur.
+  tenantPostalCode String
+
+  // FE BT-40 — Code pays ISO du vendeur.
+  tenantCountryCode String
+
+  // FE BT-34 — Adresse électronique de routage du vendeur.
+  //
+  // ATTENTION : ce n'est pas nécessairement son email de contact.
+  tenantElectronicAddress String?
+
+  // FE BT-34-1 — Scheme de l'adresse électronique.
+  // Exemple : 0225 dans les scénarios français correspondants.
+  tenantElectronicAddressScheme String?
+
+  // FE BT-41 — Nom du contact vendeur.
+  tenantContactName String?
+
+  // FE BT-42 — Téléphone du contact vendeur.
+  tenantPhoneNumber String?
+
+  // FE BT-43 — Email du contact vendeur.
+  // À ne pas confondre avec tenantElectronicAddress.
+  tenantEmail String?
+
+
+  // ==========================================================================
+  // SNAPSHOT DE L'ACHETEUR
+  // ==========================================================================
+
+  // FE BT-44 — Nom / raison sociale exacte de l'acheteur portée sur la facture.
+  //
+  // Pour un particulier : par exemple "Jean Dupont".
+  // Pour une entreprise : par exemple "Dupont Électricité SARL".
+  customerName String
+
+  // FE BT-47 — SIREN de l'acheteur.
+  // Nullable car le client peut être un particulier ou un acteur étranger.
+  customerSirenNumber String?
+
+  // FE BT-46 avec schemeID 0009 — SIRET de l'acheteur si utilisé.
+  customerSiretNumber String?
+
+  // FE BT-48 — Numéro de TVA intracommunautaire de l'acheteur.
+  customerVatNumber String?
+
+  // FE BT-50 — Ligne 1 de l'adresse de l'acheteur.
+  customerStreet1 String
+
+  // FE BT-51 — Ligne 2 de l'adresse de l'acheteur.
+  customerStreet2 String?
+
+  // FE BT-52 — Ville de l'acheteur.
+  customerCity String
+
+  // FE BT-53 — Code postal de l'acheteur.
+  customerPostalCode String
+
+  // FE BT-55 — Code pays ISO de l'acheteur.
+  customerCountryCode String
+
+  // FE BT-49 — Adresse électronique de routage de l'acheteur.
+  //
+  // En e-invoicing français, ce n'est pas simplement customerEmail.
+  customerElectronicAddress String?
+
+  // FE BT-49-1 — Scheme de l'adresse électronique de l'acheteur.
+  customerElectronicAddressScheme String?
+
+  // FE BT-56 — Nom du contact acheteur.
+  customerContactName String?
+
+  // FE BT-57 — Téléphone du contact acheteur.
+  customerPhoneNumber String?
+
+  // FE BT-58 — Email du contact acheteur.
+  customerEmail String?
+
+
+  // ==========================================================================
+  // LIVRAISON / PRESTATION / PÉRIODE FACTURÉE
+  // ==========================================================================
+
+  // FE BT-72 — Date effective de livraison du bien ou date de fin
+  // d'exécution de la prestation.
+  //
+  // Elle ne remplace ni issueDate ni dueDate.
+  supplyDate DateTime?
+
+  // FE BT-73 — Début de la période de facturation/prestation.
+  billingPeriodStart DateTime?
+
+  // FE BT-74 — Fin de la période de facturation/prestation.
+  billingPeriodEnd DateTime?
+
+  // FE BT-70 — Nom du destinataire de la livraison, si pertinent.
+  deliveryName String?
+
+  // FE BT-71 — Identifiant du lieu de livraison, si pertinent.
+  deliveryLocationId String?
+
+  // FE BT-75 — Adresse de livraison ligne 1.
+  deliveryStreet1 String?
+
+  // FE BT-76 — Adresse de livraison ligne 2.
+  deliveryStreet2 String?
+
+  // FE BT-77 — Ville de livraison.
+  deliveryCity String?
+
+  // FE BT-78 — Code postal de livraison.
+  deliveryPostalCode String?
+
+  // FE BT-80 — Code pays de livraison.
+  deliveryCountryCode String?
+
+  // WM — Snapshot temporel du WorkOrder.
+  // Peut servir à préremplir les données ci-dessus mais ne les remplace pas.
+  workOrderStartDate DateTime?
+  workOrderEndDate DateTime?
+
+  // WM — Adresse métier du WorkOrder.
+  // Ne doit pas être automatiquement considérée comme l'adresse de livraison FE.
+  workOrderAddress String?
+  workOrderPostalCode String?
+  workOrderCity String?
+
+
+  // ==========================================================================
+  // TOTAUX DU DOCUMENT
+  // ==========================================================================
+
+  // FE BT-106 — Somme des montants nets HT de toutes les InvoiceItem.
+  lineNetTotal Decimal @db.Decimal(19, 2)
+
+  // FE BT-107 — Somme des remises au niveau du DOCUMENT.
+  //
+  // Calculée depuis adjustments[] de type ALLOWANCE au niveau Invoice.
+  allowanceTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // FE BT-108 — Somme des charges/frais au niveau du DOCUMENT.
+  //
+  // Calculée depuis adjustments[] de type CHARGE.
+  chargeTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // FE BT-109 — Montant total HT de la facture.
+  //
+  // lineNetTotal - allowanceTotal + chargeTotal
+  taxExclusiveAmount Decimal @db.Decimal(19, 2)
+
+  // FE BT-110 — Montant total de TVA du document.
+  // Doit être cohérent avec vatBreakdowns[].
+  vatAmount Decimal @db.Decimal(19, 2)
+
+  // FE BT-112 — Montant total TTC du document.
+  //
+  // Pour CREDIT_NOTE, on conserve également des montants documentaires positifs ;
+  // l'effet financier négatif est déterminé par kind.
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+  // FE BT-113 — Montant déjà payé AVANT l'établissement de cette facture.
+  //
+  // Important notamment pour une facture définitive après acompte.
+  //
+  // ATTENTION : ce champ n'est PAS le montant actuellement encaissé calculé
+  // depuis payments[].
+  prepaidAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // FE BT-114 — Montant d'arrondi éventuel.
+  roundingAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // FE BT-115 — Net à payer porté par le document lors de son émission.
+  //
+  // taxInclusiveAmount - prepaidAmount + roundingAmount
+  amountDue Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // ÉTAT ACTUEL DES RÈGLEMENTS — WORKERMATE
+  // ==========================================================================
+
+  // WM — Somme actuelle des Payment associés à cette facture.
+  //
+  // Valeur dénormalisée maintenue uniquement par le backend pour accélérer
+  // les listes, filtres et dashboards.
+  //
+  // Ne jamais mapper aveuglément ce champ sur BT-113 :
+  // BT-113 est figé à l'émission ; paidAmount continue d'évoluer ensuite.
+  paidAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // WM — État calculé depuis paidAmount et le montant à régler.
+  //
+  // UNPAID / PARTIALLY_PAID / PAID.
+  paymentStatus InvoicePaymentStatus @default(UNPAID)
+
+  // WM — Encaissements réellement affectés à cette facture.
+  payments Payment[]
+
+
+  // ==========================================================================
+  // INSTRUCTIONS DE PAIEMENT DU DOCUMENT
+  // ==========================================================================
+
+  // FE BT-20 — Conditions de paiement en texte libre.
+  // Exemple : "Paiement à 30 jours".
+  paymentTerms String?
+
+  // FE BT-81 — Code normalisé du moyen de paiement demandé.
+  // Exemple : virement, prélèvement, etc.
+  paymentMeansCode String?
+
+  // FE BT-82 — Description textuelle du moyen de paiement, si nécessaire.
+  paymentMeansText String?
+
+  // FE BT-83 — Référence de paiement à reprendre par le client.
+  paymentReference String?
+
+  // FE BT-84 — Identifiant du compte de paiement, typiquement l'IBAN.
+  paymentIban String?
+
+  // FE BT-85 — Nom du compte bancaire bénéficiaire.
+  paymentAccountName String?
+
+  // FE BT-86 — Identifiant du prestataire bancaire, typiquement BIC.
+  paymentBic String?
+
+
+  // ==========================================================================
+  // REMISES / CHARGES / TVA / NOTES
+  // ==========================================================================
+
+  // FE BG-20 / BG-21 — Remises et charges au niveau de toute la facture.
+  //
+  // InvoiceAdjustment porte notamment les données correspondant à
+  // BT-92..98 (remise) ou BT-99..105 (charge).
+  adjustments InvoiceAdjustment[]
+
+  // FE BG-23 — Ventilation de TVA.
+  //
+  // InvoiceVatBreakdown porte notamment :
+  // BT-116 base taxable
+  // BT-117 TVA
+  // BT-118 catégorie TVA
+  // BT-119 taux
+  // BT-120 motif d'exonération
+  // BT-121 code du motif d'exonération
+  vatBreakdowns InvoiceVatBreakdown[]
+
+  // FE BG-1 — Notes de facture structurées.
+  //
+  // InvoiceNote doit porter :
+  // BT-21 code sujet
+  // BT-22 texte
+  //
+  // Cela remplace avantageusement un unique "legalMentions String?"
+  // pour les besoins de la facturation électronique.
+  notes InvoiceNote[]
+
+  // WM — Notes strictement internes à Workermate.
+  // Ne doivent jamais apparaître sur le PDF ou dans la facture électronique.
+  internalNotes String?
+
+
+  // ==========================================================================
+  // LIGNES
+  // ==========================================================================
+
+  // FE BG-25 — Lignes de facture.
+  //
+  // InvoiceItem porte notamment BT-126, BT-129, BT-130, BT-131,
+  // BT-146..150, BT-151..154, etc.
+  items InvoiceItem[]
+
+
+  // ==========================================================================
+  // DOCUMENTS GÉNÉRÉS
+  // ==========================================================================
+
+  // WM — Fichier PDF lisible généré pour cette facture.
+  // Le futur Factur-X peut également utiliser ce PDF comme partie visuelle.
+  pdfFileId String?
+
+
+  // ==========================================================================
+  // FACTURATION ÉLECTRONIQUE / PLATEFORME AGRÉÉE
+  // ==========================================================================
+
+  // WM — État technique de transmission électronique.
+  //
+  // Ce n'est pas un BT de facture : les statuts appartiennent au cycle
+  // de vie électronique.
+  //
+  // Le nom "pdpStatus" peut être conservé pour le moment,
+  // mais le terme officiel utilisé aujourd'hui est "plateforme agréée".
+  pdpStatus InvoicePdpStatus @default(NOT_SENT)
+
+  // WM — Identifiant/message retourné par la plateforme.
+  // Aucun BT direct.
+  pdpMessageId String?
+
+  // WM — Date de première transmission à une plateforme agréée.
+  pdpSentAt DateTime?
+
+  //
+  // Pièces jointes
+  //
+  attachments InvoiceAttachment[]
+
+  // ==========================================================================
+  // MÉTADONNÉES WORKERMATE
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEX
+  // ==========================================================================
+
+  // Numérotation propre à chaque entreprise.
+  // Plusieurs DRAFT peuvent avoir number = null.
+  @@unique([tenantId, number])
+
+  @@index([tenantId, issueDate])
+  @@index([tenantId, status])
+  @@index([tenantId, paymentStatus])
+
+  @@index([customerId, issueDate])
+  @@index([projectId, issueDate])
+  @@index([workOrderId, issueDate])
+  @@index([quoteId])
+
+  @@index([correctedInvoiceId])
+}
+
+enum InvoiceOperationCategory {
+  GOODS
+  SERVICES
+  MIXED
+}
+
+model InvoiceAttachment {
+  id String @id @default(cuid())
+
+  invoiceId String
+  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+
+  fileId String
+
+  // FE BT-122
+  reference String
+
+  // FE BT-123
+  description String?
+
+  // BT-124
+  url String?
+
+  // Snapshot du fichier (FICHIER = BT-125)
+  fileName String
+  mimeType String
+
+  createdAt DateTime @default(now())
 
   @@index([invoiceId])
+}
+
+model InvoiceReference {
+  // ==========================================================================
+  // FACTURE QUI FAIT LA RÉFÉRENCE
+  // ==========================================================================
+
+  invoiceId String
+
+  invoice Invoice @relation("InvoiceReferenceSource",fields: [invoiceId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // FACTURE RÉFÉRENCÉE
+  // ==========================================================================
+
+  referencedInvoiceId String
+
+  referencedInvoice Invoice @relation("InvoiceReferenceTarget",fields: [referencedInvoiceId],references: [id],onDelete: Restrict)
+
+
+  // ==========================================================================
+  // SNAPSHOT DOCUMENTAIRE
+  // ==========================================================================
+
+  // FE BT-25 — Numéro de la facture antérieure lorsqu'elle est
+  // sérialisée comme référence à une facture précédente.
+  referencedInvoiceNumber String
+
+  // FE BT-26 — Date d'émission de la facture antérieure.
+  referencedInvoiceIssueDate DateTime
+
+  // WM — Nature du document référencé au moment où le snapshot est créé.
+  //
+  // Utile pour construire le PDF/récapitulatif sans dépendre
+  // de l'état futur de la facture référencée.
+  referencedInvoiceKind InvoiceKind
+
+  // WM — Snapshot du montant TTC du document référencé.
+  //
+  // Utile par exemple pour le récapitulatif d'une facture BALANCE.
+  // Ce n'est pas directement BT-25/BT-26.
+  referencedInvoiceTaxInclusiveAmount Decimal? @db.Decimal(19, 2)
+
+  // WM — Ordre d'affichage dans un récapitulatif.
+  position Int @default(0)
+
+  @@id([invoiceId, referencedInvoiceId])
+  @@index([referencedInvoiceId])
+  @@index([invoiceId, position])
+}
+
+model InvoiceNote {
+  // WM — Identifiant technique.
+  id String @id @default(cuid())
+
+  invoiceId String
+  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+
+  // WM — Ordre d'affichage des notes.
+  position Int @default(0)
+
+  // FE BT-21 — Code sujet de la note.
+  //
+  // Certains scénarios français utilisent des codes spécifiques
+  // pour qualifier la nature d'une information.
+  subjectCode String?
+
+  // FE BT-22 — Texte de la note.
+  text String
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
+}
+
+model InvoiceItem {
+  // ==========================================================================
+  // IDENTITÉ WORKERMATE
+  // ==========================================================================
+
+  // WM — Identifiant technique interne.
+  id String @id @default(cuid())
+
+  invoiceId String
+  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION DE LA LIGNE
+  // ==========================================================================
+
+  // WM — Ordre d'affichage de la ligne.
+  //
+  // N'est pas directement une donnée fiscale.
+  position Int
+
+  // FE BT-126 — Identifiant de ligne de facture.
+  //
+  // Pour les factures créées par Workermate :
+  // "1", "2", "3", etc.
+  //
+  // On le sépare de position pour pouvoir un jour importer/reproduire
+  // une facture dont l'identifiant de ligne n'est pas simplement un entier.
+  lineIdentifier String
+
+  // FE BT-127 — Notes libres de ligne.
+  //
+  // Plusieurs notes peuvent exister.
+  notes String[] @default([])
+
+  // FE BT-128 — Identifiant de l'objet facturé, lorsque pertinent.
+  //
+  // Exemples possibles :
+  // compteur, équipement, objet contractuel, référence spécifique...
+  objectIdentifier String?
+
+
+  // ==========================================================================
+  // TYPE WORKERMATE
+  // ==========================================================================
+
+  // WM — Catégorie fonctionnelle interne.
+  //
+  // Exemples : MATERIAL, LABOR, EQUIPMENT, SERVICE...
+  // Ce champ ne doit pas être confondu avec une catégorie normalisée FE.
+  type WorkOrderItemType
+
+
+  // ==========================================================================
+  // QUANTITÉ
+  // ==========================================================================
+
+  // FE BT-129 — Quantité facturée.
+  //
+  // On conserve plus de deux décimales :
+  // 1.333 heure, 0.125 m³, etc.
+  quantity Decimal @db.Decimal(19, 6)
+
+  // FE BT-130 — Code d'unité de mesure normalisé.
+  //
+  // Exemples :
+  // C62 = unité
+  // HUR = heure
+  // KGM = kilogramme
+  // MTR = mètre
+  //
+  // Le PDF peut afficher un libellé plus humain via unitLabel.
+  unitCode String
+
+  // WM — Libellé utilisé dans l'interface/PDF.
+  //
+  // Exemples :
+  // "unité", "heure", "kg", "m".
+  //
+  // Ne remplace jamais BT-130 lors de l'export.
+  unitLabel String?
+
+
+  // ==========================================================================
+  // MONTANT NET DE LIGNE
+  // ==========================================================================
+
+  // FE BT-131 — Montant net HT de la ligne.
+  //
+  // Il tient compte :
+  // quantité × prix net
+  // - remises de ligne
+  // + charges de ligne.
+  //
+  // C'est le montant qui participe à Invoice.lineNetTotal / BT-106.
+  subtotal Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // RÉFÉRENCES ACHETEUR
+  // ==========================================================================
+
+  // FE BT-132 — Référence à une ligne de bon de commande acheteur.
+  purchaseOrderLineReference String?
+
+  // FE BT-133 — Référence comptable fournie par l'acheteur pour cette ligne.
+  buyerAccountingReference String?
+
+
+  // ==========================================================================
+  // PÉRIODE DE LA LIGNE
+  // ==========================================================================
+
+  // FE BT-134 — Début de la période concernée par cette ligne.
+  //
+  // Exemple :
+  // maintenance du 01/07 au 31/07.
+  billingPeriodStart DateTime?
+
+  // FE BT-135 — Fin de la période concernée par cette ligne.
+  billingPeriodEnd DateTime?
+
+
+  // ==========================================================================
+  // PRIX
+  // ==========================================================================
+
+  // FE BT-146 — Prix unitaire NET HT.
+  //
+  // Obligatoire.
+  //
+  // C'est le prix après éventuel rabais sur le prix brut.
+  unitPrice Decimal @db.Decimal(19, 6)
+
+  // FE BT-147 — Rabais appliqué au prix unitaire brut
+  // pour arriver au prix unitaire net.
+  //
+  // Attention : ce n'est PAS la même chose qu'une remise de ligne
+  // InvoiceItemAdjustment.
+  unitPriceDiscountAmount Decimal? @db.Decimal(19, 6)
+
+  // FE BT-148 — Prix unitaire BRUT avant le rabais BT-147.
+  grossUnitPrice Decimal? @db.Decimal(19, 6)
+
+  // FE BT-149 — Quantité de base à laquelle s'applique le prix.
+  //
+  // Exemple :
+  // 20 € pour 100 vis :
+  //
+  // unitPrice = 20
+  // baseQuantity = 100
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  // FE BT-150 — Code d'unité correspondant à baseQuantity.
+  //
+  // Souvent identique à unitCode.
+  baseQuantityUnitCode String?
+
+
+  // ==========================================================================
+  // TVA DE LA LIGNE
+  // ==========================================================================
+
+  // FE BT-151 — Code de catégorie TVA de la ligne.
+  vatCategory VatCategory
+
+  // FE BT-152 — Taux de TVA de la ligne.
+  //
+  // Nullable notamment lorsque la catégorie normative n'autorise
+  // ou ne nécessite pas de taux.
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  // EXT-FR-FE-178 — Motif textuel d'exemption au niveau ligne,
+  // lorsque le profil français et le scénario l'utilisent.
+  vatExemptionReason String?
+
+  // EXT-FR-FE-179 — Code normalisé du motif d'exemption en ligne.
+  vatExemptionReasonCode String?
+
+
+  // ==========================================================================
+  // DESCRIPTION DE L'ARTICLE / PRESTATION
+  // ==========================================================================
+
+  // FE BT-153 — Nom précis du bien ou service.
+  //
+  // Exemples :
+  // "Pose d'un chauffe-eau"
+  // "Tube cuivre Ø22"
+  title String
+
+  // FE BT-154 — Description détaillée du bien/service.
+  description String?
+
+  // FE BT-155 — Référence article attribuée par le vendeur.
+  //
+  // C'est ici que peut être snapshotée la référence CatalogItem.
+  sellerItemIdentifier String?
+
+  // FE BT-156 — Référence article attribuée par l'acheteur.
+  buyerItemIdentifier String?
+
+  // FE BT-157 — Identifiant standardisé du produit.
+  //
+  // Exemple : GTIN/EAN.
+  standardItemIdentifier String?
+
+  // Attribut de scheme associé à BT-157.
+  // Exemple possible : scheme correspondant au GTIN.
+  standardItemIdentifierScheme String?
+
+  // FE BT-159 — Pays d'origine du produit, ISO 3166-1 alpha-2.
+  countryOfOriginCode String?
+
+
+  // ==========================================================================
+  // SOUS-BLOCS
+  // ==========================================================================
+
+  // FE BG-27 / BG-28 — Remises et charges de ligne.
+  adjustments InvoiceItemAdjustment[]
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([invoiceId, position])
+  @@unique([invoiceId, lineIdentifier])
+  @@index([invoiceId])
+}
+
+// ============================================================================
+// REMISE OU CHARGE
+// ============================================================================
+//
+// Même enum Workermate pour :
+// - InvoiceAdjustment
+// - InvoiceItemAdjustment
+//
+// Le mapper choisit ensuite le bloc normalisé correspondant.
+//
+enum InvoiceAdjustmentType {
+  ALLOWANCE
+  CHARGE
+}
+
+model InvoiceItemAdjustment {
+  // WM — Identifiant technique.
+  id String @id @default(cuid())
+
+  invoiceItemId String
+  invoiceItem InvoiceItem @relation(fields: [invoiceItemId],references: [id],onDelete: Cascade)
+
+  // WM — Ordre d'affichage.
+  position Int @default(0)
+
+  // WM — Détermine quel groupe FE utiliser :
+  //
+  // ALLOWANCE -> BG-27
+  // CHARGE    -> BG-28
+  type InvoiceAdjustmentType
+
+
+  // ==========================================================================
+  // MONTANT
+  // ==========================================================================
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-136
+  // CHARGE    -> BT-141
+  //
+  // Montant HT de la remise/charge.
+  amount Decimal @db.Decimal(19, 2)
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-137
+  // CHARGE    -> BT-142
+  //
+  // Base servant au calcul.
+  baseAmount Decimal? @db.Decimal(19, 2)
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-138
+  // CHARGE    -> BT-143
+  //
+  // Pourcentage appliqué à baseAmount.
+  percentage Decimal? @db.Decimal(9, 6)
+
+
+  // ==========================================================================
+  // MOTIF
+  // ==========================================================================
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-139
+  // CHARGE    -> BT-144
+  //
+  // Motif en texte libre.
+  reason String?
+
+  // FE :
+  //
+  // ALLOWANCE -> BT-140
+  // CHARGE    -> BT-145
+  //
+  // Motif codifié.
+  reasonCode String?
+
+  @@unique([invoiceItemId, position])
+  @@index([invoiceItemId])
+}
+
+// ============================================================================
+// CATÉGORIE TVA
+// ============================================================================
+//
+// Mapping facture électronique française :
+//
+// STANDARD                   -> S
+// EXEMPT                     -> E
+// REVERSE_CHARGE             -> AE
+// INTRA_COMMUNITY_SUPPLY     -> K
+// EXPORT                     -> G
+// OUTSIDE_SCOPE              -> O
+// ZERO                       -> Z
+//
+// Utilisé notamment pour :
+// - BT-95  : TVA d'une remise au niveau document
+// - BT-102 : TVA d'une charge au niveau document
+// - BT-118 : ventilation TVA
+// - BT-151 : TVA d'une ligne
+//
+enum VatCategory {
+  STANDARD
+  EXEMPT
+  REVERSE_CHARGE
+  INTRA_COMMUNITY_SUPPLY
+  EXPORT
+  OUTSIDE_SCOPE
+  ZERO
+}
+
+model InvoiceVatBreakdown {
+  // WM — Identifiant technique.
+  id String @id @default(cuid())
+
+  invoiceId String
+  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+
+  // ==========================================================================
+  // VENTILATION TVA — BG-23
+  // ==========================================================================
+
+  // FE BT-116 — Base d'imposition HT de cette catégorie/taux.
+  //
+  // Elle inclut les lignes concernées ainsi que les charges/remises
+  // documentaires correspondant à cette même catégorie/taux.
+  taxableAmount Decimal @db.Decimal(19, 2)
+
+  // FE BT-117 — Montant de TVA correspondant.
+  vatAmount Decimal @db.Decimal(19, 2)
+
+  // FE BT-118 — Code de catégorie TVA.
+  vatCategory VatCategory
+
+  // FE BT-119 — Taux de TVA.
+  //
+  // Peut être absent dans certains cas particuliers,
+  // notamment OUTSIDE_SCOPE.
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  // FE BT-120 — Motif d'exemption en texte.
+  exemptionReason String?
+
+  // FE BT-121 — Code normalisé du motif d'exemption.
+  //
+  // Exemple français :
+  // VATEX-FR-FRANCHISE
+  exemptionReasonCode String?
+
+  @@index([invoiceId])
+  @@index([invoiceId, vatCategory, vatRate])
 }
 
 model Quote {
@@ -559,6 +1639,7 @@ model Quote {
   updatedAt DateTime @updatedAt
 
   items QuoteItem[]
+  invoices Invoice[]
 }
 
 model QuoteItem {
