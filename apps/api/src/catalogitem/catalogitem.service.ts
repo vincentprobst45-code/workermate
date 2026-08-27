@@ -29,15 +29,21 @@ export class CatalogItemService {
         },
       },
       type: dto.type,
+      reference: this.normalizeOptionalString(dto.reference),
       title: dto.title.trim(),
       description: this.normalizeOptionalString(dto.description),
+      isActive: dto.isActive ?? true,
       defaultQuantity: this.toNumber(dto.defaultQuantity, 1),
-      unit: this.normalizeOptionalString(dto.unit),
+      unitCode: dto.unitCode?.trim() || 'C62',
+      unitLabel: this.normalizeOptionalString(dto.unitLabel ?? dto.unit),
+      baseQuantity: this.toNumber(dto.baseQuantity, 1),
+      baseQuantityUnitCode: this.normalizeOptionalString(dto.baseQuantityUnitCode),
       unitPrice: this.toNumber(dto.unitPrice, 0),
       unitCost: dto.unitCost !== undefined ? this.toNumber(dto.unitCost, 0) : undefined,
       purchaseVatRate:
         dto.purchaseVatRate !== undefined ? this.toNumber(dto.purchaseVatRate, 0) : undefined,
-      vatRate: this.toNumber(dto.vatRate, 0),
+      vatRate: dto.vatRate !== undefined ? this.toNumber(dto.vatRate, 0) : undefined,
+      vatCategory: dto.vatCategory ?? 'STANDARD',
     };
 
     return this.prisma.catalogItem.create({ data });
@@ -65,16 +71,26 @@ export class CatalogItemService {
   async update(tenantId: string, id: string, dto: Partial<CreateCatalogItemDto>) {
     const data: Prisma.CatalogItemUpdateManyMutationInput = {
       type: dto.type,
+      reference: dto.reference !== undefined ? this.normalizeOptionalString(dto.reference) : undefined,
       title: dto.title?.trim(),
       description: dto.description !== undefined ? this.normalizeOptionalString(dto.description) : undefined,
+      isActive: dto.isActive,
       defaultQuantity:
         dto.defaultQuantity !== undefined ? this.toNumber(dto.defaultQuantity, 1) : undefined,
-      unit: dto.unit !== undefined ? this.normalizeOptionalString(dto.unit) : undefined,
+      unitCode: dto.unitCode?.trim() || (dto.unit !== undefined ? 'C62' : undefined),
+      unitLabel: dto.unitLabel !== undefined || dto.unit !== undefined
+        ? this.normalizeOptionalString(dto.unitLabel ?? dto.unit)
+        : undefined,
+      baseQuantity: dto.baseQuantity !== undefined ? this.toNumber(dto.baseQuantity, 1) : undefined,
+      baseQuantityUnitCode: dto.baseQuantityUnitCode !== undefined
+        ? this.normalizeOptionalString(dto.baseQuantityUnitCode)
+        : undefined,
       unitPrice: dto.unitPrice !== undefined ? this.toNumber(dto.unitPrice, 0) : undefined,
       unitCost: dto.unitCost !== undefined ? this.toNumber(dto.unitCost, 0) : undefined,
       purchaseVatRate:
         dto.purchaseVatRate !== undefined ? this.toNumber(dto.purchaseVatRate, 0) : undefined,
       vatRate: dto.vatRate !== undefined ? this.toNumber(dto.vatRate, 0) : undefined,
+      vatCategory: dto.vatCategory,
     };
 
     return this.prisma.catalogItem.updateMany({

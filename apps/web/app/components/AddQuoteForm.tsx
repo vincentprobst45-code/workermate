@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { WorkOrderItemType, QuoteStatus } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import AddressForm, {
@@ -83,6 +83,11 @@ export interface QuoteItem {
   unitPrice: number;
   vatRate: number;
   total: number;
+  lineIdentifier?: string;
+  unitCode?: string;
+  unitLabel?: string;
+  subtotal?: number;
+  vatCategory?: string;
 }
 
 export interface Quote {
@@ -123,9 +128,9 @@ export interface Quote {
   workOrderCity?: string;
   status: QuoteStatus;
   currency: string;
-  subtotal: number;
-  vatAmount: number;
-  total: number;
+  subtotal?: number;
+  vatAmount?: number;
+  total?: number;
   paymentTerms?: string;
   legalMentions?: string;
   notes?: string;
@@ -134,6 +139,15 @@ export interface Quote {
   createdAt: string;
   updatedAt: string;
   items: QuoteItem[];
+  tenantLegalName?: string;
+  tenantSirenNumber?: string;
+  tenantCountryCode?: string;
+  customerName?: string;
+  customerCountryCode?: string;
+  lineNetTotal?: number;
+  taxExclusiveAmount?: number;
+  taxInclusiveAmount?: number;
+  allowanceTotal?: number;
 }
 
 export interface AddQuoteItemFormData {
@@ -189,6 +203,8 @@ export interface CreateQuoteDto {
   tenantPostalCode: string;
   tenantCity: string;
   tenantSiretNumber: string;
+  tenantSirenNumber: string;
+  tenantCountryCode: string;
   tenantVatNumber: string;
   tenantEmail: string;
   tenantPhoneNumber: string;
@@ -196,6 +212,8 @@ export interface CreateQuoteDto {
   tenantBic?: string;
   customerFirstName: string;
   customerLastName: string;
+  customerName: string;
+  customerCountryCode: string;
   customerStreet1: string;
   customerStreet2?: string;
   customerPostalCode: string;
@@ -209,9 +227,9 @@ export interface CreateQuoteDto {
   workOrderAddress?: AddAddressFormData;
   status: QuoteStatus;
   currency: string;
-  subtotal: number;
-  vatAmount: number;
-  total: number;
+  subtotal?: number;
+  vatAmount?: number;
+  total?: number;
   paymentTerms?: string;
   legalMentions?: string;
   notes?: string;
@@ -229,6 +247,10 @@ interface CreateQuoteItemPayload {
   unitPrice: number;
   vatRate: number;
   total: number;
+  sellerItemIdentifier?: string;
+  unitCode: string;
+  subtotal: number;
+  vatCategory: string;
 }
 
 type AddQuoteFormProps = {
@@ -1040,6 +1062,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       tenantPostalCode: tenantDefaults?.address?.postalCode?.trim() || '',
       tenantCity: tenantDefaults?.address?.city?.trim() || '',
       tenantSiretNumber: tenantDefaults?.siretNumber?.trim() || '',
+      tenantSirenNumber: tenantDefaults?.siretNumber?.replace(/\D/g, '').slice(0, 9) || '',
+      tenantCountryCode: tenantDefaults?.address?.countryCode?.trim() || 'FR',
       tenantVatNumber: tenantDefaults?.vatNumber?.trim() || '',
       tenantEmail: tenantDefaults?.email?.trim() || '',
       tenantPhoneNumber: tenantDefaults?.phoneNumber?.trim() || '',
@@ -1049,6 +1073,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       customer: customerPayload.customer,
       customerFirstName: customerPayload.customerFirstName,
       customerLastName: customerPayload.customerLastName,
+      customerName: [customerPayload.customerFirstName, customerPayload.customerLastName].filter(Boolean).join(' ').trim(),
+      customerCountryCode: 'FR',
       customerStreet1: customerPayload.customerStreet1,
       customerStreet2: customerPayload.customerStreet2,
       customerPostalCode: customerPayload.customerPostalCode,
@@ -1068,9 +1094,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           : undefined,
       status: form.status,
       currency: form.currency.trim() || 'EUR',
-      subtotal: form.subtotal,
-      vatAmount: form.vatAmount,
-      total: form.total,
       paymentTerms: trimToUndefined(form.paymentTerms),
       legalMentions: trimToUndefined(form.legalMentions),
       notes: trimToUndefined(form.notes),
@@ -1078,12 +1101,16 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       quoteItems: form.quoteItems.map((item) => ({
         type: item.type,
         position: item.position,
+        sellerItemIdentifier: undefined,
         title: item.title.trim(),
         description: item.description.trim(),
         quantity: item.quantity,
         unit: trimToUndefined(item.unit),
+        unitCode: 'C62',
         unitPrice: item.unitPrice,
         vatRate: item.vatRate,
+        subtotal: item.total,
+        vatCategory: 'STANDARD',
         total: item.total,
       })),
     };

@@ -28,12 +28,16 @@ type QuoteItem = {
   subtotal: number | string;
   vatAmount: number | string;
   total: number | string;
+  lineNetTotal?: number | string;
+  taxExclusiveAmount?: number | string;
+  taxInclusiveAmount?: number | string;
 };
 
 type InvoiceItem = {
   id: string;
   number: string;
   status: InvoiceStatus;
+  paymentStatus: string;
   items: Array<{
     id: string;
     position: number;
@@ -48,6 +52,8 @@ type InvoiceItem = {
   subtotal: number | string;
   vatAmount: number | string;
   total: number | string;
+  taxExclusiveAmount?: number | string;
+  taxInclusiveAmount?: number | string;
 };
 
 type WorkOrderItem = {
@@ -57,6 +63,7 @@ type WorkOrderItem = {
   unitCost?: number | string | null;
   purchaseVatRate?: number | string | null;
   unit?: string | null;
+  baseQuantity?: number | string | null;
 };
 
 type WorkOrderWithItems = {
@@ -74,6 +81,7 @@ type WorkLogItem = {
   unitCost: number | string;
   totalCost: number | string;
   purchaseVatRate?: number | string | null;
+  baseQuantity?: number | string | null;
 };
 
 type WorkLogWithItems = {
@@ -103,6 +111,20 @@ function formatCurrency(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} €`;
+}
+
+function sumQuoteLines(quote: QuoteItem): { ht: number; tva: number; ttc: number } {
+  return quote.items.reduce(
+    (totals, item) => {
+      const lineHt = Number(item.subtotal ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+      const lineTva = lineHt * Number(item.vatRate || 0) / 100;
+      totals.ht += lineHt;
+      totals.tva += lineTva;
+      totals.ttc += lineHt + lineTva;
+      return totals;
+    },
+    { ht: 0, tva: 0, ttc: 0 },
+  );
 }
 
 export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetProps) {
@@ -153,20 +175,26 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
 
     // 1. CA prévu : total des devis acceptés
     const acceptedQuotes = (data.quotes || []).filter((q) => q.status === 'ACCEPTED');
-    const caPrevuHt = acceptedQuotes.reduce((acc, q) => acc + Number(q.subtotal || 0), 0);
-    const caPrevuTva = acceptedQuotes.reduce((acc, q) => acc + Number(q.vatAmount || 0), 0);
-    const caPrevuTtc = acceptedQuotes.reduce((acc, q) => acc + Number(q.total || 0), 0);
+    const acceptedQuoteTotals = acceptedQuotes.map((quote) => {
+      const lineTotals = sumQuoteLines(quote);
+      return {
+        ht: Number(quote.taxExclusiveAmount ?? quote.lineNetTotal ?? quote.subtotal ?? lineTotals.ht),
+        tva: Number(quote.vatAmount ?? lineTotals.tva),
+        ttc: Number(quote.taxInclusiveAmount ?? quote.total ?? lineTotals.ttc),
+      };
+    });
+    const caPrevuHt = acceptedQuoteTotals.reduce((acc, totals) => acc + totals.ht, 0);
+    const caPrevuTva = acceptedQuoteTotals.reduce((acc, totals) => acc + totals.tva, 0);
+    const caPrevuTtc = acceptedQuoteTotals.reduce((acc, totals) => acc + totals.ttc, 0);
 
     // 2. CA facturé : total des factures envoyées ou payées
-    const billedInvoices = (data.invoices || []).filter(
-      (i) => i.status === 'SENT' || i.status === 'PAID',
-    );
+    const billedInvoices = (data.invoices || []).filter((i) => i.status === 'ISSUED');
     const caFactureHt = billedInvoices.reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
     const caFactureTva = billedInvoices.reduce((acc, i) => acc + Number(i.vatAmount || 0), 0);
     const caFactureTtc = billedInvoices.reduce((acc, i) => acc + Number(i.total || 0), 0);
 
     // 3. CA encaissé : total des factures payées
-    const paidInvoices = (data.invoices || []).filter((i) => i.status === 'PAID');
+    const paidInvoices = (data.invoices || []).filter((i) => i.paymentStatus === 'PAID');
     const caEncaisseHt = paidInvoices.reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
     const caEncaisseTva = paidInvoices.reduce((acc, i) => acc + Number(i.vatAmount || 0), 0);
     const caEncaisseTtc = paidInvoices.reduce((acc, i) => acc + Number(i.total || 0), 0);
@@ -179,7 +207,8 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
         const qty = Number(item.quantity || 0);
         const unitCost = Number(item.unitCost || 0);
         const vatRate = Number(item.purchaseVatRate || 0);
-        const lineHt = qty * unitCost;
+        const baseQuantity = Number(item.baseQuantity || 1);
+        const lineHt = baseQuantity > 0 ? qty / baseQuantity * unitCost : 0;
         const lineTva = lineHt * (vatRate / 100);
         coutsPrevusHt += lineHt;
         coutsPrevusTva += lineTva;

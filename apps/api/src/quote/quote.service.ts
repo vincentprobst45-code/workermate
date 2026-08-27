@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, WorkOrderItemType } from '@prisma/client';
+import { LineItemType, Prisma, VatCategory } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateCustomerDto } from '../customer/create-customer.dto';
 import { PrismaService } from '../prisma.service';
@@ -367,18 +367,21 @@ export class QuoteService {
       subtotal += lineSubtotal;
       vatAmount += lineVat;
 
-      const itemType: WorkOrderItemType = item.type ?? 'OTHER';
+      const itemType: LineItemType = item.type ?? LineItemType.OTHER;
 
       return {
         type: itemType,
         position: index,
+        sellerItemIdentifier: item.sellerItemIdentifier?.trim() || undefined,
         title: item.title.trim(),
         description: item.description?.trim() ?? '',
         quantity,
-        unit: this.normalizeOptionalString(item.unit),
+        unitCode: item.unitCode?.trim() || 'C62',
+        unitLabel: this.normalizeOptionalString(item.unit),
         unitPrice,
         vatRate,
-        total,
+        subtotal: lineSubtotal,
+        vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
       };
     });
 
@@ -410,13 +413,15 @@ export class QuoteService {
                 validUntil,
                 workOrderReference: this.normalizeOptionalString(dto.workOrderReference),
                 workOrderTitle: this.normalizeOptionalString(dto.workOrderTitle),
-                tenantName: dto.tenantName.trim(),
+                tenantLegalName: dto.tenantName.trim(),
                 tenantStreet1: dto.tenantStreet1.trim(),
                 tenantStreet2: this.normalizeOptionalString(dto.tenantStreet2),
                 tenantPostalCode: dto.tenantPostalCode.trim(),
                 tenantCity: dto.tenantCity.trim(),
+                tenantSirenNumber: dto.tenantSirenNumber.trim(),
                 tenantSiretNumber: dto.tenantSiretNumber.trim(),
                 tenantVatNumber: dto.tenantVatNumber.trim(),
+                tenantCountryCode: dto.tenantCountryCode.trim() || 'FR',
                 tenantEmail: dto.tenantEmail.trim(),
                 tenantPhoneNumber: dto.tenantPhoneNumber.trim(),
                 tenantIban: this.normalizeOptionalString(dto.tenantIban),
@@ -428,12 +433,14 @@ export class QuoteService {
                   '',
                 customerLastName:
                   this.normalizeOptionalString(dto.customerLastName) ?? customer.lastName ?? '',
+                customerName: dto.customerName.trim() || [dto.customerFirstName, dto.customerLastName].filter(Boolean).join(' '),
                 customerStreet1: customer.address?.street1 ?? dto.customerStreet1.trim(),
                 customerStreet2:
                   customer.address?.street2 ?? this.normalizeOptionalString(dto.customerStreet2),
                 customerPostalCode:
                   customer.address?.postalCode ?? dto.customerPostalCode.trim(),
                 customerCity: customer.address?.city ?? dto.customerCity.trim(),
+                customerCountryCode: dto.customerCountryCode.trim() || customer.address?.countryCode || 'FR',
                 customerEmail:
                   customer.email ?? this.normalizeOptionalString(dto.customerEmail),
                 customerPhoneNumber:
@@ -451,9 +458,12 @@ export class QuoteService {
                   : undefined,
                 status: dto.status ?? 'DRAFT',
                 currency: this.normalizeOptionalString(dto.currency) ?? 'EUR',
-                subtotal,
+                lineNetTotal: subtotal,
+                allowanceTotal: 0,
+                chargeTotal: 0,
+                taxExclusiveAmount: subtotal,
                 vatAmount,
-                total,
+                taxInclusiveAmount: total,
                 paymentTerms: this.normalizeOptionalString(dto.paymentTerms),
                 legalMentions: this.normalizeOptionalString(dto.legalMentions),
                 notes: this.normalizeOptionalString(dto.notes),
@@ -534,12 +544,32 @@ export class QuoteService {
       customer: _customer,
       workOrderAddress: _workOrderAddress,
       workOrderAddressId: _workOrderAddressId,
+      tenantName: _tenantName,
+      subtotal: _subtotal,
+      total: _total,
       ...quoteData
     } = dto;
     void _customerId;
     void _customer;
     void _workOrderAddress;
     void _workOrderAddressId;
+    void _tenantName;
+    void _subtotal;
+    void _total;
+
+    const recalculatedTotals = quoteItems
+      ? quoteItems.reduce(
+          (totals, item) => {
+            const lineSubtotal = this.roundMoney(Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)));
+            const lineVat = this.roundMoney(lineSubtotal * (Number(item.vatRate) / 100));
+            return {
+              subtotal: this.roundMoney(totals.subtotal + lineSubtotal),
+              vatAmount: this.roundMoney(totals.vatAmount + lineVat),
+            };
+          },
+          { subtotal: 0, vatAmount: 0 },
+        )
+      : null;
     const existing = await this.prisma.quote.findFirst({
       where: { id, tenantId },
       select: { id: true },
@@ -554,6 +584,15 @@ export class QuoteService {
         where: { id: existing.id },
         data: {
           ...quoteData,
+          tenantLegalName: dto.tenantName,
+          ...(recalculatedTotals
+            ? {
+                lineNetTotal: recalculatedTotals.subtotal,
+                taxExclusiveAmount: recalculatedTotals.subtotal,
+                vatAmount: recalculatedTotals.vatAmount,
+                taxInclusiveAmount: this.roundMoney(recalculatedTotals.subtotal + recalculatedTotals.vatAmount),
+              }
+            : {}),
           issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           workOrderStartDate: dto.workOrderStartDate ? new Date(dto.workOrderStartDate) : undefined,
@@ -566,15 +605,18 @@ export class QuoteService {
         await tx.quoteItem.createMany({
           data: quoteItems.map((item, index) => ({
             quoteId: existing.id,
-            type: item.type ?? WorkOrderItemType.OTHER,
+            type: item.type ?? LineItemType.OTHER,
             position: index,
+            sellerItemIdentifier: item.sellerItemIdentifier?.trim() || undefined,
             title: item.title.trim(),
             description: item.description?.trim() ?? '',
             quantity: Number(item.quantity),
-            unit: item.unit?.trim() || undefined,
+            unitCode: item.unitCode?.trim() || 'C62',
+            unitLabel: item.unit?.trim() || undefined,
             unitPrice: Number(item.unitPrice),
             vatRate: Number(item.vatRate),
-            total: Number(item.total),
+            subtotal: Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)),
+            vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
           })),
         });
       }

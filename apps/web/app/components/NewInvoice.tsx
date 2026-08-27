@@ -14,6 +14,11 @@ export interface InvoiceItem {
 	unitPrice: number;
 	vatRate: number;
 	total: number;
+	lineIdentifier?: string;
+	unitCode?: string;
+	unitLabel?: string;
+	subtotal?: number;
+	vatCategory?: string;
 }
 
 export interface Invoice {
@@ -71,6 +76,20 @@ export interface Invoice {
 	createdAt: string;
 	updatedAt: string;
 	items?: InvoiceItem[];
+	kind?: string;
+	operationCategory?: string;
+	tenantSirenNumber?: string;
+	tenantCountryCode?: string;
+	customerName?: string;
+	customerCountryCode?: string;
+	lineNetTotal?: number;
+	taxExclusiveAmount?: number;
+	taxInclusiveAmount?: number;
+	prepaidAmount?: number;
+	amountDue?: number;
+	internalNotes?: string;
+	allowanceTotal?: number;
+	notes?: string | Array<{ text: string }>;
 }
 
 interface NewInvoiceProps {
@@ -105,7 +124,7 @@ export default function NewInvoice({
 	const lines = (invoice.items || []).slice().sort((a, b) => a.position - b.position);
 
 	const computedLines = lines.map((line) => {
-		const totalExclTax = line.quantity * line.unitPrice;
+		const totalExclTax = Number(line.subtotal ?? line.quantity * line.unitPrice);
 		const vatAmount = totalExclTax * (line.vatRate / 100);
 
 		return {
@@ -115,7 +134,7 @@ export default function NewInvoice({
 		};
 	});
 
-	const customerFullName = [invoice.customerFirstName, invoice.customerLastName]
+	const customerFullName = [invoice.customerName || invoice.customerFirstName, invoice.customerLastName]
 		.filter(Boolean)
 		.join(' ')
 		.trim();
@@ -183,7 +202,7 @@ export default function NewInvoice({
 									{line.description && <p className={styles.invoiceSubtext}>{line.description}</p>}
 								</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
-								<td className={styles.invoiceTableCell}>{line.unit || '-'}</td>
+								<td className={styles.invoiceTableCell}>{line.unitLabel || line.unitCode || line.unit || '-'}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{Number(line.vatRate).toFixed(2)}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.totalExclTax, locale, currency)}</td>
@@ -197,34 +216,35 @@ export default function NewInvoice({
 				<div className={styles.invoiceTotalsBox}>
 					<div className={styles.invoiceTotalLine}>
 						<span>Total HT</span>
-						<strong>{formatMoney(invoice.subtotal, locale, currency)}</strong>
+						<strong>{formatMoney(invoice.taxExclusiveAmount ?? invoice.subtotal, locale, currency)}</strong>
 					</div>
 					<div className={styles.invoiceTotalLine}>
 						<span>Total TVA</span>
 						<strong>{formatMoney(invoice.vatAmount, locale, currency)}</strong>
 					</div>
-					{!!invoice.discountAmount && (
+					{!!invoice.allowanceTotal && (
 						<div className={styles.invoiceTotalLine}>
 							<span>Remise</span>
-							<strong>-{formatMoney(invoice.discountAmount, locale, currency)}</strong>
+							<strong>-{formatMoney(invoice.allowanceTotal, locale, currency)}</strong>
 						</div>
 					)}
-					{!!invoice.depositAmount && (
+					{!!invoice.prepaidAmount && (
 						<div className={styles.invoiceTotalLine}>
 							<span>Acompte</span>
-							<strong>-{formatMoney(invoice.depositAmount, locale, currency)}</strong>
+							<strong>-{formatMoney(invoice.prepaidAmount, locale, currency)}</strong>
 						</div>
 					)}
 					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
 						<span>Total TTC</span>
-						<strong>{formatMoney(invoice.total, locale, currency)}</strong>
+						<strong>{formatMoney(invoice.taxInclusiveAmount ?? invoice.total, locale, currency)}</strong>
 					</div>
 				</div>
 			</section>
 
 			<footer className={`${styles.invoiceFooter} ${styles.keepTogether}`}>
 				<p className={styles.invoiceMuted}>{invoice.paymentTerms || 'Paiement a 30 jours fin de mois.'}</p>
-				{invoice.notes && <p className={styles.invoiceMuted}>Notes chantier: {invoice.notes}</p>}
+				{invoice.internalNotes && <p className={styles.invoiceMuted}>Notes internes: {invoice.internalNotes}</p>}
+				{invoice.notes && <p className={styles.invoiceMuted}>Notes: {Array.isArray(invoice.notes) ? invoice.notes.map((note) => note.text).join(' ') : invoice.notes}</p>}
 				<p className={styles.invoiceMuted}>{invoice.legalMentions || 'Merci pour votre confiance.'}</p>
 			</footer>
 		</article>

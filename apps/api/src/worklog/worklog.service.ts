@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { LineItemType } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateWorkLogDto } from './create-worklog.dto';
 import { CreateWorkLogItemDto } from './create-worklog-item.dto';
@@ -38,7 +39,7 @@ export class WorkLogService {
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       include: {
         items: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { position: 'asc' },
         },
       },
     });
@@ -47,30 +48,45 @@ export class WorkLogService {
   async createItem(tenantId: string, workLogId: string, dto: CreateWorkLogItemDto) {
     const workLog = await this.prisma.workLog.findFirst({
       where: { id: workLogId, tenantId },
-      select: { id: true },
+      select: { id: true, workOrderId: true, items: { select: { position: true } } },
     });
 
     if (!workLog) {
       throw new BadRequestException('Fiche de suivi introuvable pour ce tenant.');
     }
 
+    if (dto.workOrderItemId) {
+      const workOrderItem = await this.prisma.workOrderItem.findFirst({
+        where: { id: dto.workOrderItemId, workOrder: { tenantId, id: workLog.workOrderId } },
+        select: { id: true },
+      });
+      if (!workOrderItem) throw new BadRequestException('Étape de chantier introuvable pour cette fiche.');
+    }
+
     const quantity = Number(dto.quantity);
     const unitCost = Number(dto.unitCost);
-    if (!Number.isFinite(quantity) || !Number.isFinite(unitCost)) {
+    const baseQuantity = Number(dto.baseQuantity ?? 1);
+    if (!Number.isFinite(quantity) || !Number.isFinite(unitCost) || !Number.isFinite(baseQuantity) || baseQuantity <= 0) {
       throw new BadRequestException('Quantité et coût unitaire invalides.');
     }
 
     return this.prisma.workLogItem.create({
       data: {
         workLogId: workLog.id,
+        workOrderItemId: dto.workOrderItemId || undefined,
+        position: workLog.items.reduce((max, item) => Math.max(max, item.position), -1) + 1,
+        reference: dto.reference?.trim() || undefined,
         title: dto.title.trim(),
         description: dto.description?.trim() || undefined,
         quantity,
-        unit: dto.unit?.trim() || undefined,
+        unitCode: dto.unitCode?.trim() || 'C62',
+        unitLabel: dto.unitLabel?.trim() || dto.unit?.trim() || undefined,
+        baseQuantity,
+        baseQuantityUnitCode: dto.baseQuantityUnitCode?.trim() || undefined,
         unitCost,
         purchaseVatRate: dto.purchaseVatRate !== undefined ? Number(dto.purchaseVatRate) : undefined,
-        totalCost: quantity * unitCost,
-        type: dto.type,
+        totalCost: (quantity / baseQuantity) * unitCost,
+        type: dto.type ?? LineItemType.OTHER,
       },
     });
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
 import AddWorkOrderForm, { type WorkOrderEditInput } from './AddWorkOrderForm';
 import WorkOrderDetails from './WorkOrderDetails';
 
@@ -15,6 +15,11 @@ export interface WorkOrderItem {
 	unitCost?: number;
 	purchaseVatRate?: number;
 	unit?: string;
+	sellerItemIdentifier?: string;
+	unitCode: string;
+	unitLabel?: string;
+	subtotal: number;
+	vatCategory: string;
 	unitPrice: number;
 	vatRate: number;
 }
@@ -26,6 +31,8 @@ export interface WorkOrder {
 	reference: string;
 	startDate?: string;
 	endDate?: string;
+	plannedStartDate?: string;
+	plannedEndDate?: string;
 	status: WorkOrderStatus;
 	items: WorkOrderItem[];
 	customerId?: string;

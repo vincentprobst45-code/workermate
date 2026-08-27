@@ -19,7 +19,7 @@ import {
 	InvoicePdpStatus,
 	InvoiceStatus,
 	PaymentMethod,
-	WorkOrderItemType,
+	LineItemType as WorkOrderItemType,
 } from '@prisma/client';
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
@@ -208,6 +208,14 @@ interface CreateInvoiceDto {
 	quoteId?: string;
 	quoteNumber?: string;
 	invoiceItems?: CreateInvoiceItemPayload[];
+	kind?: string;
+	operationCategory: 'GOODS' | 'SERVICES' | 'MIXED';
+	tenantSirenNumber: string;
+	tenantCountryCode: string;
+	customerName: string;
+	customerCountryCode: string;
+	accountingCurrency?: string;
+	internalNotes?: string;
 }
 
 const INVOICE_NUMBER_PREFIX = 'FAC';
@@ -269,6 +277,10 @@ function toDatetimeLocal(date: Date): string {
 function trimToUndefined(value?: string | null): string | undefined {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : undefined;
+}
+
+function trimOrEmpty(value?: string | null): string {
+	return value?.trim() ?? '';
 }
 
 function createEmptyInvoice(tenantDefaults?: TenantInvoiceDefaults): AddInvoiceFormData {
@@ -613,30 +625,30 @@ function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
 	return {
 		id: 'draft-invoice',
 		tenantId: 'draft-tenant',
-		customerId: form.customerId.trim() || 'draft-customer',
+		customerId: trimOrEmpty(form.customerId) || 'draft-customer',
 		workOrderId: trimToUndefined(form.workOrderId),
-		number: form.number.trim(),
+		number: trimOrEmpty(form.number),
 		issueDate: form.issueDate,
 		dueDate: trimToUndefined(form.dueDate),
-		workOrderReference: form.workOrderReference.trim(),
-		workOrderTitle: form.workOrderTitle.trim(),
-		tenantName: form.tenantName.trim(),
-		tenantStreet1: form.tenantStreet1.trim(),
+		workOrderReference: trimOrEmpty(form.workOrderReference),
+		workOrderTitle: trimOrEmpty(form.workOrderTitle),
+		tenantName: trimOrEmpty(form.tenantName),
+		tenantStreet1: trimOrEmpty(form.tenantStreet1),
 		tenantStreet2: trimToUndefined(form.tenantStreet2),
-		tenantPostalCode: form.tenantPostalCode.trim(),
-		tenantCity: form.tenantCity.trim(),
-		tenantSiretNumber: form.tenantSiretNumber.trim(),
-		tenantVatNumber: form.tenantVatNumber.trim(),
-		tenantEmail: form.tenantEmail.trim(),
-		tenantPhoneNumber: form.tenantPhoneNumber.trim(),
+		tenantPostalCode: trimOrEmpty(form.tenantPostalCode),
+		tenantCity: trimOrEmpty(form.tenantCity),
+		tenantSiretNumber: trimOrEmpty(form.tenantSiretNumber),
+		tenantVatNumber: trimOrEmpty(form.tenantVatNumber),
+		tenantEmail: trimOrEmpty(form.tenantEmail),
+		tenantPhoneNumber: trimOrEmpty(form.tenantPhoneNumber),
 		tenantIban: trimToUndefined(form.tenantIban),
 		tenantBic: trimToUndefined(form.tenantBic),
-		customerFirstName: form.customerFirstName.trim(),
-		customerLastName: form.customerLastName.trim(),
-		customerStreet1: form.customerStreet1.trim(),
+		customerFirstName: trimOrEmpty(form.customerFirstName),
+		customerLastName: trimOrEmpty(form.customerLastName),
+		customerStreet1: trimOrEmpty(form.customerStreet1),
 		customerStreet2: trimToUndefined(form.customerStreet2),
-		customerPostalCode: form.customerPostalCode.trim(),
-		customerCity: form.customerCity.trim(),
+		customerPostalCode: trimOrEmpty(form.customerPostalCode),
+		customerCity: trimOrEmpty(form.customerCity),
 		customerEmail: trimToUndefined(form.customerEmail),
 		customerPhoneNumber: trimToUndefined(form.customerPhoneNumber),
 		customerVatNumber: trimToUndefined(form.customerVatNumber),
@@ -646,7 +658,7 @@ function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
 		workOrderPostalCode: trimToUndefined(form.workOrderPostalCode),
 		workOrderCity: trimToUndefined(form.workOrderCity),
 		status: form.status,
-		currency: form.currency.trim() || 'EUR',
+		currency: trimOrEmpty(form.currency) || 'EUR',
 		subtotal: toFiniteNumber(form.subtotal),
 		vatAmount: toFiniteNumber(form.vatAmount),
 		total: toFiniteNumber(form.total),
@@ -1054,20 +1066,20 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			workOrderId: quote.workOrderId ?? '',
 			quoteId: quote.id,
 			quoteNumber: quote.number,
-			tenantName: quote.tenantName,
-			tenantStreet1: quote.tenantStreet1,
+			tenantName: quote.tenantName ?? quote.tenantLegalName ?? tenantDefaults?.name ?? '',
+			tenantStreet1: quote.tenantStreet1 ?? tenantDefaults?.address?.street1 ?? '',
 			tenantStreet2: quote.tenantStreet2 ?? '',
-			tenantPostalCode: quote.tenantPostalCode,
-			tenantCity: quote.tenantCity,
-			tenantSiretNumber: quote.tenantSiretNumber,
-			tenantVatNumber: quote.tenantVatNumber,
-			tenantEmail: quote.tenantEmail,
-			tenantPhoneNumber: quote.tenantPhoneNumber,
+			tenantPostalCode: quote.tenantPostalCode ?? tenantDefaults?.address?.postalCode ?? '',
+			tenantCity: quote.tenantCity ?? tenantDefaults?.address?.city ?? '',
+			tenantSiretNumber: quote.tenantSiretNumber ?? quote.tenantSirenNumber ?? tenantDefaults?.siretNumber ?? '',
+			tenantVatNumber: quote.tenantVatNumber ?? tenantDefaults?.vatNumber ?? '',
+			tenantEmail: quote.tenantEmail ?? tenantDefaults?.email ?? '',
+			tenantPhoneNumber: quote.tenantPhoneNumber ?? tenantDefaults?.phoneNumber ?? '',
 			tenantIban: quote.tenantIban ?? '',
 			tenantBic: quote.tenantBic ?? '',
-			customerFirstName: quote.customerFirstName,
-			customerLastName: quote.customerLastName,
-			customerStreet1: quote.customerStreet1,
+			customerFirstName: quote.customerFirstName ?? quote.customerName ?? '',
+			customerLastName: quote.customerLastName ?? '',
+			customerStreet1: quote.customerStreet1 ?? '',
 			customerStreet2: quote.customerStreet2 ?? '',
 			customerPostalCode: quote.customerPostalCode,
 			customerCity: quote.customerCity,
@@ -1403,8 +1415,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 
 		const payload: CreateInvoiceDto = {
 			customerId: form.customerId.trim(),
-			workOrderId: trimToUndefined(form.workOrderId),
 			number: displayedInvoiceNumber.trim(),
+			workOrderId: trimToUndefined(form.workOrderId),
 			issueDate: form.issueDate,
 			dueDate: trimToUndefined(form.dueDate),
 			workOrderReference: form.workOrderReference.trim(),
@@ -1429,6 +1441,10 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			customerEmail: trimToUndefined(form.customerEmail),
 			customerPhoneNumber: trimToUndefined(form.customerPhoneNumber),
 			customerVatNumber: trimToUndefined(form.customerVatNumber),
+			tenantSirenNumber: form.tenantSiretNumber.trim(),
+			tenantCountryCode: 'FR',
+			customerName: [form.customerFirstName, form.customerLastName].filter(Boolean).join(' ').trim() || form.customerId.trim(),
+			customerCountryCode: 'FR',
 			workOrderStartDate: trimToUndefined(form.workOrderStartDate),
 			workOrderEndDate: trimToUndefined(form.workOrderEndDate),
 			workOrderAddress: trimToUndefined(form.workOrderAddress),
@@ -1436,16 +1452,17 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			workOrderCity: trimToUndefined(form.workOrderCity),
 			status: form.status,
 			currency: form.currency.trim() || 'EUR',
-			subtotal: toFiniteNumber(form.subtotal),
-			vatAmount: toFiniteNumber(form.vatAmount),
-			total: toFiniteNumber(form.total),
+			subtotal: form.subtotal,
+			vatAmount: form.vatAmount,
+			total: form.total,
+			operationCategory: 'SERVICES',
+			kind: 'STANDARD',
 			paymentTerms: trimToUndefined(form.paymentTerms),
 			legalMentions: trimToUndefined(form.legalMentions),
 			notes: trimToUndefined(form.notes),
 			depositAmount: toFiniteNumber(form.depositAmount),
 			discountAmount: toFiniteNumber(form.discountAmount),
 			paidAt: trimToUndefined(form.paidAt),
-			paymentMethod: form.paymentMethod || undefined,
 			pdfFileId: trimToUndefined(form.pdfFileId),
 			pdpStatus: form.pdpStatus,
 			pdpMessageId: trimToUndefined(form.pdpMessageId),
@@ -1454,13 +1471,17 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			invoiceItems: form.invoiceItems.map((item) => ({
 				type: item.type,
 				position: item.position,
+				lineIdentifier: String(item.position + 1),
 				title: item.title.trim(),
 				description: item.description.trim(),
 				quantity: item.quantity,
 				unit: trimToUndefined(item.unit),
+				unitCode: 'C62',
 				unitPrice: item.unitPrice,
 				vatRate: item.vatRate,
-				total: item.total,
+								total: item.total,
+				subtotal: item.total,
+				vatCategory: 'STANDARD',
 			})),
 		};
 

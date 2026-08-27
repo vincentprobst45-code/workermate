@@ -16,6 +16,12 @@ export interface QuoteItem {
   unitPrice: number;
   vatRate: number;
   total: number;
+  lineIdentifier?: string;
+  sellerItemIdentifier?: string;
+  unitCode?: string;
+  unitLabel?: string;
+  subtotal?: number;
+  vatCategory?: string;
 }
 
 export interface Quote {
@@ -81,6 +87,15 @@ export interface Quote {
   updatedAt: string;
 
   items: QuoteItem[];
+  tenantLegalName?: string;
+  tenantSirenNumber?: string;
+  tenantCountryCode?: string;
+  customerName?: string;
+  customerCountryCode?: string;
+  lineNetTotal?: number;
+  taxExclusiveAmount?: number;
+  taxInclusiveAmount?: number;
+  allowanceTotal?: number;
 }
 
 interface QuotesListProps {
@@ -198,10 +213,10 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
             <div>
               <p className="font-semibold">{quote.number}</p>
               <p className="text-sm text-slate-600">
-                {quote.customerFirstName} {quote.customerLastName}
+                {quote.customerName || `${quote.customerFirstName} ${quote.customerLastName}`}
               </p>
               <p className="text-xs text-slate-500">
-                {formatDate(quote.issueDate)} - {formatMoney(quote.total, quote.currency)}
+                {formatDate(quote.issueDate)} - {formatMoney(quote.taxInclusiveAmount ?? quote.total, quote.currency)}
               </p>
             </div>
             {onDelete && (
@@ -300,7 +315,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
             {/* <p>date echeance : {formatDate(selectedQuote.dueDate)}</p> */}
 
             <p className="mt-4 font-semibold">Client</p>
-            <p>nom : {selectedQuote.customerFirstName} {selectedQuote.customerLastName}</p>
+            <p>nom : {selectedQuote.customerName || `${selectedQuote.customerFirstName} ${selectedQuote.customerLastName}`}</p>
             <p>email : {selectedQuote.customerEmail || '-'}</p>
             <p>telephone : {selectedQuote.customerPhoneNumber || '-'}</p>
             <p>
@@ -312,11 +327,11 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
             <p>titre : {selectedQuote.workOrderTitle || '-'}</p>
 
             <p className="mt-4 font-semibold">Montants</p>
-            <p>sous-total HT : {formatMoney(selectedQuote.subtotal, selectedQuote.currency)}</p>
+            <p>sous-total HT : {formatMoney(selectedQuote.taxExclusiveAmount ?? selectedQuote.subtotal, selectedQuote.currency)}</p>
             <p>TVA : {formatMoney(selectedQuote.vatAmount, selectedQuote.currency)}</p>
             {/* <p>remise : {formatMoney(selectedQuote.discountAmount || 0, selectedQuote.currency)}</p> */}
             <p>acompte : {formatMoney(selectedQuote.depositAmount || 0, selectedQuote.currency)}</p>
-            <p>total TTC : {formatMoney(selectedQuote.total, selectedQuote.currency)}</p>
+            <p>total TTC : {formatMoney(selectedQuote.taxInclusiveAmount ?? selectedQuote.total, selectedQuote.currency)}</p>
 
             <p className="mt-4">conditions de paiement : {selectedQuote.paymentTerms || '-'}</p>
             <p>notes : {selectedQuote.notes || '-'}</p>
@@ -327,7 +342,7 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                   {selectedQuote.items.map((item) => (
                     <li key={item.id}>
-                      {item.position + 1}. {item.title} - {item.quantity} {item.unit || ''} x {formatMoney(item.unitPrice, selectedQuote.currency)} - TVA {item.vatRate}% - Total {formatMoney(item.total, selectedQuote.currency)}
+                      {item.lineIdentifier || item.position + 1}. {item.title} - {item.quantity} {item.unitLabel || item.unitCode || item.unit || ''} x {formatMoney(item.unitPrice, selectedQuote.currency)} - TVA {item.vatRate}% - Total {formatMoney(item.subtotal ?? item.total, selectedQuote.currency)}
                     </li>
                   ))}
                 </ul>

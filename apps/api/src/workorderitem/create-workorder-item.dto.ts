@@ -1,6 +1,6 @@
-import { WorkOrderItemType } from '@prisma/client';
+import { LineItemType, VatCategory } from '@prisma/client';
 import {
-  IsDecimal,
+  IsNumber,
   IsEnum,
   IsInt,
   IsOptional,
@@ -10,8 +10,8 @@ import {
 
 
 export class CreateWorkOrderItemDto {
-  @IsEnum(WorkOrderItemType)
-  type!: WorkOrderItemType;
+  @IsEnum(LineItemType)
+  type!: LineItemType;
 
   @IsInt()
   @Min(0)
@@ -25,24 +25,45 @@ export class CreateWorkOrderItemDto {
   description?: string;
 
   @IsOptional()
-  @IsDecimal()
+  @IsNumber()
   quantity?: number;
 
   @IsOptional()
   @IsString()
   unit?: string;
 
-  @IsDecimal()
+  @IsOptional()
+  @IsString()
+  sellerItemIdentifier?: string;
+
+  @IsOptional()
+  @IsString()
+  unitCode?: string;
+
+  @IsOptional()
+  @IsString()
+  unitLabel?: string;
+
+  @IsNumber()
   unitPrice!: number;
 
   @IsOptional()
-  @IsDecimal()
+  @IsNumber()
+  subtotal?: number;
+
+  @IsOptional()
+  @IsNumber()
   unitCost?: number;
 
   @IsOptional()
-  @IsDecimal()
+  @IsNumber()
   purchaseVatRate?: number;
 
-  @IsDecimal()
-  vatRate!: number;
+  @IsOptional()
+  @IsNumber()
+  vatRate?: number;
+
+  @IsOptional()
+  @IsEnum(VatCategory)
+  vatCategory?: VatCategory;
 }

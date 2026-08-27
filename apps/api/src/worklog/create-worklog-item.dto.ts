@@ -1,4 +1,4 @@
-import { WorkLogItemType } from '@prisma/client';
+import { LineItemType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
@@ -19,6 +19,32 @@ export class CreateWorkLogItemDto {
   @IsString()
   unit?: string;
 
+  @IsOptional()
+  @IsString()
+  unitCode?: string;
+
+  @IsOptional()
+  @IsString()
+  unitLabel?: string;
+
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  baseQuantity?: number;
+
+  @IsOptional()
+  @IsString()
+  baseQuantityUnitCode?: string;
+
+  @IsOptional()
+  @IsString()
+  workOrderItemId?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)
@@ -30,6 +56,6 @@ export class CreateWorkLogItemDto {
   @Min(0)
   purchaseVatRate?: number;
 
-  @IsEnum(WorkLogItemType)
-  type!: WorkLogItemType;
+  @IsEnum(LineItemType)
+  type!: LineItemType;
 }

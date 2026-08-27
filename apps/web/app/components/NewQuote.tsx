@@ -14,6 +14,12 @@ export interface QuoteItem {
   unitPrice: number;
   vatRate: number;
   total: number;
+    lineIdentifier?: string;
+    sellerItemIdentifier?: string;
+    unitCode?: string;
+    unitLabel?: string;
+    subtotal?: number;
+    vatCategory?: string;
 }
 
 export interface Quote {
@@ -79,6 +85,15 @@ export interface Quote {
   updatedAt: string;
 
   items?: QuoteItem[];
+    tenantLegalName?: string;
+    tenantSirenNumber?: string;
+    tenantCountryCode?: string;
+    customerName?: string;
+    customerCountryCode?: string;
+    lineNetTotal?: number;
+    taxExclusiveAmount?: number;
+    taxInclusiveAmount?: number;
+    allowanceTotal?: number;
 }
 
 interface NewQuoteProps {
@@ -113,7 +128,7 @@ export default function NewInvoice({
     const lines = (quote.items || []).slice().sort((a, b) => a.position - b.position);
 
     const computedLines = lines.map((line) => {
-        const totalExclTax = line.quantity * line.unitPrice;
+        const totalExclTax = Number(line.subtotal ?? line.quantity * line.unitPrice);
         const vatAmount = totalExclTax * (line.vatRate / 100);
 
         return {
@@ -123,7 +138,7 @@ export default function NewInvoice({
         };
     });
 
-    const customerFullName = [quote.customerFirstName, quote.customerLastName]
+    const customerFullName = quote.customerName || [quote.customerFirstName, quote.customerLastName]
         .filter(Boolean)
         .join(' ')
         .trim();
@@ -133,7 +148,7 @@ export default function NewInvoice({
         <article className={styles.invoiceDocument}>
             <header className={`${styles.invoiceHeader} ${styles.keepTogether}`}>
                 <div>
-                    <h1 className={styles.invoiceTitle}>FACTURE</h1>
+                    <h1 className={styles.invoiceTitle}>DEVIS</h1>
                     <p className={styles.invoiceMuted}>Numero: {quote.number}</p>
                     <p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(quote.issueDate, locale)}</p>
                     {/* <p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(quote.dueDate, locale)}</p> */}
@@ -191,7 +206,7 @@ export default function NewInvoice({
                                     {line.description && <p className={styles.invoiceSubtext}>{line.description}</p>}
                                 </td>
                                 <td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
-                                <td className={styles.invoiceTableCell}>{line.unit || '-'}</td>
+                                <td className={styles.invoiceTableCell}>{line.unitLabel || line.unitCode || line.unit || '-'}</td>
                                 <td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
                                 <td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{Number(line.vatRate).toFixed(2)}</td>
                                 <td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.totalExclTax, locale, currency)}</td>
@@ -205,7 +220,7 @@ export default function NewInvoice({
                 <div className={styles.invoiceTotalsBox}>
                     <div className={styles.invoiceTotalLine}>
                         <span>Total HT</span>
-                        <strong>{formatMoney(quote.subtotal, locale, currency)}</strong>
+                        <strong>{formatMoney(quote.taxExclusiveAmount ?? quote.subtotal, locale, currency)}</strong>
                     </div>
                     <div className={styles.invoiceTotalLine}>
                         <span>Total TVA</span>
@@ -225,7 +240,7 @@ export default function NewInvoice({
                     )}
                     <div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
                         <span>Total TTC</span>
-                        <strong>{formatMoney(quote.total, locale, currency)}</strong>
+                        <strong>{formatMoney(quote.taxInclusiveAmount ?? quote.total, locale, currency)}</strong>
                     </div>
                 </div>
             </section>

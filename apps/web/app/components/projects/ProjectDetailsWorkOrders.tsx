@@ -1,6 +1,6 @@
 'use client';
 
-import { WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
 import { useEffect, useState } from 'react';
 import type { Project } from '../AddProjectForm';
 import { useApiClient } from '../../api-client';
@@ -40,6 +40,10 @@ type WorkOrderDetails = {
 		description?: string | null;
 		quantity: number;
 		unit?: string | null;
+		unitCode: string;
+		unitLabel?: string | null;
+		subtotal: number;
+		vatCategory: string;
 		unitPrice: number;
 		unitCost?: number | null;
 		purchaseVatRate?: number | null;
@@ -119,7 +123,11 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 
 				const data: ProjectDetailsResponse = await response.json();
 				if (!cancelled) {
-					setWorkOrders(data.workOrders);
+					setWorkOrders(data.workOrders.map((workOrder) => ({
+						...workOrder,
+						startDate: workOrder.startDate ?? null,
+						endDate: workOrder.endDate ?? null,
+					})));
 					setError('');
 				}
 			} catch {

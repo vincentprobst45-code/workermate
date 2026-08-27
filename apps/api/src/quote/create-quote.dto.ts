@@ -61,6 +61,12 @@ export class CreateQuoteDto {
   tenantSiretNumber!: string;
 
   @IsString()
+  tenantSirenNumber!: string;
+
+  @IsString()
+  tenantCountryCode!: string;
+
+  @IsString()
   tenantVatNumber!: string;
 
   @IsString()
@@ -82,6 +88,12 @@ export class CreateQuoteDto {
 
   @IsString()
   customerLastName!: string;
+
+  @IsString()
+  customerName!: string;
+
+  @IsString()
+  customerCountryCode!: string;
 
   @IsString()
   customerStreet1!: string;
@@ -136,17 +148,29 @@ export class CreateQuoteDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  subtotal!: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  subtotal?: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  vatAmount!: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  vatAmount?: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  total!: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  total?: number;
 
   @IsOptional()
   @IsString()

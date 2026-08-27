@@ -49,7 +49,7 @@ export default function InvoicesPage() {
     try {
       const res = await api.delete(`/invoices/${id}`);
       if (!res.ok) throw new Error('Erreur');
-      setInvoices(invoices.filter((i) => i.id !== id));
+      setInvoices((currentInvoices) => currentInvoices.filter((invoice) => invoice.id !== id));
     } catch {
       setError('Erreur lors de la suppression');
     }

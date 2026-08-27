@@ -48,6 +48,11 @@ interface WorkOrderItem{
   description?: string;
   quantity : number;
   unit?: string;
+  sellerItemIdentifier?: string;
+  unitCode?: string;
+  unitLabel?: string;
+  subtotal?: number;
+  vatCategory?: string;
   unitPrice: number;
   unitCost?: number;
   purchaseVatRate?: number;
@@ -371,6 +376,8 @@ export interface WorkOrder {
 
   startDate?: string;   
   endDate?: string;     
+  plannedStartDate?: string;
+  plannedEndDate?: string;
 
   status: WorkOrderStatus;
 
@@ -406,8 +413,8 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
         title: initialWorkOrder.title,
         description: initialWorkOrder.description ?? '',
         reference: initialWorkOrder.reference,
-        startDate: toDatetimeLocal(initialWorkOrder.startDate),
-        endDate: toDatetimeLocal(initialWorkOrder.endDate),
+        startDate: toDatetimeLocal(initialWorkOrder.startDate ?? initialWorkOrder.plannedStartDate),
+        endDate: toDatetimeLocal(initialWorkOrder.endDate ?? initialWorkOrder.plannedEndDate),
         status: initialWorkOrder.status,
         customerMode: initialWorkOrder.customerId ? 'existing' : 'none',
         customerId: initialWorkOrder.customerId ?? '',
@@ -419,6 +426,10 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           position: index,
           description: item.description ?? '',
           unit: item.unit ?? '',
+          unitCode: item.unitCode ?? 'C62',
+          unitLabel: item.unitLabel ?? item.unit ?? '',
+          subtotal: item.subtotal ?? Number(item.quantity) * Number(item.unitPrice),
+          vatCategory: item.vatCategory ?? 'STANDARD',
         })),
       };
     });
@@ -484,6 +495,8 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
         description: '',
         quantity: 1,
         unit: 'm2',
+        unitCode: 'C62',
+        unitLabel: 'm2',
         unitPrice: 0,
         unitCost: undefined,
         purchaseVatRate: undefined,
@@ -583,7 +596,11 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           title: quoteItem.title,
           description: quoteItem.description,
           quantity: quoteItem.quantity,
-          unit: quoteItem.unit ?? '',
+          unit: quoteItem.unitLabel ?? quoteItem.unit ?? '',
+          unitCode: quoteItem.unitCode ?? 'C62',
+          unitLabel: quoteItem.unitLabel ?? quoteItem.unit ?? '',
+          subtotal: quoteItem.subtotal ?? quoteItem.quantity * quoteItem.unitPrice,
+          vatCategory: quoteItem.vatCategory ?? 'STANDARD',
           unitPrice: quoteItem.unitPrice,
           vatRate: quoteItem.vatRate,
         }));
@@ -614,7 +631,11 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
             title: quoteItem.title,
             description: quoteItem.description,
             quantity: quoteItem.quantity,
-            unit: quoteItem.unit ?? '',
+            unit: quoteItem.unitLabel ?? quoteItem.unit ?? '',
+            unitCode: quoteItem.unitCode ?? 'C62',
+            unitLabel: quoteItem.unitLabel ?? quoteItem.unit ?? '',
+            subtotal: quoteItem.subtotal ?? quoteItem.quantity * quoteItem.unitPrice,
+            vatCategory: quoteItem.vatCategory ?? 'STANDARD',
             unitPrice: quoteItem.unitPrice,
             vatRate: quoteItem.vatRate,
           }));
@@ -673,6 +694,8 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           description: selectedCatalogItem.description ?? '',
           quantity: Number(selectedCatalogItem.defaultQuantity) || 1,
           unit: selectedCatalogItem.unit ?? '',
+          unitCode: 'C62',
+          unitLabel: selectedCatalogItem.unit ?? '',
           unitPrice: Number(selectedCatalogItem.unitPrice) || 0,
           unitCost: selectedCatalogItem.unitCost === undefined || selectedCatalogItem.unitCost === null
             ? undefined
@@ -682,6 +705,8 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
               ? undefined
               : Number(selectedCatalogItem.purchaseVatRate),
           vatRate: Number(selectedCatalogItem.vatRate) || 0,
+          subtotal: (Number(selectedCatalogItem.defaultQuantity) || 1) * (Number(selectedCatalogItem.unitPrice) || 0),
+          vatCategory: 'STANDARD',
         };
 
         return {
@@ -748,8 +773,12 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
             title: item.title,
             description: item.description,
             quantity: item.quantity,
-            unit: item.unit,
+            sellerItemIdentifier: item.sellerItemIdentifier,
+            unitCode: item.unitCode || 'C62',
+            unitLabel: item.unitLabel || item.unit,
             unitPrice: item.unitPrice,
+            subtotal: item.subtotal ?? item.quantity * item.unitPrice,
+            vatCategory: item.vatCategory || 'STANDARD',
             unitCost: item.unitCost,
             purchaseVatRate: item.purchaseVatRate,
             vatRate: item.vatRate,

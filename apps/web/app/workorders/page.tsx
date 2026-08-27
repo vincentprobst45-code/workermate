@@ -82,7 +82,11 @@ export default function WorkOrdersPage() {
         if (!res.ok) throw new Error('Erreur');
         const data = await res.json();
         if (!cancelled) {
-          setWorkOrders(data);
+          setWorkOrders(data.map((workOrder: WorkOrder) => ({
+            ...workOrder,
+            startDate: workOrder.startDate ?? workOrder.plannedStartDate,
+            endDate: workOrder.endDate ?? workOrder.plannedEndDate,
+          })));
         }
       } catch {
         if (!cancelled) {
@@ -159,7 +163,11 @@ export default function WorkOrdersPage() {
         </button>
         }
         {workOrderFormWasOpened &&
-        <AddWorkOrderForm show={showAddWorkOrderForm} onCreated={(data)=> {setWorkOrders((currentWorkOrders) => [data, ...currentWorkOrders])}} />
+        <AddWorkOrderForm show={showAddWorkOrderForm} onCreated={(data)=> {setWorkOrders((currentWorkOrders) => [{
+          ...data,
+          startDate: data.startDate ?? data.plannedStartDate,
+          endDate: data.endDate ?? data.plannedEndDate,
+        }, ...currentWorkOrders])}} />
         }
         {/* <form onSubmit={handleAddWorkOrder} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>

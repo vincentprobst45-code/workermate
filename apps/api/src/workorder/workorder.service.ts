@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Prisma } from '@prisma/client';
+import { LineItemType, Prisma, VatCategory } from '@prisma/client';
 import { CreateWorkOrderDto } from './create-workorder.dto';
 import { CreateAddressDto } from 'src/address/create-address.dto';
 
@@ -27,18 +27,17 @@ export class WorkOrderService {
 
   async create(tenantId: string, dto: CreateWorkOrderDto ) {
 
-    console.log(dto)
     const { addressId, address, customerId, items, ...workOrderData } = dto;
     const year = new Date().getFullYear();
-    const reference = `CH-${year}-${workOrderData.title}`;
+    const reference = workOrderData.reference?.trim() || `CH-${year}-${workOrderData.title}`;
 
     const data: Prisma.WorkOrderCreateInput = {
       title: workOrderData.title,
       description: workOrderData.description,
-      startDate: workOrderData.startDate
+      plannedStartDate: workOrderData.startDate
         ? new Date(workOrderData.startDate)
         : undefined,
-      endDate: workOrderData.endDate
+      plannedEndDate: workOrderData.endDate
         ? new Date(workOrderData.endDate)
         : undefined,
       // startDate: workOrderData.startDate && new Date(workOrderData.startDate),
@@ -46,8 +45,8 @@ export class WorkOrderService {
       status: workOrderData.status
         ? workOrderData.status
         : 'DRAFT',
-      // ...workOrderData,
       reference,
+      internalNotes: workOrderData.notes,
       tenant: {
         connect: { id: tenantId },
       },
@@ -62,23 +61,23 @@ export class WorkOrderService {
     //     create: items,
     //   };
     // }
-    console.log(items)
     if (items?.length) {
       data.items = {
-        create: items.map((item) => ({
-          type: item.type,
-          position: item.position,
-
+        create: items.map((item, position) => ({
+          type: item.type ?? LineItemType.OTHER,
+          position,
+          sellerItemIdentifier: item.sellerItemIdentifier?.trim() || undefined,
           title: item.title,
           description: item.description,
-
-          quantity: item.quantity,
-          unit: item.unit,
+          quantity: item.quantity ?? 1,
+          unitCode: item.unitCode?.trim() || 'C62',
+          unitLabel: item.unitLabel?.trim() || item.unit?.trim() || undefined,
           unitPrice: item.unitPrice,
+          subtotal: item.subtotal ?? Number(item.quantity ?? 1) * Number(item.unitPrice),
+          vatCategory: item.vatCategory ?? VatCategory.STANDARD,
+          vatRate: item.vatRate ?? 0,
           unitCost: item.unitCost ?? undefined,
           purchaseVatRate: item.purchaseVatRate ?? undefined,
-
-          vatRate: item.vatRate,
         })),
       };
     }
@@ -163,7 +162,7 @@ export class WorkOrderService {
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateWorkOrderDto>) {
-    const { items, address, addressId, customerId, startDate, endDate, ...workOrderData } = dto;
+    const { items, address, addressId, customerId, startDate, endDate, notes, ...workOrderData } = dto;
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.workOrder.updateMany({
@@ -172,8 +171,9 @@ export class WorkOrderService {
           ...workOrderData,
           customerId: customerId || undefined,
           addressId: addressId || undefined,
-          startDate: startDate ? new Date(startDate) : undefined,
-          endDate: endDate ? new Date(endDate) : undefined,
+          internalNotes: notes,
+          plannedStartDate: startDate ? new Date(startDate) : undefined,
+          plannedEndDate: endDate ? new Date(endDate) : undefined,
         },
       });
 
@@ -186,16 +186,20 @@ export class WorkOrderService {
         await tx.workOrderItem.createMany({
           data: items.map((item, position) => ({
             workOrderId: id,
-            type: item.type!,
+            type: item.type ?? LineItemType.OTHER,
             position,
+            sellerItemIdentifier: item.sellerItemIdentifier?.trim() || undefined,
             title: item.title!,
             description: item.description,
             quantity: item.quantity ?? 1,
-            unit: item.unit,
+            unitCode: item.unitCode?.trim() || 'C62',
+            unitLabel: item.unitLabel?.trim() || item.unit?.trim() || undefined,
             unitPrice: item.unitPrice!,
+            subtotal: item.subtotal ?? Number(item.quantity ?? 1) * Number(item.unitPrice),
+            vatCategory: item.vatCategory ?? VatCategory.STANDARD,
             unitCost: item.unitCost,
             purchaseVatRate: item.purchaseVatRate,
-            vatRate: item.vatRate!,
+            vatRate: item.vatRate ?? 0,
           })),
         });
       }

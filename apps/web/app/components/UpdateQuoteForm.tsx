@@ -1,6 +1,7 @@
 'use client';
 
 import { QuoteStatus, WorkOrderItemType } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import type { Quote, QuoteItem } from './QuotesList';
@@ -70,11 +71,21 @@ function recomputeQuote(quote: EditableQuote): EditableQuote {
     const lineVat = roundMoney(lineSubtotal * vatRate / 100);
     subtotal += lineSubtotal;
     vatAmount += lineVat;
-    return { ...item, position, quantity, unitPrice, vatRate, total: roundMoney(lineSubtotal + lineVat) };
+    return { ...item, position, quantity, unitPrice, vatRate, subtotal: lineSubtotal, total: roundMoney(lineSubtotal + lineVat) };
   });
   subtotal = roundMoney(subtotal);
   vatAmount = roundMoney(vatAmount);
   return { ...quote, items, subtotal, vatAmount, total: roundMoney(subtotal + vatAmount) };
+  return {
+    ...quote,
+    items,
+    subtotal,
+    vatAmount,
+    total: roundMoney(subtotal + vatAmount),
+    lineNetTotal: subtotal,
+    taxExclusiveAmount: subtotal,
+    taxInclusiveAmount: roundMoney(subtotal + vatAmount),
+  };
 }
 
 function normalizeQuote(quote: Quote): EditableQuote {
@@ -127,6 +138,8 @@ export default function UpdateQuoteForm({ quote, onUpdated, onChange }: UpdateQu
         tenantPostalCode: form.tenantPostalCode,
         tenantCity: form.tenantCity,
         tenantSiretNumber: form.tenantSiretNumber,
+          tenantSirenNumber: form.tenantSirenNumber || form.tenantSiretNumber.replace(/\D/g, '').slice(0, 9),
+          tenantCountryCode: form.tenantCountryCode || 'FR',
         tenantVatNumber: form.tenantVatNumber,
         tenantEmail: form.tenantEmail,
         tenantPhoneNumber: form.tenantPhoneNumber,
@@ -134,6 +147,8 @@ export default function UpdateQuoteForm({ quote, onUpdated, onChange }: UpdateQu
         tenantBic: form.tenantBic,
         customerFirstName: form.customerFirstName,
         customerLastName: form.customerLastName,
+          customerName: form.customerName || `${form.customerFirstName} ${form.customerLastName}`.trim(),
+          customerCountryCode: form.customerCountryCode || 'FR',
         customerStreet1: form.customerStreet1,
         customerStreet2: form.customerStreet2,
         customerPostalCode: form.customerPostalCode,
@@ -153,13 +168,21 @@ export default function UpdateQuoteForm({ quote, onUpdated, onChange }: UpdateQu
         notes: form.notes,
         depositAmount: form.depositAmount,
         pdfFileId: form.pdfFileId,
-        quoteItems: form.items,
+        quoteItems: form.items.map((item, position) => ({
+          ...item,
+          position,
+          sellerItemIdentifier: item.sellerItemIdentifier,
+          unitCode: item.unitCode || 'C62',
+          subtotal: item.subtotal ?? item.quantity * item.unitPrice,
+          vatCategory: item.vatCategory || 'STANDARD',
+        })),
       });
       if (!response.ok) throw new Error('Erreur');
       const updatedQuote: Quote = await response.json();
       onUpdated(updatedQuote);
-    } catch {
+    } catch (err) {
       setError('Erreur lors de la mise à jour du devis.');
+      console.log(err)
     } finally {
       setSubmitting(false);
     }

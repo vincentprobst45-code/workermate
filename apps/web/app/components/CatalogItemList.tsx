@@ -1,20 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { type WorkOrderItemType } from '@prisma/client';
+import { type LineItemType as WorkOrderItemType, type VatCategory } from '@prisma/client';
 
 export interface CatalogItem {
   id: string;
   tenantId: string;
   type: WorkOrderItemType;
   title: string;
+  reference?: string;
+  isActive: boolean;
   description?: string;
   defaultQuantity: number;
   unit?: string;
+  unitCode: string;
+  unitLabel?: string;
+  baseQuantity?: number;
+  baseQuantityUnitCode?: string;
   unitPrice: number;
   unitCost?: number;
   purchaseVatRate?: number;
   vatRate: number;
+  vatCategory: VatCategory;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,7 +137,7 @@ export default function CatalogItemList({
               <p className="font-semibold">{catalogItem.title}</p>
               <p className="text-sm text-slate-600">Type: {catalogItem.type}</p>
               <p className="text-sm text-slate-600">
-                Qte: {toNumber(catalogItem.defaultQuantity)} {catalogItem.unit || '-'} | PU: {toNumber(catalogItem.unitPrice).toFixed(2)} | TVA: {toNumber(catalogItem.vatRate).toFixed(2)}%
+                Qte: {toNumber(catalogItem.defaultQuantity)} {catalogItem.unitLabel || catalogItem.unitCode || catalogItem.unit || '-'} | PU: {toNumber(catalogItem.unitPrice).toFixed(2)} | TVA: {catalogItem.vatRate == null ? '-' : `${toNumber(catalogItem.vatRate).toFixed(2)}%`}
               </p>
             </div>
             {onDelete && (
@@ -211,9 +218,10 @@ export default function CatalogItemList({
             <p>tenantId : {selectedItem.tenantId}</p>
             <p>type : {selectedItem.type}</p>
             <p>titre : {selectedItem.title}</p>
+            <p>reference : {selectedItem.reference || '-'}</p>
             <p>description : {selectedItem.description || '-'}</p>
             <p>quantite par defaut : {toNumber(selectedItem.defaultQuantity)}</p>
-            <p>unite : {selectedItem.unit || '-'}</p>
+            <p>unite : {selectedItem.unitLabel || selectedItem.unitCode || selectedItem.unit || '-'}</p>
             <p>prix de vente unitaire : {toNumber(selectedItem.unitPrice).toFixed(2)}</p>
       			<p>Coût d&apos;achat unitaire : {selectedItem.unitCost === undefined || selectedItem.unitCost === null ? '-' : toNumber(selectedItem.unitCost).toFixed(2)}</p>
       			<p>TVA achat : {selectedItem.purchaseVatRate === undefined || selectedItem.purchaseVatRate === null ? '-' : `${toNumber(selectedItem.purchaseVatRate).toFixed(2)}%`}</p>

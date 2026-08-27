@@ -49,7 +49,7 @@ export default function WorkOrderDetails({ workOrder, onClose, onEdit, onSelect 
           <ul className="list-disc pl-5 mt-2 space-y-1">
             {workOrder.items.map((item) => (
               <li key={item.id}>
-                {item.position}. {item.title} ({item.type}) - {item.quantity} {item.unit || ''} - {item.unitPrice} € par unité - coût d&apos;achat unitaire : {item.unitCost === undefined || item.unitCost === null ? '-' : `${item.unitCost} €`} - TVA achat : {item.purchaseVatRate === undefined || item.purchaseVatRate === null ? '-' : `${item.purchaseVatRate} %`} - {item.unitPrice * item.quantity} € au total
+                {item.position + 1}. {item.title} ({item.type}) - {item.quantity} {item.unitLabel || item.unitCode || item.unit || ''} - {item.unitPrice} € par unité - coût d&apos;achat unitaire : {item.unitCost === undefined || item.unitCost === null ? '-' : `${item.unitCost} €`} - TVA achat : {item.purchaseVatRate === undefined || item.purchaseVatRate === null ? '-' : `${item.purchaseVatRate} %`} - {item.subtotal ?? item.unitPrice * item.quantity} € au total
               </li>
             ))}
             <li>Total : {totalPrice} €</li>

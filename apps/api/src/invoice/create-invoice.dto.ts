@@ -1,7 +1,8 @@
 import {
+  InvoiceKind,
+  InvoiceOperationCategory,
   InvoicePdpStatus,
   InvoiceStatus,
-  PaymentMethod,
 } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -28,8 +29,9 @@ export class CreateInvoiceDto {
   @IsString()
   number?: string;
 
+  @IsOptional()
   @IsDate({ message: 'issueDate must be a date' })
-  issueDate!: Date;
+  issueDate?: Date;
 
   @IsOptional()
   @IsDate({ message: 'dueDate must be a date' })
@@ -57,17 +59,27 @@ export class CreateInvoiceDto {
   @IsString()
   tenantCity!: string;
 
+  @IsOptional()
   @IsString()
-  tenantSiretNumber!: string;
+  tenantSiretNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  tenantVatNumber?: string;
 
   @IsString()
-  tenantVatNumber!: string;
+  tenantSirenNumber!: string;
 
+  @IsString()
+  tenantCountryCode!: string;
+
+  @IsOptional()
   @IsEmail()
-  tenantEmail!: string;
+  tenantEmail?: string;
 
+  @IsOptional()
   @IsString()
-  tenantPhoneNumber!: string;
+  tenantPhoneNumber?: string;
 
   @IsOptional()
   @IsString()
@@ -77,24 +89,35 @@ export class CreateInvoiceDto {
   @IsString()
   tenantBic?: string;
 
+  @IsOptional()
   @IsString()
-  customerFirstName!: string;
+  customerFirstName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerLastName?: string;
 
   @IsString()
-  customerLastName!: string;
+  customerName!: string;
 
+  @IsOptional()
   @IsString()
-  customerStreet1!: string;
+  customerStreet1?: string;
 
   @IsOptional()
   @IsString()
   customerStreet2?: string;
 
+  @IsOptional()
   @IsString()
-  customerPostalCode!: string;
+  customerPostalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  customerCity?: string;
 
   @IsString()
-  customerCity!: string;
+  customerCountryCode!: string;
 
   @IsOptional()
   @IsEmail()
@@ -136,14 +159,24 @@ export class CreateInvoiceDto {
   @IsString()
   currency?: string;
 
-  @IsDecimal()
-  subtotal!: number;
+  @IsOptional()
+  @IsEnum(InvoiceKind)
+  kind?: InvoiceKind;
 
-  @IsDecimal()
-  vatAmount!: number;
+  @IsEnum(InvoiceOperationCategory)
+  operationCategory!: InvoiceOperationCategory;
 
-  @IsDecimal()
-  total!: number;
+  @IsOptional()
+  @IsString()
+  billingFrameworkCode?: string;
+
+  @IsOptional()
+  @IsString()
+  accountingCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  internalNotes?: string;
 
   @IsOptional()
   @IsString()
@@ -168,10 +201,6 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsDate({ message: 'paidAt must be a date' })
   paidAt?: Date;
-
-  @IsOptional()
-  @IsEnum(PaymentMethod)
-  paymentMethod?: PaymentMethod;
 
   @IsOptional()
   @IsString()

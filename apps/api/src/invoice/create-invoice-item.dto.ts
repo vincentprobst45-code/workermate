@@ -1,11 +1,11 @@
 import { Type } from 'class-transformer';
-import { WorkOrderItemType } from '@prisma/client';
+import { LineItemType } from '@prisma/client';
 import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateInvoiceItemDto {
   @IsOptional()
-  @IsEnum(WorkOrderItemType)
-  type?: WorkOrderItemType;
+  @IsEnum(LineItemType)
+  type?: LineItemType;
 
   @Type(() => Number)
   @IsNumber()
@@ -14,6 +14,10 @@ export class CreateInvoiceItemDto {
 
   @IsString()
   title!: string;
+
+  @IsOptional()
+  @IsString()
+  lineIdentifier?: string;
 
   @IsOptional()
   @IsString()
@@ -28,6 +32,10 @@ export class CreateInvoiceItemDto {
   @IsString()
   unit?: string;
 
+  @IsOptional()
+  @IsString()
+  unitCode?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)
@@ -38,8 +46,12 @@ export class CreateInvoiceItemDto {
   @Min(0)
   vatRate!: number;
 
-  @Type(() => Number)
+  @IsOptional()
+  @IsString()
+  vatCategory?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  total!: number;
+  subtotal?: number;
 }

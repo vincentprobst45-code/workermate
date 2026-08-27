@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, WorkOrderItemType } from '@prisma/client';
+import { InvoiceOperationCategory, LineItemType, Prisma, VatCategory } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
@@ -132,15 +132,19 @@ export class InvoiceService {
       vatAmount += lineVat;
 
       return {
-        type: item.type ?? WorkOrderItemType.OTHER,
+        type: item.type ?? LineItemType.OTHER,
         position: index,
+        lineIdentifier: item.lineIdentifier?.trim() || String(index + 1),
+        notes: [],
         title: item.title.trim(),
         description: item.description?.trim() ?? '',
         quantity,
-        unit: item.unit?.trim() || undefined,
+        unitCode: item.unitCode?.trim() || 'C62',
+        unitLabel: item.unit?.trim() || undefined,
         unitPrice,
         vatRate,
-        total,
+        subtotal: lineSubtotal,
+        vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
       };
     });
 
@@ -151,14 +155,36 @@ export class InvoiceService {
     const grossTotal = this.roundMoney(subtotal + vatAmount);
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
 
-    const { invoiceItems: _ignoredInvoiceItems, number: _ignoredFrontendNumber, ...invoiceData } = dto;
+    const {
+      invoiceItems: _ignoredInvoiceItems,
+      number: _ignoredFrontendNumber,
+      customerFirstName: _customerFirstName,
+      customerLastName: _customerLastName,
+      tenantIban: _tenantIban,
+      tenantBic: _tenantBic,
+      legalMentions: _legalMentions,
+      notes: _notes,
+      depositAmount: _depositAmount,
+      discountAmount: _discountAmount,
+      paidAt: _paidAt,
+      ...invoiceData
+    } = dto;
     void _ignoredInvoiceItems;
     void _ignoredFrontendNumber;
     const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
     const dueDate = this.parseOptionalDate(dto.dueDate);
     const workOrderStartDate = this.parseOptionalDate(dto.workOrderStartDate);
     const workOrderEndDate = this.parseOptionalDate(dto.workOrderEndDate);
-    const paidAt = this.parseOptionalDate(dto.paidAt);
+    void _customerFirstName;
+    void _customerLastName;
+    void _legalMentions;
+    void _notes;
+    void _depositAmount;
+    void _discountAmount;
+    void _paidAt;
+
+    void _tenantIban;
+    void _tenantBic;
 
     for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
       try {
@@ -174,13 +200,26 @@ export class InvoiceService {
                 dueDate,
                 workOrderStartDate,
                 workOrderEndDate,
-                paidAt,
                 tenantId,
-                subtotal,
+                operationCategory: invoiceData.operationCategory ?? InvoiceOperationCategory.SERVICES,
+                customerName: dto.customerName,
+                customerStreet1: dto.customerStreet1 || '',
+                customerCity: dto.customerCity || '',
+                customerPostalCode: dto.customerPostalCode || '',
+                tenantSirenNumber: invoiceData.tenantSirenNumber || '',
+                tenantCountryCode: invoiceData.tenantCountryCode || 'FR',
+                customerCountryCode: invoiceData.customerCountryCode || 'FR',
+                lineNetTotal: subtotal,
+                allowanceTotal: discountAmount,
+                taxExclusiveAmount: this.roundMoney(subtotal - discountAmount),
+                taxInclusiveAmount: grossTotal,
+                prepaidAmount: depositAmount,
+                amountDue: total,
                 vatAmount,
-                total,
-                depositAmount: depositAmount > 0 ? depositAmount : undefined,
-                discountAmount: discountAmount > 0 ? discountAmount : undefined,
+                internalNotes: dto.notes,
+                paymentIban: dto.tenantIban,
+                paymentBic: dto.tenantBic,
+                notes: dto.legalMentions ? { create: [{ position: 0, text: dto.legalMentions }] } : undefined,
                 items: {
                   create: items,
                 },
@@ -277,10 +316,14 @@ export class InvoiceService {
         title: item.title,
         description: item.description ?? '',
         quantity,
-        unit: item.unit,
+        unitCode: item.unitCode,
+        unitLabel: item.unitLabel,
         unitPrice,
         vatRate,
-        total: lineTotal,
+        subtotal: lineSubtotal,
+        lineIdentifier: String(item.position + 1),
+        notes: [],
+        vatCategory: VatCategory.STANDARD,
       };
     });
 
@@ -289,7 +332,8 @@ export class InvoiceService {
     const grossTotal = this.roundMoney(subtotal + vatAmount);
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
 
-    const invoiceData: Omit<CreateInvoiceDto, 'number'> = {
+    const invoiceData: Prisma.InvoiceUncheckedCreateInput = {
+      tenantId,
       customerId: workOrder.customer.id,
       workOrderId: workOrder.id,
       issueDate,
@@ -305,10 +349,7 @@ export class InvoiceService {
       tenantVatNumber: workOrder.tenant.vatNumber ?? '',
       tenantEmail: workOrder.tenant.email ?? '',
       tenantPhoneNumber: workOrder.tenant.phoneNumber ?? '',
-      tenantIban: undefined,
-      tenantBic: undefined,
-      customerFirstName: workOrder.customer.firstName ?? workOrder.customer.company ?? '',
-      customerLastName: workOrder.customer.lastName ?? '',
+      customerName: [workOrder.customer.firstName, workOrder.customer.lastName].filter(Boolean).join(' ') || workOrder.customer.company || '',
       customerStreet1: workOrder.customer.address.street1,
       customerStreet2: workOrder.customer.address.street2 ?? undefined,
       customerPostalCode: workOrder.customer.address.postalCode,
@@ -316,19 +357,26 @@ export class InvoiceService {
       customerEmail: workOrder.customer.email ?? undefined,
       customerPhoneNumber: workOrder.customer.phone ?? workOrder.customer.mobile ?? undefined,
       customerVatNumber: workOrder.customer.vatNumber ?? undefined,
-      workOrderStartDate: workOrder.startDate ?? undefined,
-      workOrderEndDate: workOrder.endDate ?? undefined,
+      workOrderStartDate: undefined,
+      workOrderEndDate: undefined,
       workOrderAddress: workOrder.address?.street1 ?? undefined,
       workOrderPostalCode: workOrder.address?.postalCode ?? undefined,
       workOrderCity: workOrder.address?.city ?? undefined,
       currency: 'EUR',
-      subtotal,
+      tenantSirenNumber: workOrder.tenant.siretNumber ?? '',
+      tenantCountryCode: workOrder.tenant.address?.countryCode ?? 'FR',
+      customerCountryCode: workOrder.customer.address.countryCode,
+      operationCategory: InvoiceOperationCategory.SERVICES,
+      lineNetTotal: subtotal,
+      taxExclusiveAmount: subtotal,
       vatAmount,
-      total,
+      taxInclusiveAmount: grossTotal,
+      prepaidAmount: depositAmount,
+      amountDue: total,
       paymentTerms: dto.paymentTerms,
-      notes: dto.notes ?? workOrder.notes ?? undefined,
-      depositAmount: depositAmount > 0 ? depositAmount : undefined,
-      discountAmount: discountAmount > 0 ? discountAmount : undefined,
+      internalNotes: dto.notes ?? undefined,
+      paymentIban: workOrder.tenant.iban ?? undefined,
+      paymentBic: workOrder.tenant.bic ?? undefined,
     };
 
     for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
@@ -398,12 +446,46 @@ export class InvoiceService {
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateInvoiceDto>) {
-    const { invoiceItems, number: _number, ...invoiceData } = dto;
+    const {
+      invoiceItems,
+      number: _number,
+      customerFirstName: _customerFirstName,
+      customerLastName: _customerLastName,
+      tenantIban: _tenantIban,
+      tenantBic: _tenantBic,
+      legalMentions: _legalMentions,
+      depositAmount: _depositAmount,
+      discountAmount: _discountAmount,
+      paidAt: _paidAt,
+      ...invoiceData
+    } = dto;
     void _number;
+    void _customerFirstName;
+    void _customerLastName;
+    void _tenantIban;
+    void _tenantBic;
+    void _legalMentions;
+    void _depositAmount;
+    void _discountAmount;
+    void _paidAt;
+
+    const recalculatedTotals = invoiceItems
+      ? invoiceItems.reduce(
+          (totals, item) => {
+            const lineSubtotal = this.roundMoney(Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)));
+            const lineVat = this.roundMoney(lineSubtotal * (Number(item.vatRate) / 100));
+            return {
+              subtotal: this.roundMoney(totals.subtotal + lineSubtotal),
+              vatAmount: this.roundMoney(totals.vatAmount + lineVat),
+            };
+          },
+          { subtotal: 0, vatAmount: 0 },
+        )
+      : null;
 
     const existing = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
-      select: { id: true },
+      select: { id: true, allowanceTotal: true, prepaidAmount: true },
     });
 
     if (!existing) {
@@ -415,12 +497,26 @@ export class InvoiceService {
         where: { id: existing.id },
         data: {
           ...invoiceData,
+          ...(recalculatedTotals
+            ? {
+                lineNetTotal: recalculatedTotals.subtotal,
+                taxExclusiveAmount: this.roundMoney(recalculatedTotals.subtotal - Number(existing.allowanceTotal)),
+                vatAmount: recalculatedTotals.vatAmount,
+                taxInclusiveAmount: this.roundMoney(recalculatedTotals.subtotal + recalculatedTotals.vatAmount),
+                amountDue: this.roundMoney(
+                  recalculatedTotals.subtotal +
+                    recalculatedTotals.vatAmount -
+                    Number(existing.allowanceTotal) -
+                    Number(existing.prepaidAmount),
+                ),
+              }
+            : {}),
           issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
           workOrderStartDate: dto.workOrderStartDate ? new Date(dto.workOrderStartDate) : undefined,
           workOrderEndDate: dto.workOrderEndDate ? new Date(dto.workOrderEndDate) : undefined,
-          paidAt: dto.paidAt ? new Date(dto.paidAt) : undefined,
-        },
+          internalNotes: dto.internalNotes ?? dto.notes,
+        } as Prisma.InvoiceUncheckedUpdateInput,
       });
 
       if (invoiceItems) {
@@ -428,15 +524,19 @@ export class InvoiceService {
         await tx.invoiceItem.createMany({
           data: invoiceItems.map((item, position) => ({
             invoiceId: existing.id,
-            type: item.type ?? WorkOrderItemType.OTHER,
+            type: item.type ?? LineItemType.OTHER,
             position,
+            lineIdentifier: item.lineIdentifier?.trim() || String(position + 1),
+            notes: [],
             title: item.title.trim(),
             description: item.description?.trim() ?? '',
             quantity: Number(item.quantity),
-            unit: item.unit?.trim() || undefined,
+            unitCode: item.unitCode?.trim() || 'C62',
+            unitLabel: item.unit?.trim() || undefined,
             unitPrice: Number(item.unitPrice),
             vatRate: Number(item.vatRate),
-            total: Number(item.total),
+            subtotal: Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)),
+            vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
           })),
         });
       }

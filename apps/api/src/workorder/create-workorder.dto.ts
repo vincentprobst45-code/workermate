@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsDate,
+  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -45,14 +45,13 @@ export class CreateWorkOrderDto {
   status?: WorkOrderStatus;
 
   @IsOptional()
-  // @IsDateString()
-  @IsDate({ message: 'startdate must be a date' })
-  startDate?: Date;
+  @IsDateString({}, { message: 'startDate must be a date' })
+  startDate?: string;
 
   @IsOptional()
   // @IsDateString()
-  @IsDate({ message: 'startdate must be a date' })
-  endDate?: Date;
+  @IsDateString({}, { message: 'endDate must be a date' })
+  endDate?: string;
 
   @IsOptional()
   @IsArray()

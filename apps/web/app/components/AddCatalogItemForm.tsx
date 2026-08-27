@@ -1,6 +1,6 @@
 'use client';
 
-import { WorkOrderItemType } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, VatCategory } from '@prisma/client';
 import { type FormEvent, useState } from 'react';
 import { useApiClient } from '../api-client';
 
@@ -9,13 +9,20 @@ export interface CatalogItem {
   tenantId: string;
   type: WorkOrderItemType;
   title: string;
+  reference?: string;
+  isActive: boolean;
   description?: string;
   defaultQuantity: number;
   unit?: string;
+  unitCode: string;
+  unitLabel?: string;
+  baseQuantity?: number;
+  baseQuantityUnitCode?: string;
   unitPrice: number;
   unitCost?: number;
   purchaseVatRate?: number;
   vatRate: number;
+  vatCategory: VatCategory;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,24 +31,38 @@ export interface AddCatalogItemFormData {
   type: WorkOrderItemType;
   title: string;
   description: string;
+  reference: string;
+  isActive: boolean;
   defaultQuantity: number;
   unit: string;
+  unitCode: string;
+  unitLabel: string;
+  baseQuantity: number;
+  baseQuantityUnitCode: string;
   unitPrice: number;
   unitCost: number | '';
   purchaseVatRate: number | '';
   vatRate: number;
+  vatCategory: VatCategory;
 }
 
 export interface CreateCatalogItemDto {
   type: WorkOrderItemType;
   title: string;
+  reference?: string;
+  isActive?: boolean;
   description?: string;
   defaultQuantity?: number;
   unit?: string;
+  unitCode: string;
+  unitLabel?: string;
+  baseQuantity?: number;
+  baseQuantityUnitCode?: string;
   unitPrice: number;
   unitCost?: number;
   purchaseVatRate?: number;
-  vatRate: number;
+  vatRate?: number;
+  vatCategory: VatCategory;
 }
 
 const catalogItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> = [
@@ -57,13 +78,20 @@ function createEmptyCatalogItem(): AddCatalogItemFormData {
   return {
     type: 'OTHER',
     title: '',
+    reference: '',
+    isActive: true,
     description: '',
     defaultQuantity: 1,
     unit: '',
+    unitCode: 'C62',
+    unitLabel: '',
+    baseQuantity: 1,
+    baseQuantityUnitCode: 'C62',
     unitPrice: 0,
     unitCost: '',
     purchaseVatRate: '',
     vatRate: 20,
+    vatCategory: 'STANDARD',
   };
 }
 
@@ -98,16 +126,22 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
       const payload: CreateCatalogItemDto = {
         type: newCatalogItem.type,
         title: newCatalogItem.title.trim(),
+        reference: trimToUndefined(newCatalogItem.reference),
+        isActive: newCatalogItem.isActive,
         description: trimToUndefined(newCatalogItem.description),
         defaultQuantity: Number.isFinite(newCatalogItem.defaultQuantity)
           ? newCatalogItem.defaultQuantity
           : 1,
-        unit: trimToUndefined(newCatalogItem.unit),
+        unitCode: newCatalogItem.unitCode.trim() || 'C62',
+        unitLabel: trimToUndefined(newCatalogItem.unitLabel || newCatalogItem.unit),
+        baseQuantity: newCatalogItem.baseQuantity || 1,
+        baseQuantityUnitCode: trimToUndefined(newCatalogItem.baseQuantityUnitCode),
         unitPrice: Number.isFinite(newCatalogItem.unitPrice) ? newCatalogItem.unitPrice : 0,
         unitCost: newCatalogItem.unitCost === '' ? undefined : newCatalogItem.unitCost,
         purchaseVatRate:
           newCatalogItem.purchaseVatRate === '' ? undefined : newCatalogItem.purchaseVatRate,
-        vatRate: Number.isFinite(newCatalogItem.vatRate) ? newCatalogItem.vatRate : 0,
+        vatRate: Number.isFinite(newCatalogItem.vatRate) ? newCatalogItem.vatRate : undefined,
+        vatCategory: newCatalogItem.vatCategory,
       };
 
       const response = await api.post('/catalogitems', payload);
@@ -170,6 +204,16 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
             />
           </label>
 
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Référence</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="Référence interne"
+              value={newCatalogItem.reference}
+              onChange={(event) => setNewCatalogItem({ ...newCatalogItem, reference: event.target.value })}
+            />
+          </label>
+
           <label className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
             <span className="text-sm font-medium text-zinc-700">Description</span>
             <textarea
@@ -209,6 +253,17 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
               placeholder="Unite"
               value={newCatalogItem.unit}
               onChange={(event) => setNewCatalogItem({ ...newCatalogItem, unit: event.target.value })}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Code unité</span>
+            <input
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              placeholder="C62, HUR, KGM..."
+              value={newCatalogItem.unitCode}
+              onChange={(event) => setNewCatalogItem({ ...newCatalogItem, unitCode: event.target.value })}
+              required
             />
           </label>
 
@@ -288,6 +343,29 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
               }
               required
             />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-zinc-700">Catégorie TVA</span>
+            <select
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              value={newCatalogItem.vatCategory}
+              onChange={(event) => setNewCatalogItem({ ...newCatalogItem, vatCategory: event.target.value as VatCategory })}
+            >
+              <option value="STANDARD">Standard</option>
+              <option value="EXEMPT">Exonérée</option>
+              <option value="REVERSE_CHARGE">Autoliquidation</option>
+              <option value="ZERO">Taux zéro</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={newCatalogItem.isActive}
+              onChange={(event) => setNewCatalogItem({ ...newCatalogItem, isActive: event.target.checked })}
+            />
+            Article actif
           </label>
         </div>
       </section>

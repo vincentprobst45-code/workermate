@@ -1,7 +1,8 @@
 import { Type } from 'class-transformer';
-import { WorkOrderItemType } from '@prisma/client';
+import { LineItemType, VatCategory } from '@prisma/client';
 import {
   IsEnum,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -9,8 +10,16 @@ import {
 } from 'class-validator';
 
 export class CreateCatalogItemDto {
-  @IsEnum(WorkOrderItemType)
-  type!: WorkOrderItemType;
+  @IsEnum(LineItemType)
+  type!: LineItemType;
+
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsString()
   title!: string;
@@ -29,6 +38,24 @@ export class CreateCatalogItemDto {
   @IsString()
   unit?: string;
 
+  @IsOptional()
+  @IsString()
+  unitCode?: string;
+
+  @IsOptional()
+  @IsString()
+  unitLabel?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  baseQuantity?: number;
+
+  @IsOptional()
+  @IsString()
+  baseQuantityUnitCode?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)
@@ -46,8 +73,13 @@ export class CreateCatalogItemDto {
   @Min(0)
   purchaseVatRate?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  vatRate!: number;
+  vatRate?: number;
+
+  @IsOptional()
+  @IsEnum(VatCategory)
+  vatCategory?: VatCategory;
 }

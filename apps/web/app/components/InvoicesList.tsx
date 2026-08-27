@@ -16,6 +16,11 @@ export interface InvoiceItem {
   unitPrice: number;
   vatRate: number;
   total: number;
+  lineIdentifier?: string;
+  unitCode?: string;
+  unitLabel?: string;
+  subtotal?: number;
+  vatCategory?: string;
 }
 
 export interface Invoice {
@@ -73,6 +78,20 @@ export interface Invoice {
   createdAt: string;
   updatedAt: string;
   items?: InvoiceItem[];
+  kind?: string;
+  operationCategory?: string;
+  tenantSirenNumber?: string;
+  tenantCountryCode?: string;
+  customerName?: string;
+  customerCountryCode?: string;
+  lineNetTotal?: number;
+  taxExclusiveAmount?: number;
+  taxInclusiveAmount?: number;
+  prepaidAmount?: number;
+  amountDue?: number;
+  internalNotes?: string;
+  allowanceTotal?: number;
+  notes?: string | Array<{ text: string }>;
 }
 
 interface InvoicesListProps {
@@ -193,10 +212,10 @@ export default function InvoicesList({
             <div>
               <p className="font-semibold">{invoice.number}</p>
               <p className="text-sm text-slate-600">
-                {invoice.customerFirstName} {invoice.customerLastName}
+                {invoice.customerName || `${invoice.customerFirstName} ${invoice.customerLastName}`}
               </p>
               <p className="text-xs text-slate-500">
-                {formatDate(invoice.issueDate)} - {formatMoney(invoice.total, invoice.currency)}
+                {formatDate(invoice.issueDate)} - {formatMoney(invoice.amountDue ?? invoice.total, invoice.currency)}
               </p>
             </div>
             {onDelete && (
@@ -294,7 +313,7 @@ export default function InvoicesList({
             <p>date echeance : {formatDate(selectedInvoice.dueDate)}</p>
 
             <p className="mt-4 font-semibold">Client</p>
-            <p>nom : {selectedInvoice.customerFirstName} {selectedInvoice.customerLastName}</p>
+            <p>nom : {selectedInvoice.customerName || `${selectedInvoice.customerFirstName} ${selectedInvoice.customerLastName}`}</p>
             <p>email : {selectedInvoice.customerEmail || '-'}</p>
             <p>telephone : {selectedInvoice.customerPhoneNumber || '-'}</p>
             <p>
@@ -306,14 +325,14 @@ export default function InvoicesList({
             <p>titre : {selectedInvoice.workOrderTitle || '-'}</p>
 
             <p className="mt-4 font-semibold">Montants</p>
-            <p>sous-total HT : {formatMoney(selectedInvoice.subtotal, selectedInvoice.currency)}</p>
+            <p>sous-total HT : {formatMoney(selectedInvoice.taxExclusiveAmount ?? selectedInvoice.subtotal, selectedInvoice.currency)}</p>
             <p>TVA : {formatMoney(selectedInvoice.vatAmount, selectedInvoice.currency)}</p>
-            <p>remise : {formatMoney(selectedInvoice.discountAmount || 0, selectedInvoice.currency)}</p>
-            <p>acompte : {formatMoney(selectedInvoice.depositAmount || 0, selectedInvoice.currency)}</p>
-            <p>total TTC : {formatMoney(selectedInvoice.total, selectedInvoice.currency)}</p>
+            <p>remise : {formatMoney(selectedInvoice.allowanceTotal || 0, selectedInvoice.currency)}</p>
+            <p>acompte : {formatMoney(selectedInvoice.prepaidAmount || selectedInvoice.depositAmount || 0, selectedInvoice.currency)}</p>
+            <p>total TTC : {formatMoney(selectedInvoice.taxInclusiveAmount ?? selectedInvoice.total, selectedInvoice.currency)}</p>
 
             <p className="mt-4">conditions de paiement : {selectedInvoice.paymentTerms || '-'}</p>
-            <p>notes : {selectedInvoice.notes || '-'}</p>
+            <p>notes : {selectedInvoice.internalNotes || (Array.isArray(selectedInvoice.notes) ? selectedInvoice.notes.map((note) => note.text).join(' ') : selectedInvoice.notes) || '-'}</p>
 
             <div className="mt-4">
               <p className="font-semibold">Lignes de facture</p>
@@ -321,7 +340,7 @@ export default function InvoicesList({
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                   {selectedInvoice.items.map((item) => (
                     <li key={item.id}>
-                      {item.position + 1}. {item.title} - {item.quantity} {item.unit || ''} x {formatMoney(item.unitPrice, selectedInvoice.currency)} - TVA {item.vatRate}% - Total {formatMoney(item.total, selectedInvoice.currency)}
+                      {item.lineIdentifier || item.position + 1}. {item.title} - {item.quantity} {item.unitLabel || item.unitCode || item.unit || ''} x {formatMoney(item.unitPrice, selectedInvoice.currency)} - TVA {item.vatRate}% - Total {formatMoney(item.subtotal ?? item.total, selectedInvoice.currency)}
                     </li>
                   ))}
                 </ul>

@@ -1,6 +1,6 @@
 'use client';
 
-import { WorkLogItemType } from '@prisma/client';
+import { LineItemType as WorkLogItemType } from '@prisma/client';
 import { type FormEvent, useState } from 'react';
 import { useApiClient } from '../../api-client';
 
@@ -10,6 +10,13 @@ export type WorkLogItem = {
   description?: string;
   quantity: number;
   unit?: string;
+  reference?: string;
+  position: number;
+  unitCode: string;
+  unitLabel?: string;
+  baseQuantity: number;
+  baseQuantityUnitCode?: string;
+  workOrderItemId?: string;
   unitCost: number;
   purchaseVatRate?: number;
   totalCost: number;
@@ -24,6 +31,9 @@ type CatalogItem = {
   description?: string;
   defaultQuantity: number;
   unit?: string;
+  reference?: string;
+  unitCode: string;
+  unitLabel?: string;
   unitCost?: number;
   purchaseVatRate?: number;
 };
@@ -35,6 +45,11 @@ type WorkOrderItem = {
   description?: string;
   quantity: number;
   unit?: string;
+  unitCode: string;
+  unitLabel?: string;
+  reference?: string;
+  baseQuantity?: number;
+  baseQuantityUnitCode?: string;
   unitPrice: number;
   purchaseVatRate?: number;
 };
@@ -58,6 +73,10 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState('');
+  const [unitCode, setUnitCode] = useState('C62');
+  const [baseQuantity, setBaseQuantity] = useState(1);
+  const [reference, setReference] = useState('');
+  const [workOrderItemId, setWorkOrderItemId] = useState('');
   const [unitCost, setUnitCost] = useState(0);
   const [purchaseVatRate, setPurchaseVatRate] = useState<number | ''>('');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -67,9 +86,11 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  function fill(values: { type: WorkLogItemType; title: string; description?: string; quantity: number; unit?: string; unitCost: number; purchaseVatRate?: number }) {
+  function fill(values: { type: WorkLogItemType; title: string; description?: string; quantity: number; unit?: string; unitCode?: string; reference?: string; unitCost: number; purchaseVatRate?: number; baseQuantity?: number; workOrderItemId?: string }) {
     setType(values.type); setTitle(values.title); setDescription(values.description ?? '');
     setQuantity(Number(values.quantity) || 0); setUnit(values.unit ?? ''); setUnitCost(Number(values.unitCost) || 0);
+    setUnitCode(values.unitCode || 'C62'); setReference(values.reference ?? ''); setBaseQuantity(Number(values.baseQuantity) || 1);
+    setWorkOrderItemId(values.workOrderItemId ?? '');
     setPurchaseVatRate(values.purchaseVatRate === undefined || values.purchaseVatRate === null ? '' : Number(values.purchaseVatRate));
     setShowCatalog(false); setShowWorkOrderItems(false); setError('');
   }
@@ -96,9 +117,10 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setSubmitting(true);
     try {
-      const response = await api.post(`/worklogs/${workLogId}/items`, { type, title: title.trim(), description: description.trim() || undefined, quantity, unit: unit.trim() || undefined, unitCost, purchaseVatRate: purchaseVatRate === '' ? undefined : purchaseVatRate });
+      const response = await api.post(`/worklogs/${workLogId}/items`, { type, title: title.trim(), description: description.trim() || undefined, quantity, workOrderItemId: workOrderItemId || undefined, unitCode: unitCode.trim() || 'C62', unitLabel: unit.trim() || undefined, reference: reference.trim() || undefined, baseQuantity, unitCost, purchaseVatRate: purchaseVatRate === '' ? undefined : purchaseVatRate });
       if (!response.ok) throw new Error('Erreur');
       onCreated(await response.json() as WorkLogItem);
+      setWorkOrderItemId('');
     } catch { setError('Erreur lors de la création de l’élément de suivi.'); }
     finally { setSubmitting(false); }
   }
@@ -113,7 +135,10 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated }
       <label className="flex flex-col gap-1 text-sm"><span>Titre</span><input required className="rounded border border-zinc-300 px-3 py-2" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm sm:col-span-2"><span>Description</span><textarea className="min-h-20 rounded border border-zinc-300 px-3 py-2" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Quantité</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={quantity} onChange={(event) => setQuantity(event.target.valueAsNumber || 0)} /></label>
+      <label className="flex flex-col gap-1 text-sm"><span>Référence</span><input className="rounded border border-zinc-300 px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Unité</span><input className="rounded border border-zinc-300 px-3 py-2" value={unit} onChange={(event) => setUnit(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-sm"><span>Code unité</span><input required className="rounded border border-zinc-300 px-3 py-2" value={unitCode} onChange={(event) => setUnitCode(event.target.value)} /></label>
+      <label className="flex flex-col gap-1 text-sm"><span>Quantité de base</span><input required min="0.000001" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={baseQuantity} onChange={(event) => setBaseQuantity(event.target.valueAsNumber || 1)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Coût unitaire</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={unitCost} onChange={(event) => setUnitCost(event.target.valueAsNumber || 0)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>TVA achat (%)</span><input min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={purchaseVatRate} onChange={(event) => setPurchaseVatRate(Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber)} /></label>
     </div>
