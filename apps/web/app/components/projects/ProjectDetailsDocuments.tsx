@@ -217,6 +217,32 @@ export default function ProjectDetailsDocuments({ project }: ProjectDetailsDocum
     }
   }
 
+  async function disassociateQuote(quoteId: string) {
+    try {
+      const response = await api.delete(`/projects/${project.id}/quotes/${quoteId}`);
+      if (!response.ok) {
+        throw new Error('Erreur');
+      }
+
+      setReloadVersion((current) => current + 1);
+    } catch {
+      setError('Erreur lors de la désassociation du devis du projet.');
+    }
+  }
+
+  async function disassociateInvoice(invoiceId: string) {
+    try {
+      const response = await api.delete(`/projects/${project.id}/invoices/${invoiceId}`);
+      if (!response.ok) {
+        throw new Error('Erreur');
+      }
+
+      setReloadVersion((current) => current + 1);
+    } catch {
+      setError('Erreur lors de la désassociation de la facture du projet.');
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -263,7 +289,7 @@ export default function ProjectDetailsDocuments({ project }: ProjectDetailsDocum
             {showQuotesList && (
               <div className="mt-4 border-t border-zinc-200 pt-4">
                 {quotes.length > 0 ? (
-                  <QuotesList quotes={quotes} onDelete={null} />
+                  <QuotesList quotes={quotes} onDelete={null} onDisassociate={disassociateQuote} />
                 ) : (
                   <p className="text-sm text-zinc-600">Aucun devis associé à ce projet.</p>
                 )}
@@ -290,7 +316,7 @@ export default function ProjectDetailsDocuments({ project }: ProjectDetailsDocum
             {showInvoicesList && (
               <div className="mt-4 border-t border-zinc-200 pt-4">
                 {invoices.length > 0 ? (
-                  <InvoicesList invoices={invoices} onDelete={null} />
+                  <InvoicesList invoices={invoices} onDelete={null} onDisassociate={disassociateInvoice} />
                 ) : (
                   <p className="text-sm text-zinc-600">Aucune facture associée à ce projet.</p>
                 )}

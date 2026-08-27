@@ -21,63 +21,114 @@ export default function CustomersDetails({ customer, onClose }: CustomersDetails
   const fullName = [customer.firstName, customer.lastName]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' ');
+  const displayName = fullName || valueOrDash(customer.company);
+  const initials = [customer.firstName, customer.lastName, customer.company]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .map((value) => value.trim().charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('') || '?';
+  const addressLines = [
+    customer.address?.street1,
+    customer.address?.postalCode,
+    customer.address?.city,
+  ].filter((value): value is string => Boolean(value?.trim()));
 
   return (
     <div
-      className="max-h-[90vh] w-[92vw] max-w-3xl overflow-y-auto rounded-xl bg-white shadow-xl"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-details-title"
+      className="max-h-[90vh] w-[92vw] max-w-4xl overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 shadow-2xl"
       onClick={(event) => event.stopPropagation()}
     >
-      <header className="border-b border-zinc-200 bg-zinc-50 px-6 py-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">Fiche client</p>
-            <h3 className="mt-1 text-2xl font-semibold text-zinc-900">{fullName || valueOrDash(customer.company)}</h3>
-            {customer.company && <p className="mt-1 text-sm text-zinc-600">{customer.company}</p>}
+      <header className="relative overflow-hidden bg-slate-950 px-6 py-7 text-white sm:px-8">
+        <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full border-[24px] border-teal-400/20" />
+        <div className="relative flex flex-wrap items-start justify-between gap-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-teal-400 text-xl font-bold text-slate-950 shadow-lg shadow-teal-950/40">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-teal-300">Fiche client</p>
+              <h3 id="customer-details-title" className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{displayName}</h3>
+              <p className="mt-1 truncate text-sm text-slate-300">{valueOrDash(customer.company)}</p>
+            </div>
           </div>
-          <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100" onClick={onClose}>
-            Fermer
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-emerald-300/30 bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-200">Client actif</span>
+            <button type="button" aria-label="Fermer la fiche client" className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-400 hover:bg-slate-800" onClick={onClose}>
+              Fermer
+            </button>
+          </div>
+        </div>
+        <div className="relative mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-800 pt-4 text-xs text-slate-400">
+          <span>ID client: {customer.id}</span>
+          <span>Créé le {formatDate(customer.createdAt)}</span>
         </div>
       </header>
 
-      <div className="space-y-5 p-6">
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-700">Identité</h4>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <p className="text-sm"><span className="text-zinc-500">Prénom</span><br /><strong>{valueOrDash(customer.firstName)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">Nom</span><br /><strong>{valueOrDash(customer.lastName)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">Entreprise</span><br /><strong>{valueOrDash(customer.company)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">SIRET</span><br /><strong>{valueOrDash(customer.siret)}</strong></p>
+      <div className="space-y-5 p-5 sm:p-8">
+        <section className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Identité</h4>
+              <span className="text-xs text-slate-400">Profil</span>
+            </div>
+            <div className="grid gap-4 grid-cols-2">
+              <div><p className="text-xs text-slate-500">Prénom</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.firstName)}</p></div>
+              <div><p className="text-xs text-slate-500">Nom</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.lastName)}</p></div>
+              <div><p className="text-xs text-slate-500">Entreprise</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.company)}</p></div>
+              <div><p className="text-xs text-slate-500">SIRET</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.siret)}</p></div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Coordonnées</h4>
+              <span className="text-xs text-slate-400">Contact</span>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div><p className="text-xs text-slate-500">Email</p>{customer.email ? <a className="mt-1 block truncate font-medium text-teal-700 hover:text-teal-900" href={`mailto:${customer.email}`}>{customer.email}</a> : <p className="mt-1 font-medium text-slate-900">-</p>}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><p className="text-xs text-slate-500">Téléphone</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.phone)}</p></div>
+                <div><p className="text-xs text-slate-500">Mobile</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.mobile)}</p></div>
+              </div>
+              <div><p className="text-xs text-slate-500">N° de TVA</p><p className="mt-1 font-medium text-slate-900">{valueOrDash(customer.vatNumber)}</p></div>
+            </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-700">Coordonnées</h4>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <p className="text-sm"><span className="text-zinc-500">Email</span><br /><strong>{valueOrDash(customer.email)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">Téléphone</span><br /><strong>{valueOrDash(customer.phone)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">Mobile</span><br /><strong>{valueOrDash(customer.mobile)}</strong></p>
-            <p className="text-sm"><span className="text-zinc-500">TVA</span><br /><strong>{valueOrDash(customer.vatNumber)}</strong></p>
+        <section className="grid gap-4 sm:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Adresse de facturation</h4>
+            <div className="rounded-lg bg-slate-50 p-4 text-sm leading-7 text-slate-800">
+              <p className="font-medium">{addressLines[0] || '-'}</p>
+              <p>{addressLines.slice(1).join(' ') || '-'}</p>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">Identifiant adresse: {valueOrDash(customer.addressId)}</p>
+          </div>
+
+          <div className="rounded-xl border border-teal-100 bg-teal-50 p-5 shadow-sm">
+            <h4 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-teal-800">Compte</h4>
+            <p className="text-xs text-teal-700">Créé par</p>
+            <p className="mt-1 break-all text-sm font-medium text-slate-900">{valueOrDash(customer.createdById)}</p>
+            <p className="mt-4 text-xs text-teal-700">Tenant</p>
+            <p className="mt-1 break-all text-sm font-medium text-slate-900">{customer.tenantId}</p>
           </div>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-700">Adresse</h4>
-          <p className="text-sm text-zinc-800">{valueOrDash(customer.address?.street1)}</p>
-          <p className="text-sm text-zinc-800">{[customer.address?.postalCode, customer.address?.city].filter(Boolean).join(' ') || '-'}</p>
-          <p className="mt-2 text-xs text-zinc-500">Identifiant adresse: {valueOrDash(customer.addressId)}</p>
+        <section className="rounded-xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h4 className="text-sm font-semibold uppercase tracking-[0.14em] text-amber-900">Notes internes</h4>
+            <span className="text-xs text-amber-700">Privé</span>
+          </div>
+          <p className="min-h-10 whitespace-pre-wrap text-sm leading-6 text-slate-700">{valueOrDash(customer.notes)}</p>
         </section>
 
-        <section className="rounded-lg border border-zinc-200 p-4">
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-700">Notes</h4>
-          <p className="whitespace-pre-wrap text-sm text-zinc-700">{valueOrDash(customer.notes)}</p>
-        </section>
-
-        <footer className="grid gap-2 border-t border-zinc-200 pt-4 text-xs text-zinc-500 sm:grid-cols-2">
-          <p>Identifiant client: {customer.id}</p>
-          <p>Créé le: {formatDate(customer.createdAt)}</p>
-          <p>Tenant: {customer.tenantId}</p>
-          <p>Créé par: {valueOrDash(customer.createdById)}</p>
+        <footer className="flex justify-end border-t border-slate-200 pt-5">
+          <button type="button" className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700" onClick={onClose}>
+            Fermer la fiche
+          </button>
         </footer>
       </div>
     </div>

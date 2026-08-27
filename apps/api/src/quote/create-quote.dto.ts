@@ -19,6 +19,10 @@ export class CreateQuoteDto {
   customerId?: string;
 
   @IsOptional()
+  @IsString()
+  workOrderId?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => CreateCustomerDto)
   customer?: CreateCustomerDto;

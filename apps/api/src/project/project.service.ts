@@ -460,6 +460,24 @@ export class ProjectService {
     return this.findOne(tenantId, project.id);
   }
 
+  async disassociateQuote(tenantId: string, projectId: string, quoteId: string) {
+    const quote = await this.prisma.quote.findFirst({
+      where: { id: quoteId, tenantId, projectId },
+      select: { id: true },
+    });
+
+    if (!quote) {
+      throw new NotFoundException('Devis associé introuvable pour ce projet.');
+    }
+
+    await this.prisma.quote.update({
+      where: { id: quote.id },
+      data: { projectId: null },
+    });
+
+    return this.findOne(tenantId, projectId);
+  }
+
   async associateInvoice(tenantId: string, projectId: string, invoiceId: string) {
     const [project, invoice] = await Promise.all([
       this.prisma.project.findFirst({
@@ -486,6 +504,24 @@ export class ProjectService {
     });
 
     return this.findOne(tenantId, project.id);
+  }
+
+  async disassociateInvoice(tenantId: string, projectId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId, projectId },
+      select: { id: true },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Facture associée introuvable pour ce projet.');
+    }
+
+    await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { projectId: null },
+    });
+
+    return this.findOne(tenantId, projectId);
   }
 
   async associateWorkOrder(tenantId: string, projectId: string, workOrderId: string) {

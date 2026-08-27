@@ -101,6 +101,7 @@ export interface Quote {
 interface QuotesListProps {
   quotes: Quote[];
   onDelete: ((id: string) => void | Promise<void>) | null;
+  onDisassociate?: ((id: string) => void | Promise<void>) | null;
   handleSelectedQuote?: ((quote: Quote) => void | Promise<void>) | null;
 }
 
@@ -127,7 +128,7 @@ function formatDate(value?: string) {
 }
 
 
-export default function QuotesList({ quotes, onDelete, handleSelectedQuote = null }: QuotesListProps) {
+export default function QuotesList({ quotes, onDelete, onDisassociate = null, handleSelectedQuote = null }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [quoteBeingEdited, setQuoteBeingEdited] = useState<Quote | null>(null);
@@ -228,6 +229,18 @@ export default function QuotesList({ quotes, onDelete, handleSelectedQuote = nul
                 className="text-red-600 hover:text-red-800"
               >
                 Supprimer
+              </button>
+            )}
+            {onDisassociate && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onDisassociate(quote.id);
+                }}
+                className="text-amber-600 hover:text-amber-800"
+              >
+                Désassocier du projet
               </button>
             )}
           </div>

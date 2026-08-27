@@ -97,6 +97,7 @@ export interface Invoice {
 interface InvoicesListProps {
   invoices: Invoice[];
   onDelete: ((id: string) => void | Promise<void>) | null;
+  onDisassociate?: ((id: string) => void | Promise<void>) | null;
   handleSelectedInvoice?: ((invoice: Invoice) => void | Promise<void>) | null;
 }
 
@@ -125,6 +126,7 @@ function formatDate(value?: string) {
 export default function InvoicesList({
   invoices,
   onDelete,
+  onDisassociate = null,
   handleSelectedInvoice = null,
 }: InvoicesListProps) {
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
@@ -227,6 +229,18 @@ export default function InvoicesList({
                 className="text-red-600 hover:text-red-800"
               >
                 Supprimer
+              </button>
+            )}
+            {onDisassociate && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onDisassociate(invoice.id);
+                }}
+                className="text-amber-600 hover:text-amber-800"
+              >
+                Désassocier du projet
               </button>
             )}
           </div>

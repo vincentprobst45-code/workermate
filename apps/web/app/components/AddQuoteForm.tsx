@@ -171,6 +171,7 @@ export interface AddQuoteFormData {
   workOrderTitle: string;
   workOrderStartDate: string;
   workOrderEndDate: string;
+  workOrderId: string;
   customerMode: CustomerMode;
   customerId: string;
   customer: AddCustomerFormData;
@@ -191,6 +192,7 @@ export interface AddQuoteFormData {
 
 export interface CreateQuoteDto {
   customerId?: string;
+  workOrderId?: string;
   customer?: CreateCustomerDto;
   title: string;
   issueDate: string;
@@ -592,6 +594,7 @@ export function createEmptyQuote(
     workOrderTitle: '',
     workOrderStartDate: '',
     workOrderEndDate: '',
+    workOrderId: '',
     customerMode: 'new',
     customerId: '',
     customer: createEmptyCustomer(),
@@ -628,6 +631,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [showWorkOrdersListTop, setShowWorkOrdersListTop] = useState(false);
   const [doubleCheckShowWorkOrdersListTop, setDoubleCheckShowWorkOrdersListTop] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
+  const [showWorkOrderAssociationList, setShowWorkOrderAssociationList] = useState(false);
   const [workOrderSelectionMode, setWorkOrderSelectionMode] = useState<WorkOrderSelectionMode>('addLines');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
@@ -800,6 +804,26 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     }
   }
 
+  async function openWorkOrderAssociationSelector() {
+    setShowWorkOrderAssociationList(true);
+    setWorkOrdersError('');
+    setWorkOrdersLoading(true);
+
+    try {
+      const response = await api.get('/workOrders');
+      if (!response.ok) {
+        throw new Error('Erreur');
+      }
+
+      setWorkOrders(await response.json() as WorkOrder[]);
+    } catch {
+      setWorkOrders([]);
+      setWorkOrdersError('Erreur lors de la récupération des chantiers');
+    } finally {
+      setWorkOrdersLoading(false);
+    }
+  }
+
   function chooseSelectedWorkOrder() {
     if (!selectedWorkOrder) {
       return;
@@ -826,8 +850,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         title: `Devis-${selectedWorkOrder.title}`,
         workOrderTitle: selectedWorkOrder.title,
         workOrderReference: selectedWorkOrder.reference || '',
-        workOrderStartDate: selectedWorkOrder.startDate ? toDatetimeLocal(new Date(selectedWorkOrder.startDate)) : '',
-        workOrderEndDate: selectedWorkOrder.endDate ? toDatetimeLocal(new Date(selectedWorkOrder.endDate)) : '',
+        workOrderId: selectedWorkOrder.id,
+        workOrderStartDate: selectedWorkOrder.plannedStartDate ? toDatetimeLocal(new Date(selectedWorkOrder.plannedStartDate)) : '',
+        workOrderEndDate: selectedWorkOrder.plannedEndDate ? toDatetimeLocal(new Date(selectedWorkOrder.plannedEndDate)) : '',
         customerMode: selectedWorkOrder.customerId ? 'existing' : currentForm.customerMode,
         customerId: selectedWorkOrder.customerId || '',
         workOrderAddressMode: selectedWorkOrder.addressId ? 'existing' : 'none',
@@ -1074,6 +1099,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       customerFirstName: customerPayload.customerFirstName,
       customerLastName: customerPayload.customerLastName,
       customerName: [customerPayload.customerFirstName, customerPayload.customerLastName].filter(Boolean).join(' ').trim(),
+      workOrderId: trimToUndefined(form.workOrderId),
       customerCountryCode: 'FR',
       customerStreet1: customerPayload.customerStreet1,
       customerStreet2: customerPayload.customerStreet2,
@@ -1148,7 +1174,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             void openWorkOrderSelector('fillForm');
           }}
         >
-          Remplir les champs à partir d&apos;un projet existant
+          Remplir les champs à partir d&apos;un chantier existant
         </button>
       </div>
 
@@ -1330,6 +1356,48 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             />
           </label>
         </div>
+      </section>
+
+      <section className="mb-6 rounded-lg border border-slate-200 p-4">
+        <h4 className="mb-3 text-lg font-semibold">Chantier associé</h4>
+        <p className="mb-3 text-sm text-slate-600">Associez ce devis à un chantier existant.</p>
+        <button
+          type="button"
+          className="rounded border bg-slate-200 px-3 py-2"
+          onClick={() => void openWorkOrderAssociationSelector()}
+        >
+          {form.workOrderId ? 'Modifier le chantier associé' : 'Associer à un chantier existant'}
+        </button>
+        {form.workOrderId && (
+          <p className="mt-2 text-sm text-slate-700">
+            {workOrders.find((workOrder) => workOrder.id === form.workOrderId)?.title || form.workOrderId}
+            <button type="button" className="ml-3 text-red-700 underline" onClick={() => setForm({ ...form, workOrderId: '' })}>
+              Retirer
+            </button>
+          </p>
+        )}
+        {showWorkOrderAssociationList && (
+          <div className="mt-4 rounded-md border-2 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h5 className="font-semibold">Sélectionner un chantier</h5>
+              <button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowWorkOrderAssociationList(false)}>
+                Fermer la liste
+              </button>
+            </div>
+            {workOrdersLoading ? <p>Chargement des chantiers...</p> : (
+              <WorkOrdersList
+                workOrders={workOrders}
+                onDelete={null}
+                handleSelectedWorkOrder={(workOrder) => {
+                  setForm({ ...form, workOrderId: workOrder.id });
+                  setShowWorkOrderAssociationList(false);
+                  setWorkOrdersError('');
+                }}
+              />
+            )}
+          </div>
+        )}
+        {workOrdersError && <p className="mt-3 rounded bg-red-100 p-3 text-sm text-red-700">{workOrdersError}</p>}
       </section>
 
       <section className="mb-6 rounded-lg border border-slate-200 p-4">

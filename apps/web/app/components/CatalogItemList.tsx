@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { type LineItemType as WorkOrderItemType, type VatCategory } from '@prisma/client';
+import CatalogItemDetails from './CatalogItemDetails';
 
 export interface CatalogItem {
   id: string;
@@ -33,19 +34,6 @@ interface CatalogItemListProps {
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc';
-
-function formatDate(value?: string) {
-  if (!value) {
-    return '-';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '-';
-  }
-
-  return date.toLocaleDateString('fr-FR');
-}
 
 function toNumber(value: unknown): number {
   const parsed = Number(value);
@@ -192,53 +180,21 @@ export default function CatalogItemList({
 
       {showDetails && selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4 backdrop-blur-sm sm:p-6"
           onClick={() => {
             setShowDetails(false);
             setSelectedItem(null);
           }}
         >
-          <div className="rounded-lg bg-white p-6" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center pb-4">
-              <h3 className="inline-block text-2xl">
-                <strong>Details article</strong>
-              </h3>
-              <button
-                className="ml-auto inline-block rounded-md border-2 px-3 py-2"
-                onClick={() => {
-                  setShowDetails(false);
-                  setSelectedItem(null);
-                }}
-              >
-                Fermer X
-              </button>
-            </div>
-
-            <p>id : {selectedItem.id}</p>
-            <p>tenantId : {selectedItem.tenantId}</p>
-            <p>type : {selectedItem.type}</p>
-            <p>titre : {selectedItem.title}</p>
-            <p>reference : {selectedItem.reference || '-'}</p>
-            <p>description : {selectedItem.description || '-'}</p>
-            <p>quantite par defaut : {toNumber(selectedItem.defaultQuantity)}</p>
-            <p>unite : {selectedItem.unitLabel || selectedItem.unitCode || selectedItem.unit || '-'}</p>
-            <p>prix de vente unitaire : {toNumber(selectedItem.unitPrice).toFixed(2)}</p>
-      			<p>Coût d&apos;achat unitaire : {selectedItem.unitCost === undefined || selectedItem.unitCost === null ? '-' : toNumber(selectedItem.unitCost).toFixed(2)}</p>
-      			<p>TVA achat : {selectedItem.purchaseVatRate === undefined || selectedItem.purchaseVatRate === null ? '-' : `${toNumber(selectedItem.purchaseVatRate).toFixed(2)}%`}</p>
-            <p>tva : {toNumber(selectedItem.vatRate).toFixed(2)}%</p>
-            <p>createdAt : {formatDate(selectedItem.createdAt)}</p>
-            <p>updatedAt : {formatDate(selectedItem.updatedAt)}</p>
-
-            {handleSelectedCatalogItem && (
-              <button
-                onClick={() => {
-                  void handleSelectedCatalogItem(selectedItem);
-                }}
-                className="mt-4 rounded-sm border-2 border-double border-gray-700 bg-blue-400 px-3 py-2 text-xl text-white shadow-md hover:bg-blue-600 active:bg-blue-900"
-              >
-                Selectionner cet article
-              </button>
-            )}
+          <div onClick={(event) => event.stopPropagation()}>
+            <CatalogItemDetails
+              catalogItem={selectedItem}
+              onClose={() => {
+                setShowDetails(false);
+                setSelectedItem(null);
+              }}
+              onSelect={handleSelectedCatalogItem ?? undefined}
+            />
           </div>
         </div>
       )}

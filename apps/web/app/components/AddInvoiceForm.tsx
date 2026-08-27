@@ -274,6 +274,15 @@ function toDatetimeLocal(date: Date): string {
 	return local.toISOString().slice(0, 16);
 }
 
+function toDatetimeLocalValue(value?: string | null): string {
+	if (!value) {
+		return '';
+	}
+
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? value : toDatetimeLocal(parsed);
+}
+
 function trimToUndefined(value?: string | null): string | undefined {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : undefined;
@@ -1059,6 +1068,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			: [createEmptyInvoiceItem(0)];
 		const baseForm = createEmptyInvoice(tenantDefaults || undefined);
 		const totals = recomputeInvoice(nextItems, quote.depositAmount ?? 0, baseForm.discountAmount);
+		setCustomerMode(quote.customerId ? 'existing' : 'new');
+		setWorkOrderMode(quote.workOrderId ? 'existing' : 'new');
 
 		setForm({
 			...baseForm,
@@ -1073,8 +1084,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			tenantCity: quote.tenantCity ?? tenantDefaults?.address?.city ?? '',
 			tenantSiretNumber: quote.tenantSiretNumber ?? quote.tenantSirenNumber ?? tenantDefaults?.siretNumber ?? '',
 			tenantVatNumber: quote.tenantVatNumber ?? tenantDefaults?.vatNumber ?? '',
-			tenantEmail: quote.tenantEmail ?? tenantDefaults?.email ?? '',
-			tenantPhoneNumber: quote.tenantPhoneNumber ?? tenantDefaults?.phoneNumber ?? '',
+			tenantEmail: trimToUndefined(quote.tenantEmail) ?? tenantDefaults?.email ?? '',
+			tenantPhoneNumber: trimToUndefined(quote.tenantPhoneNumber) ?? tenantDefaults?.phoneNumber ?? '',
 			tenantIban: quote.tenantIban ?? '',
 			tenantBic: quote.tenantBic ?? '',
 			customerFirstName: quote.customerFirstName ?? quote.customerName ?? '',
@@ -1194,8 +1205,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			workOrderId: workOrder.id,
 			workOrderReference: workOrder.reference ?? '',
 			workOrderTitle: workOrder.title ?? '',
-			workOrderStartDate: trimToUndefined(workOrder.startDate) ?? '',
-			workOrderEndDate: trimToUndefined(workOrder.endDate) ?? '',
+			workOrderStartDate: toDatetimeLocalValue(workOrder.plannedStartDate ?? workOrder.startDate),
+			workOrderEndDate: toDatetimeLocalValue(workOrder.plannedEndDate ?? workOrder.endDate),
 			workOrderAddress: workOrder.address?.street1 ?? '',
 			workOrderPostalCode: workOrder.address?.postalCode ?? '',
 			workOrderCity: workOrder.address?.city ?? '',
@@ -1821,8 +1832,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 										workOrderId: nextWorkOrder.id,
 										workOrderReference: nextWorkOrder.reference ?? '',
 										workOrderTitle: nextWorkOrder.title ?? '',
-										workOrderStartDate: trimToUndefined(nextWorkOrder.startDate) ?? '',
-										workOrderEndDate: trimToUndefined(nextWorkOrder.endDate) ?? '',
+										workOrderStartDate: toDatetimeLocalValue(nextWorkOrder.plannedStartDate ?? nextWorkOrder.startDate),
+										workOrderEndDate: toDatetimeLocalValue(nextWorkOrder.plannedEndDate ?? nextWorkOrder.endDate),
 										workOrderAddress: nextWorkOrder.address?.street1 ?? '',
 										workOrderPostalCode: nextWorkOrder.address?.postalCode ?? '',
 										workOrderCity: nextWorkOrder.address?.city ?? '',
@@ -2174,8 +2185,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 					<FieldLabel label="Statut">
 						<select className={fieldClassName} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InvoiceStatus })}>
 							<option value="DRAFT">Brouillon</option>
-							<option value="SENT">Envoyée</option>
-							<option value="PAID">Payée</option>
+							<option value="ISSUED">Émise</option>
+							<option value="REPLACED">Remplacée</option>
 							<option value="CANCELLED">Annulée</option>
 						</select>
 					</FieldLabel>

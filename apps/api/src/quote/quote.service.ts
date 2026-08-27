@@ -343,6 +343,15 @@ export class QuoteService {
     }
 
     const customer = await this.resolveCustomer(tenantId, dto);
+    const workOrder = dto.workOrderId
+      ? await this.prisma.workOrder.findFirst({
+          where: { id: dto.workOrderId, tenantId },
+          select: { id: true },
+        })
+      : null;
+    if (dto.workOrderId && !workOrder) {
+      throw new BadRequestException('Chantier introuvable pour ce tenant.');
+    }
     const workOrderAddress = await this.resolveWorkOrderAddress(tenantId, dto);
     const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
     const validUntil = this.parseOptionalDate(dto.validUntil);
@@ -407,6 +416,13 @@ export class QuoteService {
                     id: customer.id,
                   },
                 },
+                workOrder: workOrder
+                  ? {
+                      connect: {
+                        id: workOrder.id,
+                      },
+                    }
+                  : undefined,
                 title: dto.title.trim(),
                 number: quoteNumber,
                 issueDate,

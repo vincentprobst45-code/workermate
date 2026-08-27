@@ -51,6 +51,17 @@ export class ProjectController {
     return this.projectService.associateQuote(tenantId, id, quoteId);
   }
 
+  @Delete(':id/quotes/:quoteId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async disassociateQuote(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('quoteId') quoteId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.disassociateQuote(tenantId, id, quoteId);
+  }
+
   @Post(':id/invoices/:invoiceId')
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   async associateInvoice(
@@ -60,6 +71,17 @@ export class ProjectController {
   ) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.projectService.associateInvoice(tenantId, id, invoiceId);
+  }
+
+  @Delete(':id/invoices/:invoiceId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async disassociateInvoice(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.disassociateInvoice(tenantId, id, invoiceId);
   }
 
   @Post(':id/work-orders/:workOrderId')
