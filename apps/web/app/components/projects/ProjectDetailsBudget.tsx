@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { InvoiceStatus, QuoteStatus } from '@prisma/client';
 import { useApiClient } from '../../api-client';
 import type { Project } from '../AddProjectForm';
+import { CardHeader, alertError, cardClass } from './theme';
 
 type ProjectDetailsBudgetProps = {
   project: Project;
@@ -286,15 +287,16 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-zinc-900">Budget</h3>
+      <div className={cardClass}>
+        <CardHeader title="Budget" />
+        <p className="text-sm text-slate-500">Répartition prévue / réalisée, cliquez sur une ligne pour le détail du calcul.</p>
+      </div>
 
-      {loading && <p className="text-sm text-zinc-600">Chargement des données budgétaires...</p>}
-      {error && (
-        <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
-      )}
+      {loading && <p className="text-sm text-slate-500">Chargement des données budgétaires...</p>}
+      {error && <div className={alertError}>{error}</div>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 font-semibold text-zinc-700">
@@ -371,14 +373,14 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
           onClick={() => setSelectedBudgetRow(null)}
         >
           <div
-            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl"
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h4 className="text-xl font-semibold text-zinc-900">Détail du calcul: {selectedBudgetRow.label}</h4>
               <button
                 type="button"
-                className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                 onClick={() => setSelectedBudgetRow(null)}
               >
                 Fermer

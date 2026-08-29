@@ -3,9 +3,11 @@ import {
   IsOptional,
   IsString,
   IsDate,
+  IsEnum,
   ValidateNested,
 } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
+import { CalendarEventType } from '@prisma/client';
 
 export class CreateCalendarEventDto {
   @IsString({ message: 'title must be a string' })
@@ -20,6 +22,10 @@ export class CreateCalendarEventDto {
 
   @IsDate({ message: 'enddate must be a date' })
   endDate!: Date;
+
+  @IsOptional()
+  @IsEnum(CalendarEventType, { message: 'type must be a valid calendar event type' })
+  type?: CalendarEventType;
 
   @IsOptional()
   @IsString({ message: 'color must be a string' })

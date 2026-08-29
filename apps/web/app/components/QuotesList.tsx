@@ -127,6 +127,27 @@ function formatDate(value?: string) {
   return date.toLocaleDateString('fr-FR');
 }
 
+function getClientName(quote: Quote) {
+  return quote.customerName?.trim() || [quote.customerFirstName, quote.customerLastName].filter(Boolean).join(' ') || '-';
+}
+
+const QUOTE_STATUS_STYLES: Record<QuoteStatus, { label: string; className: string }> = {
+  DRAFT: { label: 'Brouillon', className: 'bg-slate-100 text-slate-700' },
+  SENT: { label: 'Envoyé', className: 'bg-sky-50 text-sky-700' },
+  ACCEPTED: { label: 'Accepté', className: 'bg-emerald-50 text-emerald-700' },
+  REJECTED: { label: 'Refusé', className: 'bg-red-50 text-red-700' },
+  EXPIRED: { label: 'Expiré', className: 'bg-amber-50 text-amber-700' },
+};
+
+function StatusBadge({ status }: { status: QuoteStatus }) {
+  const style = QUOTE_STATUS_STYLES[status] ?? { label: status, className: 'bg-slate-100 text-slate-700' };
+  return (
+    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${style.className}`}>
+      {style.label}
+    </span>
+  );
+}
+
 
 export default function QuotesList({ quotes, onDelete, onDisassociate = null, handleSelectedQuote = null }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
@@ -156,15 +177,26 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
   const currentQuotes = sortedQuotes.slice(firstItemIndex, firstItemIndex + quotesPerPage);
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
 
+  const openQuote = (quote: Quote) => {
+    if (handleSelectedQuote) {
+      void handleSelectedQuote(quote);
+    } else {
+      setShowQuoteDetails(true);
+      setSelectedQuote(quote);
+    }
+  };
+
+  const hasRowActions = Boolean(onDelete || onDisassociate);
+
   return (
     <>
-      <div className="mb-4 flex flex-wrap justify-end items-center gap-2">
-        <label htmlFor="quotes-sort" className="text-sm text-slate-700">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+        <label htmlFor="quotes-sort" className="text-sm text-slate-600">
           Trier
         </label>
         <select
           id="quotes-sort"
-          className="border px-2 py-1 rounded bg-white"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
           value={sortBy}
           onChange={(e) => {
             setSortBy(e.target.value as SortBy);
@@ -177,12 +209,12 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           <option value="numberDesc">Numero: Z - A</option>
         </select>
 
-        <label htmlFor="quotes-per-page" className="text-sm text-slate-700">
+        <label htmlFor="quotes-per-page" className="text-sm text-slate-600">
           Devis par page
         </label>
         <select
           id="quotes-per-page"
-          className="border px-2 py-1 rounded bg-white"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
           value={quotesPerPage}
           onChange={(e) => {
             setQuotesPerPage(Number(e.target.value));
@@ -196,52 +228,143 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
         </select>
       </div>
 
-      <section className="grid gap-4">
-        <p>Cliquez sur un devis pour obtenir les details</p>
+      {sortedQuotes.length > 0 && (
+        <p className="mb-3 text-sm text-slate-500">Cliquez sur un devis pour en voir le détail.</p>
+      )}
+
+      {/* Desktop / tablet: full table */}
+      <section className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:block">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">N° devis</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Titre</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Client</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Émission</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Statut</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Total TTC</th>
+                {hasRowActions && <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {currentQuotes.map((quote) => (
+                <tr
+                  key={quote.id}
+                  tabIndex={0}
+                  className="cursor-pointer transition hover:bg-teal-50/60 focus-visible:bg-teal-50/60 focus-visible:outline-none"
+                  onClick={() => openQuote(quote)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openQuote(quote);
+                    }
+                  }}
+                >
+                  <td className="px-4 py-3 font-semibold text-slate-900">{quote.number}</td>
+                  <td className="max-w-[16rem] truncate px-4 py-3 text-slate-700">{quote.title}</td>
+                  <td className="max-w-[12rem] truncate px-4 py-3 text-slate-700">{getClientName(quote)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDate(quote.issueDate)}</td>
+                  <td className="px-4 py-3"><StatusBadge status={quote.status} /></td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
+                    {formatMoney(quote.taxInclusiveAmount ?? quote.total, quote.currency)}
+                  </td>
+                  {hasRowActions && (
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-3 text-xs font-medium">
+                        {onDisassociate && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void onDisassociate(quote.id);
+                            }}
+                            className="text-amber-600 hover:text-amber-800"
+                          >
+                            Désassocier
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void onDelete(quote.id);
+                            }}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Supprimer
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Mobile: stacked cards */}
+      <section className="grid gap-3 sm:hidden">
         {currentQuotes.map((quote) => (
           <div
             key={quote.id}
-            className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
-            onClick={() => {
-              if(handleSelectedQuote){
-                  void handleSelectedQuote(quote);
-              } else {
-                setShowQuoteDetails(true);
-                setSelectedQuote(quote);
+            role="button"
+            tabIndex={0}
+            onClick={() => openQuote(quote)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openQuote(quote);
               }
             }}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition active:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500"
           >
-            <div>
-              <p className="font-semibold">{quote.number}</p>
-              <p className="text-sm text-slate-600">
-                {quote.customerName || `${quote.customerFirstName} ${quote.customerLastName}`}
-              </p>
-              <p className="text-xs text-slate-500">
-                {formatDate(quote.issueDate)} - {formatMoney(quote.taxInclusiveAmount ?? quote.total, quote.currency)}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-900">{quote.number}</p>
+                <p className="mt-0.5 truncate text-sm text-slate-600">{quote.title}</p>
+              </div>
+              <StatusBadge status={quote.status} />
+            </div>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-slate-700">{getClientName(quote)}</p>
+                <p className="text-xs text-slate-500">{formatDate(quote.issueDate)}</p>
+              </div>
+              <p className="shrink-0 text-base font-semibold text-slate-900">
+                {formatMoney(quote.taxInclusiveAmount ?? quote.total, quote.currency)}
               </p>
             </div>
-            {onDelete && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onDelete(quote.id);
-                }}
-                className="text-red-600 hover:text-red-800"
-              >
-                Supprimer
-              </button>
-            )}
-            {onDisassociate && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void onDisassociate(quote.id);
-                }}
-                className="text-amber-600 hover:text-amber-800"
-              >
-                Désassocier du projet
-              </button>
+            {hasRowActions && (
+              <div className="mt-3 flex justify-end gap-4 border-t border-slate-100 pt-3 text-xs font-medium">
+                {onDisassociate && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void onDisassociate(quote.id);
+                    }}
+                    className="text-amber-600 hover:text-amber-800"
+                  >
+                    Désassocier du projet
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void onDelete(quote.id);
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    Supprimer
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ))}
@@ -254,7 +377,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
       {sortedQuotes.length > 0 && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           <button
-            className="border px-3 py-1 rounded disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
             disabled={effectiveCurrentPage === 1}
           >
@@ -264,7 +387,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           {pageNumbers.map((pageNumber) => (
             <button
               key={pageNumber}
-              className={`border px-3 py-1 rounded ${pageNumber === effectiveCurrentPage ? 'bg-slate-900 text-white' : 'bg-white'}`}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${pageNumber === effectiveCurrentPage ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
               onClick={() => setCurrentPage(pageNumber)}
               aria-current={pageNumber === effectiveCurrentPage ? 'page' : undefined}
             >
@@ -273,7 +396,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           ))}
 
           <button
-            className="border px-3 py-1 rounded disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             disabled={effectiveCurrentPage === totalPages}
           >

@@ -62,63 +62,76 @@ export default function CatalogItemPage() {
 
   return (
     <ProtectedRoute>
-      <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
-        <h2 className="mb-6 text-2xl font-semibold">Catalogue des articles</h2>
-
-        {error && <div className="mb-4 rounded bg-red-100 p-3 text-red-700">{error}</div>}
-        {success && <div className="mb-4 rounded bg-green-100 p-3 text-green-700">{success}</div>}
-
-        <button
-          className="mx-4 my-2 rounded-sm border-2 border-double border-gray-700 bg-blue-400 px-3 py-2 text-xl text-white shadow-md hover:bg-blue-600 active:bg-blue-900"
-          onClick={() => {
-            setShowAddCatalogItemForm(!showAddCatalogItemForm);
-            setCatalogItemFormWasOpened(true);
-          }}
-        >
-          {showAddCatalogItemForm
-            ? 'Fermer'
-            : catalogItemFormWasOpened
-              ? 'Ouvrir'
-              : 'Ajouter un article'}
-        </button>
-
-        {catalogItemFormWasOpened && (
+      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Catalogue</p>
+            <h2 className="mt-1 text-2xl font-bold text-stone-900">Articles &amp; prestations</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              {catalogItems.length} article{catalogItems.length > 1 ? 's' : ''} au catalogue
+              {catalogItems.length > 0 && ` · ${catalogItems.filter((item) => item.isActive).length} actif(s)`}
+            </p>
+          </div>
           <button
-            className="float-right mx-4 my-2 rounded-sm border-2 border-double border-gray-700 bg-red-400 px-3 py-2 text-xl text-white shadow-md hover:bg-red-600 active:bg-red-900"
+            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
             onClick={() => {
-              setShowAddCatalogItemForm(false);
-              setCatalogItemFormWasOpened(false);
+              setShowAddCatalogItemForm(!showAddCatalogItemForm);
+              setCatalogItemFormWasOpened(true);
             }}
           >
-            Effacer le formulaire
+            {showAddCatalogItemForm ? 'Fermer le formulaire' : 'Nouvel article'}
           </button>
-        )}
+        </div>
 
-        {catalogItemFormWasOpened && (
-          <div>
-            {!showAddCatalogItemForm && (
-              <button
-                onClick={() => {
-                  setShowAddCatalogItemForm(true);
-                }}
-                className="pointer border-2 p-2 text-center"
-              >
-                Formulaire en pause...
-              </button>
-            )}
-            <AddCatalogItemForm
-              show={showAddCatalogItemForm}
-              onCreated={(data) => {
-                setCatalogItems((currentItems) => [data, ...currentItems]);
-                setError('');
-                setSuccess('Article catalogue ajoute avec succes');
-              }}
-            />
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            {success}
           </div>
         )}
 
+        {catalogItemFormWasOpened && !showAddCatalogItemForm && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+            <span>Un brouillon d&apos;article est en attente — vos informations sont conservées.</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-800"
+                onClick={() => setShowAddCatalogItemForm(true)}
+              >
+                Reprendre
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-50"
+                onClick={() => {
+                  setShowAddCatalogItemForm(false);
+                  setCatalogItemFormWasOpened(false);
+                }}
+              >
+                Recommencer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {catalogItemFormWasOpened && (
+          <AddCatalogItemForm
+            show={showAddCatalogItemForm}
+            onCreated={(data) => {
+              setCatalogItems((currentItems) => [data, ...currentItems]);
+              setError('');
+              setSuccess('Article catalogue ajoute avec succes');
+            }}
+          />
+        )}
+
         {loading ? (
-          <p>Chargement...</p>
+          <p className="text-sm text-stone-500">Chargement du catalogue...</p>
         ) : (
           <CatalogItemList catalogItems={catalogItems} onDelete={handleDelete} />
         )}

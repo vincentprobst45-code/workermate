@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "CalendarEventType" AS ENUM ('CUSTOMER_APPOINTMENT', 'SITE_VISIT', 'WORK', 'MAINTENANCE', 'DELIVERY', 'ADMINISTRATIVE', 'ABSENCE', 'OTHER');
+
+-- AlterTable
+ALTER TABLE "CalendarEvent" ADD COLUMN     "type" "CalendarEventType" NOT NULL DEFAULT 'OTHER';

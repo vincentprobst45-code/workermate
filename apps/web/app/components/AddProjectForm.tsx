@@ -148,6 +148,25 @@ const projectStatusOptions: Array<{ value: ProjectStatus; label: string }> = [
   { value: 'CANCELLED', label: 'Annulé' },
 ];
 
+// Clean, modern "project workspace" look — distinct from other forms in the app.
+const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6';
+const sectionTitleClass = 'mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900';
+const stepBadgeClass = 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white';
+const labelClass = 'text-sm font-medium text-slate-700';
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+const btnPrimary = 'rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700';
+const btnGhost =
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50';
+const btnDanger =
+  'rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100';
+const alertError = 'rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700';
+const alertSuccess = 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700';
+
+function modeButtonClass(active: boolean): string {
+  return `rounded-md px-3 py-1.5 text-xs font-semibold transition ${active ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
+}
+
 type AddProjectFormProps = {
   onCreated: (project: Project) => void;
   show: boolean;
@@ -585,23 +604,29 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     <>
       <form
         onSubmit={handleSubmit}
-        className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
+        className={`mb-8 space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-5 ${!show ? 'hidden' : ''}`}
       >
-        <h3 className="text-lg font-semibold text-zinc-900">Ajouter un projet</h3>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Nouveau projet</p>
+          <h3 className="mt-1 text-xl font-bold text-slate-900">Créer un projet</h3>
+        </div>
 
-        {error && <div className="rounded bg-red-100 p-3 text-red-700">{error}</div>}
-        {success && <div className="rounded bg-green-100 p-3 text-green-700">{success}</div>}
+        {error && <div className={alertError}>{error}</div>}
+        {success && <div className={alertSuccess}>{success}</div>}
 
-        <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Informations générales</h4>
-          <div className="mb-4 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+        <section className={sectionClass}>
+          <h4 className={sectionTitleClass}>
+            <span className={stepBadgeClass}>1</span>
+            Informations générales
+          </h4>
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
             La référence projet sera générée automatiquement à la création.
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Titre</span>
+              <span className={labelClass}>Titre</span>
               <input
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                className={inputClass}
                 value={form.title}
                 onChange={(event) => setForm({ ...form, title: event.target.value })}
                 placeholder="Nom du projet"
@@ -609,9 +634,9 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               />
             </label>
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-zinc-700">Statut</span>
+              <span className={labelClass}>Statut</span>
               <select
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                className={inputClass}
                 value={form.status}
                 onChange={(event) =>
                   setForm({ ...form, status: event.target.value as ProjectStatus })
@@ -625,18 +650,18 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
               </select>
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Description</span>
+              <span className={labelClass}>Description</span>
               <textarea
-                className="min-h-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                className={`${inputClass} min-h-24`}
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
                 placeholder="Description globale du projet"
               />
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
-              <span className="text-sm font-medium text-zinc-700">Notes</span>
+              <span className={labelClass}>Notes</span>
               <textarea
-                className="min-h-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+                className={`${inputClass} min-h-24`}
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
                 placeholder="Notes internes"
@@ -645,28 +670,27 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           </div>
         </section>
 
-        <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Associer à un client</h4>
+        <section className={sectionClass}>
+          <h4 className={sectionTitleClass}>
+            <span className={stepBadgeClass}>2</span>
+            Client(s) associé(s)
+          </h4>
 
           {customerAssociations.map((entry, index) => (
-            <div key={index} className="mb-4 rounded-lg border border-zinc-200 bg-white p-4">
+            <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-zinc-700">Client #{index + 1}</p>
+                <p className="text-sm font-semibold text-slate-700">Client #{index + 1}</p>
                 {index > 0 && (
-                  <button
-                    type="button"
-                    className="rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
-                    onClick={() => removeCustomerAssociation(index)}
-                  >
+                  <button type="button" className={btnDanger} onClick={() => removeCustomerAssociation(index)}>
                     Retirer
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'none' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'none')}
                   onClick={() =>
                     updateAssociation(index, () => ({
                       mode: 'none',
@@ -674,11 +698,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Ne pas ajouter de client
+                  Aucun
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'existing' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'existing')}
                   onClick={() =>
                     updateAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -686,11 +710,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Sélectionner un client existant
+                  Existant
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'new' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'new')}
                   onClick={() =>
                     updateAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -698,47 +722,40 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Nouveau client
+                  Nouveau
                 </button>
               </div>
 
               {entry.mode === 'existing' && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700">Client existant</label>
-                  <select
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-                    value={entry.customerId}
-                    onChange={(event) =>
-                      updateAssociation(index, (currentEntry) => ({
-                        ...currentEntry,
-                        customerId: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">-- Veuillez choisir un client --</option>
-                    {customerOptions.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {formatCustomerLabel(customer)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  className={inputClass}
+                  value={entry.customerId}
+                  onChange={(event) =>
+                    updateAssociation(index, (currentEntry) => ({
+                      ...currentEntry,
+                      customerId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">-- Veuillez choisir un client --</option>
+                  {customerOptions.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {formatCustomerLabel(customer)}
+                    </option>
+                  ))}
+                </select>
               )}
 
               {entry.mode === 'new' && (
                 <div className="space-y-2">
                   {entry.customerId ? (
-                    <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    <p className={alertSuccess}>
                       Client associé: {formatCustomerLabel(customerOptions.find((customer) => customer.id === entry.customerId) || { id: entry.customerId })}
                     </p>
                   ) : (
-                    <p className="text-sm text-zinc-600">Créez un nouveau client pour l&apos;associer à ce projet.</p>
+                    <p className="text-sm text-slate-500">Créez un nouveau client pour l&apos;associer à ce projet.</p>
                   )}
-                  <button
-                    type="button"
-                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
-                    onClick={() => setActiveNewCustomerSlot(index)}
-                  >
+                  <button type="button" className={btnGhost} onClick={() => setActiveNewCustomerSlot(index)}>
                     {entry.customerId ? 'Créer et remplacer le client associé' : 'Créer un nouveau client'}
                   </button>
                 </div>
@@ -749,38 +766,33 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           {customersLoading && <p className="text-sm text-slate-500">Chargement des clients...</p>}
 
           {hasAtLeastOneActiveAssociation() && (
-            <button
-              type="button"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-              onClick={addAnotherCustomerAssociation}
-            >
-              Associer un autre client
+            <button type="button" className={btnGhost} onClick={addAnotherCustomerAssociation}>
+              + Associer un autre client
             </button>
           )}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Associer à un ou des devis</h4>
+        <section className={sectionClass}>
+          <h4 className={sectionTitleClass}>
+            <span className={stepBadgeClass}>3</span>
+            Devis associé(s)
+          </h4>
 
           {quoteAssociations.map((entry, index) => (
-            <div key={index} className="mb-4 rounded-lg border border-zinc-200 bg-white p-4">
+            <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-zinc-700">Devis #{index + 1}</p>
+                <p className="text-sm font-semibold text-slate-700">Devis #{index + 1}</p>
                 {index > 0 && (
-                  <button
-                    type="button"
-                    className="rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
-                    onClick={() => removeQuoteAssociation(index)}
-                  >
+                  <button type="button" className={btnDanger} onClick={() => removeQuoteAssociation(index)}>
                     Retirer
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'none' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'none')}
                   onClick={() =>
                     updateQuoteAssociation(index, () => ({
                       mode: 'none',
@@ -788,11 +800,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Ne pas ajouter de devis
+                  Aucun
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'existing' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'existing')}
                   onClick={() =>
                     updateQuoteAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -800,11 +812,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Sélectionner un devis existant
+                  Existant
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'new' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'new')}
                   onClick={() =>
                     updateQuoteAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -812,47 +824,40 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Nouveau devis
+                  Nouveau
                 </button>
               </div>
 
               {entry.mode === 'existing' && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700">Devis existant</label>
-                  <select
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-                    value={entry.quoteId}
-                    onChange={(event) =>
-                      updateQuoteAssociation(index, (currentEntry) => ({
-                        ...currentEntry,
-                        quoteId: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">-- Veuillez choisir un devis --</option>
-                    {quoteOptions.map((quote) => (
-                      <option key={quote.id} value={quote.id}>
-                        {formatQuoteLabel(quote)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  className={inputClass}
+                  value={entry.quoteId}
+                  onChange={(event) =>
+                    updateQuoteAssociation(index, (currentEntry) => ({
+                      ...currentEntry,
+                      quoteId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">-- Veuillez choisir un devis --</option>
+                  {quoteOptions.map((quote) => (
+                    <option key={quote.id} value={quote.id}>
+                      {formatQuoteLabel(quote)}
+                    </option>
+                  ))}
+                </select>
               )}
 
               {entry.mode === 'new' && (
                 <div className="space-y-2">
                   {entry.quoteId ? (
-                    <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    <p className={alertSuccess}>
                       Devis associé: {formatQuoteLabel(quoteOptions.find((quote) => quote.id === entry.quoteId) || { id: entry.quoteId, number: entry.quoteId, title: '' })}
                     </p>
                   ) : (
-                    <p className="text-sm text-zinc-600">Créez un nouveau devis pour l&apos;associer à ce projet.</p>
+                    <p className="text-sm text-slate-500">Créez un nouveau devis pour l&apos;associer à ce projet.</p>
                   )}
-                  <button
-                    type="button"
-                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
-                    onClick={() => setActiveNewQuoteSlot(index)}
-                  >
+                  <button type="button" className={btnGhost} onClick={() => setActiveNewQuoteSlot(index)}>
                     {entry.quoteId ? 'Créer et remplacer le devis associé' : 'Créer un nouveau devis'}
                   </button>
                 </div>
@@ -863,38 +868,33 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           {quotesLoading && <p className="text-sm text-slate-500">Chargement des devis...</p>}
 
           {hasAtLeastOneActiveQuoteAssociation() && (
-            <button
-              type="button"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-              onClick={addAnotherQuoteAssociation}
-            >
-              Associer un autre devis
+            <button type="button" className={btnGhost} onClick={addAnotherQuoteAssociation}>
+              + Associer un autre devis
             </button>
           )}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-          <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Associer à un ou des chantiers</h4>
+        <section className={sectionClass}>
+          <h4 className={sectionTitleClass}>
+            <span className={stepBadgeClass}>4</span>
+            Chantier(s) associé(s)
+          </h4>
 
           {workOrderAssociations.map((entry, index) => (
-            <div key={index} className="mb-4 rounded-lg border border-zinc-200 bg-white p-4">
+            <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-zinc-700">Chantier #{index + 1}</p>
+                <p className="text-sm font-semibold text-slate-700">Chantier #{index + 1}</p>
                 {index > 0 && (
-                  <button
-                    type="button"
-                    className="rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100"
-                    onClick={() => removeWorkOrderAssociation(index)}
-                  >
+                  <button type="button" className={btnDanger} onClick={() => removeWorkOrderAssociation(index)}>
                     Retirer
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'none' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'none')}
                   onClick={() =>
                     updateWorkOrderAssociation(index, () => ({
                       mode: 'none',
@@ -902,11 +902,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Ne pas ajouter de chantier
+                  Aucun
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'existing' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'existing')}
                   onClick={() =>
                     updateWorkOrderAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -914,11 +914,11 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Sélectionner un chantier existant
+                  Existant
                 </button>
                 <button
                   type="button"
-                  className={`rounded-md border px-3 py-2 text-sm transition ${entry.mode === 'new' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
+                  className={modeButtonClass(entry.mode === 'new')}
                   onClick={() =>
                     updateWorkOrderAssociation(index, (currentEntry) => ({
                       ...currentEntry,
@@ -926,47 +926,40 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                     }))
                   }
                 >
-                  Nouveau chantier
+                  Nouveau
                 </button>
               </div>
 
               {entry.mode === 'existing' && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-700">Chantier existant</label>
-                  <select
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-                    value={entry.workOrderId}
-                    onChange={(event) =>
-                      updateWorkOrderAssociation(index, (currentEntry) => ({
-                        ...currentEntry,
-                        workOrderId: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">-- Veuillez choisir un chantier --</option>
-                    {workOrderOptions.map((workOrder) => (
-                      <option key={workOrder.id} value={workOrder.id}>
-                        {formatWorkOrderLabel(workOrder)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  className={inputClass}
+                  value={entry.workOrderId}
+                  onChange={(event) =>
+                    updateWorkOrderAssociation(index, (currentEntry) => ({
+                      ...currentEntry,
+                      workOrderId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">-- Veuillez choisir un chantier --</option>
+                  {workOrderOptions.map((workOrder) => (
+                    <option key={workOrder.id} value={workOrder.id}>
+                      {formatWorkOrderLabel(workOrder)}
+                    </option>
+                  ))}
+                </select>
               )}
 
               {entry.mode === 'new' && (
                 <div className="space-y-2">
                   {entry.workOrderId ? (
-                    <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    <p className={alertSuccess}>
                       Chantier associé: {formatWorkOrderLabel(workOrderOptions.find((workOrder) => workOrder.id === entry.workOrderId) || { id: entry.workOrderId, reference: entry.workOrderId, title: '' })}
                     </p>
                   ) : (
-                    <p className="text-sm text-zinc-600">Créez un nouveau chantier pour l&apos;associer à ce projet.</p>
+                    <p className="text-sm text-slate-500">Créez un nouveau chantier pour l&apos;associer à ce projet.</p>
                   )}
-                  <button
-                    type="button"
-                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
-                    onClick={() => setActiveNewWorkOrderSlot(index)}
-                  >
+                  <button type="button" className={btnGhost} onClick={() => setActiveNewWorkOrderSlot(index)}>
                     {entry.workOrderId ? 'Créer et remplacer le chantier associé' : 'Créer un nouveau chantier'}
                   </button>
                 </div>
@@ -977,21 +970,14 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           {workOrdersLoading && <p className="text-sm text-slate-500">Chargement des chantiers...</p>}
 
           {hasAtLeastOneActiveWorkOrderAssociation() && (
-            <button
-              type="button"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-              onClick={addAnotherWorkOrderAssociation}
-            >
-              Associer un autre chantier
+            <button type="button" className={btnGhost} onClick={addAnotherWorkOrderAssociation}>
+              + Associer un autre chantier
             </button>
           )}
         </section>
 
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
-        >
-          Ajouter
+        <button type="submit" className={btnPrimary}>
+          Créer le projet
         </button>
       </form>
 
@@ -1001,18 +987,14 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           onClick={() => setActiveNewCustomerSlot(null)}
         >
           <section
-            className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-2xl sm:p-5"
+            className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-blue-900">
-                Nouveau client pour le client #{activeNewCustomerSlot + 1}
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+                Nouveau client — Client #{activeNewCustomerSlot + 1}
               </h4>
-              <button
-                type="button"
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-                onClick={() => setActiveNewCustomerSlot(null)}
-              >
+              <button type="button" className={btnGhost} onClick={() => setActiveNewCustomerSlot(null)}>
                 Fermer
               </button>
             </div>
@@ -1031,18 +1013,14 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           onClick={() => setActiveNewQuoteSlot(null)}
         >
           <section
-            className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-2xl sm:p-5"
+            className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-blue-900">
-                Nouveau devis pour le devis #{activeNewQuoteSlot + 1}
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+                Nouveau devis — Devis #{activeNewQuoteSlot + 1}
               </h4>
-              <button
-                type="button"
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-                onClick={() => setActiveNewQuoteSlot(null)}
-              >
+              <button type="button" className={btnGhost} onClick={() => setActiveNewQuoteSlot(null)}>
                 Fermer
               </button>
             </div>
@@ -1061,18 +1039,14 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           onClick={() => setActiveNewWorkOrderSlot(null)}
         >
           <section
-            className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-2xl sm:p-5"
+            className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-blue-900">
-                Nouveau chantier pour le chantier #{activeNewWorkOrderSlot + 1}
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+                Nouveau chantier — Chantier #{activeNewWorkOrderSlot + 1}
               </h4>
-              <button
-                type="button"
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-                onClick={() => setActiveNewWorkOrderSlot(null)}
-              >
+              <button type="button" className={btnGhost} onClick={() => setActiveNewWorkOrderSlot(null)}>
                 Fermer
               </button>
             </div>

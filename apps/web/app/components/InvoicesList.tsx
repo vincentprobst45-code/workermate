@@ -132,6 +132,7 @@ export default function InvoicesList({
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceBeingEdited, setInvoiceBeingEdited] = useState<Invoice | null>(null);
+  const [invoiceEditPreview, setInvoiceEditPreview] = useState<Invoice | null>(null);
   const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [invoicesPerPage, setInvoicesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
@@ -303,6 +304,7 @@ export default function InvoicesList({
                 className="ml-auto mr-2 rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-700"
                 onClick={() => {
                   setInvoiceBeingEdited(selectedInvoice);
+                  setInvoiceEditPreview(selectedInvoice);
                   setIsPreviewCollapsed(false);
                 }}
               >
@@ -386,9 +388,10 @@ export default function InvoicesList({
                 show={true}
                 initialInvoice={invoiceBeingEdited}
                 onCreated={() => undefined}
-                onChange={setInvoiceBeingEdited}
+                onChange={setInvoiceEditPreview}
                 onUpdated={(updatedInvoice) => {
                   setSelectedInvoice(updatedInvoice);
+                  setInvoiceEditPreview(updatedInvoice);
                   setInvoiceBeingEdited(null);
                 }}
               />
@@ -405,7 +408,7 @@ export default function InvoicesList({
                 {isPreviewCollapsed ? '<-' : '->'}
               </button>
               <div className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(58rem,calc(100vw-8rem))]'}`}>
-                <NewInvoice invoice={invoiceBeingEdited} />
+                <NewInvoice invoice={invoiceEditPreview ?? invoiceBeingEdited} />
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useApiClient } from '../../api-client';
 import type { Project } from '../AddProjectForm';
 import AddCalendarEventForm from '../AddCalendarEventForm';
+import { CardHeader, alertError, btnPrimary, btnGhost, cardClass } from './theme';
 
 type ProjectDetailsPlanningProps = {
 	project: Project;
@@ -68,33 +69,33 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 	}, [api, project.id, reloadVersion]);
 
 	return (
-		<div className="space-y-3">
-			<div className="flex items-center justify-between gap-3">
-				<h3 className="text-lg font-semibold text-zinc-900">Planning</h3>
+		<div className="space-y-4">
+			<div className={cardClass}>
+				<CardHeader title="Planning" />
 				<button
 					type="button"
-					className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+					className={btnPrimary}
 					onClick={() => setShowAddEventModal(true)}
 				>
 					Ajouter un évènement pour ce projet
 				</button>
 			</div>
-			{loading && <p className="text-sm text-zinc-600">Chargement du planning...</p>}
-			{error && <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+			{loading && <p className="text-sm text-slate-500">Chargement du planning...</p>}
+			{error && <div className={alertError}>{error}</div>}
 			{!loading && !error && events.length === 0 && (
-				<p className="text-sm text-zinc-600">Aucun événement planifié pour ce projet.</p>
+				<p className="text-sm text-slate-500">Aucun événement planifié pour ce projet.</p>
 			)}
 			{!loading && !error && events.length > 0 && (
 				<div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
 					{events.map((event) => (
-						<article key={event.id} className="border border-zinc-200 bg-white p-4 shadow-sm">
+						<article key={event.id} className={cardClass}>
 							<div className="flex items-start gap-3">
-								<div className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: event.color || '#2563eb' }} />
+								<div className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: event.color || '#4f46e5' }} />
 								<div className="min-w-0">
-									<h4 className="font-semibold text-zinc-900">{event.title}</h4>
-									<p className="mt-1 text-sm text-zinc-600">Du {formatDate(event.startDate)} au {formatDate(event.endDate)}</p>
-									{event.description && <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{event.description}</p>}
-									{event.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-500">Notes: {event.notes}</p>}
+									<h4 className="font-semibold text-slate-900">{event.title}</h4>
+									<p className="mt-1 text-sm text-slate-500">Du {formatDate(event.startDate)} au {formatDate(event.endDate)}</p>
+									{event.description && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{event.description}</p>}
+									{event.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-500">Notes: {event.notes}</p>}
 								</div>
 							</div>
 						</article>
@@ -108,12 +109,12 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 					onClick={() => setShowAddEventModal(false)}
 				>
 					<div
-						className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl"
+						className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
 						onClick={(event) => event.stopPropagation()}
 					>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-zinc-900">Ajouter un évènement pour ce projet</h4>
-							<button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setShowAddEventModal(false)}>
+							<h4 className="text-lg font-semibold text-slate-900">Ajouter un évènement pour ce projet</h4>
+							<button type="button" className={btnGhost} onClick={() => setShowAddEventModal(false)}>
 								Fermer
 							</button>
 						</div>

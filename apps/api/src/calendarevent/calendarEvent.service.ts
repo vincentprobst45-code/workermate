@@ -69,6 +69,7 @@ export class CalendarEventService {
     description: calendarEventData.description,
     startDate: new Date(calendarEventData.startDate),
     endDate: new Date(calendarEventData.endDate),
+    type: calendarEventData.type,
     color: calendarEventData.color,
     notes: calendarEventData.notes,
     tenant: {
@@ -304,6 +305,7 @@ export class CalendarEventService {
         calendarEventData.endDate !== undefined
           ? new Date(calendarEventData.endDate)
           : undefined,
+      type: calendarEventData.type,
     };
 
     if (workOrderId !== undefined) {

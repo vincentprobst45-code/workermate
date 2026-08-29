@@ -279,6 +279,25 @@ const quoteItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> =
   { value: 'OTHER', label: 'Autre' },
 ];
 
+// Shared style tokens so every section/input/button in this form stays visually consistent.
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
+const lineLabelClass = 'text-xs font-medium uppercase tracking-wide text-slate-500';
+const labelClass = 'text-sm font-medium text-slate-700';
+// White cards on a tinted page background give each section clear contrast/edges.
+const sectionClass = 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5';
+const sectionTitleClass =
+  'mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500';
+const stepBadgeClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white';
+const btnPrimary = 'rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700';
+const btnSecondary =
+  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50';
+const btnSecondaryActive = 'rounded-lg border border-slate-900 bg-slate-900 px-3 py-2 text-sm font-medium text-white';
+const btnAccent = 'rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-teal-700';
+const btnConfirm = 'rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700';
+const alertError = 'rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700';
+const alertSuccess = 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700';
+
 function toDatetimeLocal(date: Date): string {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60_000);
@@ -400,13 +419,16 @@ function SortableQuoteLine({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-slate-200 bg-white p-4 sm:p-5 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+      className={`rounded-lg border p-3 transition sm:p-4 ${isDragging ? 'border-teal-300 bg-teal-50/40 opacity-80 shadow-lg' : 'border-slate-200 bg-slate-50/60 hover:border-slate-300'}`}
     >
       <div className="flex gap-3">
-        <div className="flex flex-col gap-2">
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+            {index + 1}
+          </span>
           <button
             type="button"
-            className="cursor-grab rounded border px-2 py-1 text-sm active:cursor-grabbing"
+            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 active:cursor-grabbing"
             aria-label="Glisser la ligne"
             title="Glisser la ligne"
             {...attributes}
@@ -416,7 +438,7 @@ function SortableQuoteLine({
           </button>
           <button
             type="button"
-            className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onMoveUp}
             disabled={index === 0}
             aria-label="Monter la ligne"
@@ -426,7 +448,7 @@ function SortableQuoteLine({
           </button>
           <button
             type="button"
-            className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onMoveDown}
             disabled={index === totalItems - 1}
             aria-label="Descendre la ligne"
@@ -437,9 +459,9 @@ function SortableQuoteLine({
         </div>
         <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Type</span>
+            <span className={lineLabelClass}>Type</span>
             <select
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               value={item.type}
               onChange={(event) => onTypeChange(event.target.value as WorkOrderItemType)}
             >
@@ -451,9 +473,9 @@ function SortableQuoteLine({
             </select>
           </label>
           <label className="flex flex-col gap-1 lg:col-span-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Titre</span>
+            <span className={lineLabelClass}>Titre</span>
             <input
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="Titre"
               value={item.title}
               onChange={(event) => onTitleChange(event.target.value)}
@@ -461,12 +483,12 @@ function SortableQuoteLine({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Quantité</span>
+            <span className={lineLabelClass}>Quantité</span>
             <input
               type="number"
               min="0"
               step="0.01"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="Quantite"
               value={item.quantity}
               onChange={(event) =>
@@ -475,30 +497,30 @@ function SortableQuoteLine({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Unité</span>
+            <span className={lineLabelClass}>Unité</span>
             <input
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="Unite"
               value={item.unit || ''}
               onChange={(event) => onUnitChange(event.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Description</span>
+            <span className={lineLabelClass}>Description</span>
             <textarea
-              className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={`${inputClass} min-h-20`}
               placeholder="Description"
               value={item.description}
               onChange={(event) => onDescriptionChange(event.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">Prix unitaire</span>
+            <span className={lineLabelClass}>Prix unitaire</span>
             <input
               type="number"
               min="0"
               step="0.01"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="Prix unitaire"
               value={item.unitPrice}
               onChange={(event) =>
@@ -507,12 +529,12 @@ function SortableQuoteLine({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-600">TVA (%)</span>
+            <span className={lineLabelClass}>TVA (%)</span>
             <input
               type="number"
               min="0"
               step="0.01"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="TVA %"
               value={item.vatRate}
               onChange={(event) =>
@@ -520,13 +542,14 @@ function SortableQuoteLine({
               }
             />
           </label>
-          <div className="flex items-end rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            Total ligne: {item.total.toFixed(2)} {currency || 'EUR'}
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">Total ligne</span>
+            <span className="font-semibold text-slate-900">{item.total.toFixed(2)} {currency || 'EUR'}</span>
           </div>
-          <div className="flex items-end">
+          <div className="flex items-stretch">
             <button
               type="button"
-              className="w-full rounded-md border border-red-300 bg-red-100 px-3 py-2 text-sm text-red-700 transition hover:bg-red-200"
+              className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
               onClick={onDelete}
             >
               Supprimer la ligne
@@ -1159,92 +1182,96 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
+      className={`space-y-4 rounded-2xl border border-slate-600 bg-slate-200 p-4 shadow-sm sm:p-5 ${!show ? 'hidden' : ''}`}
     >
-      <h3 className="text-lg font-semibold text-zinc-900">Ajouter un devis</h3>
-
-      {error && <div className="mb-4 rounded bg-red-100 p-3 text-red-700">{error}</div>}
-      {success && <div className="mb-4 rounded bg-green-100 p-3 text-green-700">{success}</div>}
-
       <div>
-        <button
-          type="button"
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-          onClick={() => {
-            void openWorkOrderSelector('fillForm');
-          }}
-        >
-          Remplir les champs à partir d&apos;un chantier existant
-        </button>
+        <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Nouveau document</p>
+        <h3 className="mt-1 text-xl font-semibold text-slate-900">Ajouter un devis</h3>
       </div>
 
-        {showWorkOrdersListTop && (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
-              <button
-                type="button"
-                className="ml-auto rounded border px-3 py-2"
-                onClick={() => setShowWorkOrdersListTop(false)}
-              >
-                Fermer la liste
-              </button>
-            </div>
-            {workOrdersLoading ? (
-              <p>Chargement des chantiers...</p>
-            ) : (
-              <WorkOrdersList
-                workOrders={workOrders}
-                onDelete={null}
-                handleSelectedWorkOrder={(workOrder) => {
-                  setSelectedWorkOrder(workOrder);
-                  setShowWorkOrdersListTop(false);
-                  setWorkOrdersError('');
-                }}
-              />
-            )}
-          </div>
-        )}
+      {error && <div className={alertError}>{error}</div>}
+      {success && <div className={alertSuccess}>{success}</div>}
 
-        {!showWorkOrdersListTop && doubleCheckShowWorkOrdersListTop && selectedWorkOrder &&  (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
-            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-              <p><strong>Titre:</strong> {selectedWorkOrder.title}</p>
-              <p><strong>Description:</strong> {selectedWorkOrder.description || '-'}</p>
-              <p><strong>Référence:</strong> {selectedWorkOrder.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedWorkOrder.items.length || 0}</p>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={chooseSelectedWorkOrder}
-                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
-              >
-                {workOrderSelectionMode === 'fillForm'
-                  ? 'Remplir le devis avec ce chantier'
-                  : 'Choisir ce chantier'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWorkOrdersListTop(true);
-                }}
-                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
-              >
-                Choisir un autre chantier
-              </button>
-            </div>
-          </div>
-        )}
+      <button
+        type="button"
+        className={btnSecondary}
+        onClick={() => {
+          void openWorkOrderSelector('fillForm');
+        }}
+      >
+        Remplir les champs à partir d&apos;un chantier existant
+      </button>
 
-      <section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
-        <h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Informations du devis</h4>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {showWorkOrdersListTop && (
+        <div className={sectionClass}>
+          <div className="mb-4 flex items-center gap-3">
+            <h4 className={`${sectionTitleClass} mb-0`}>Sélectionner un chantier</h4>
+            <button
+              type="button"
+              className={`${btnSecondary} ml-auto`}
+              onClick={() => setShowWorkOrdersListTop(false)}
+            >
+              Fermer la liste
+            </button>
+          </div>
+          {workOrdersLoading ? (
+            <p className="text-sm text-slate-500">Chargement des chantiers...</p>
+          ) : (
+            <WorkOrdersList
+              workOrders={workOrders}
+              onDelete={null}
+              handleSelectedWorkOrder={(workOrder) => {
+                setSelectedWorkOrder(workOrder);
+                setShowWorkOrdersListTop(false);
+                setWorkOrdersError('');
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {!showWorkOrdersListTop && doubleCheckShowWorkOrdersListTop && selectedWorkOrder &&  (
+        <div className={sectionClass}>
+          <h4 className={sectionTitleClass}>Chantier sélectionné</h4>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p><span className="font-medium text-slate-900">Titre :</span> {selectedWorkOrder.title}</p>
+            <p><span className="font-medium text-slate-900">Description :</span> {selectedWorkOrder.description || '-'}</p>
+            <p><span className="font-medium text-slate-900">Référence :</span> {selectedWorkOrder.reference || '-'}</p>
+            <p><span className="font-medium text-slate-900">Nombre d&apos;étapes :</span> {selectedWorkOrder.items.length || 0}</p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={chooseSelectedWorkOrder}
+              className={btnConfirm}
+            >
+              {workOrderSelectionMode === 'fillForm'
+                ? 'Remplir le devis avec ce chantier'
+                : 'Choisir ce chantier'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowWorkOrdersListTop(true);
+              }}
+              className={btnSecondary}
+            >
+              Choisir un autre chantier
+            </button>
+          </div>
+        </div>
+      )}
+
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>1</span>
+          Informations du devis
+        </h4>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="flex flex-col gap-1.5 lg:col-span-2">
-            <span className="text-sm font-medium text-zinc-700">Titre du devis</span>
+            <span className={labelClass}>Titre du devis</span>
             <input
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               placeholder="Titre du devis"
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
@@ -1252,9 +1279,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Statut</span>
+            <span className={labelClass}>Statut</span>
             <select
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               value={form.status}
               onChange={(event) =>
                 setForm({ ...form, status: event.target.value as QuoteStatus })
@@ -1268,28 +1295,28 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             </select>
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Date d&apos;émission</span>
+            <span className={labelClass}>Date d&apos;émission</span>
             <input
               type="datetime-local"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               value={form.issueDate}
               onChange={(event) => setForm({ ...form, issueDate: event.target.value })}
               required
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Valable jusqu&apos;au</span>
+            <span className={labelClass}>Valable jusqu&apos;au</span>
             <input
               type="datetime-local"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               value={form.validUntil}
               onChange={(event) => setForm({ ...form, validUntil: event.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Devise</span>
+            <span className={labelClass}>Devise</span>
             <input
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               placeholder="Devise"
               value={form.currency}
               onChange={(event) => setForm({ ...form, currency: event.target.value })}
@@ -1297,9 +1324,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Référence chantier</span>
+            <span className={labelClass}>Référence chantier</span>
             <input
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               placeholder="Reference chantier"
               value={form.workOrderReference}
               onChange={(event) =>
@@ -1308,19 +1335,19 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Titre chantier</span>
+            <span className={labelClass}>Titre chantier</span>
             <input
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               placeholder="Titre chantier"
               value={form.workOrderTitle}
               onChange={(event) => setForm({ ...form, workOrderTitle: event.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Début chantier</span>
+            <span className={labelClass}>Début chantier</span>
             <input
               type="datetime-local"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               value={form.workOrderStartDate}
               onChange={(event) =>
                 setForm({ ...form, workOrderStartDate: event.target.value })
@@ -1328,21 +1355,21 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Fin chantier</span>
+            <span className={labelClass}>Fin chantier</span>
             <input
               type="datetime-local"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               value={form.workOrderEndDate}
               onChange={(event) => setForm({ ...form, workOrderEndDate: event.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700">Acompte</span>
+            <span className={labelClass}>Acompte</span>
             <input
               type="number"
               min="0"
               step="0.01"
-              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className={inputClass}
               placeholder="Acompte"
               value={form.depositAmount}
               onChange={(event) =>
@@ -1358,33 +1385,38 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         </div>
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Chantier associé</h4>
-        <p className="mb-3 text-sm text-slate-600">Associez ce devis à un chantier existant.</p>
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>2</span>
+          Chantier associé
+        </h4>
+        <p className="mb-3 text-sm text-slate-500">Associez ce devis à un chantier existant.</p>
         <button
           type="button"
-          className="rounded border bg-slate-200 px-3 py-2"
+          className={btnSecondary}
           onClick={() => void openWorkOrderAssociationSelector()}
         >
           {form.workOrderId ? 'Modifier le chantier associé' : 'Associer à un chantier existant'}
         </button>
         {form.workOrderId && (
-          <p className="mt-2 text-sm text-slate-700">
-            {workOrders.find((workOrder) => workOrder.id === form.workOrderId)?.title || form.workOrderId}
-            <button type="button" className="ml-3 text-red-700 underline" onClick={() => setForm({ ...form, workOrderId: '' })}>
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-800">
+              {workOrders.find((workOrder) => workOrder.id === form.workOrderId)?.title || form.workOrderId}
+            </span>
+            <button type="button" className="font-medium text-red-600 hover:text-red-800" onClick={() => setForm({ ...form, workOrderId: '' })}>
               Retirer
             </button>
           </p>
         )}
         {showWorkOrderAssociationList && (
-          <div className="mt-4 rounded-md border-2 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <h5 className="font-semibold">Sélectionner un chantier</h5>
-              <button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowWorkOrderAssociationList(false)}>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <h5 className="text-sm font-semibold text-slate-700">Sélectionner un chantier</h5>
+              <button type="button" className={`${btnSecondary} ml-auto`} onClick={() => setShowWorkOrderAssociationList(false)}>
                 Fermer la liste
               </button>
             </div>
-            {workOrdersLoading ? <p>Chargement des chantiers...</p> : (
+            {workOrdersLoading ? <p className="text-sm text-slate-500">Chargement des chantiers...</p> : (
               <WorkOrdersList
                 workOrders={workOrders}
                 onDelete={null}
@@ -1397,17 +1429,20 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             )}
           </div>
         )}
-        {workOrdersError && <p className="mt-3 rounded bg-red-100 p-3 text-sm text-red-700">{workOrdersError}</p>}
+        {workOrdersError && <p className={`mt-3 ${alertError}`}>{workOrdersError}</p>}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Entreprise</h4>
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>3</span>
+          Entreprise
+        </h4>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <strong className="block text-slate-900">{tenantDefaults?.name || 'Entreprise non configuree'}</strong>
             <span>{formatAddressLabel(tenantDefaults?.address || undefined)}</span>
           </div>
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <strong className="block text-slate-900">Contact</strong>
             <span>
               {tenantDefaults?.email || '-'} / {tenantDefaults?.phoneNumber || '-'}
@@ -1416,12 +1451,15 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         </div>
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Client</h4>
-        <div className="mb-4 flex flex-wrap gap-2">
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>4</span>
+          Client
+        </h4>
+        <div className="mb-4 inline-flex rounded-lg border border-slate-300 bg-slate-50 p-1">
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${form.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
             onClick={() => {
               setForm({ ...form, customerMode: 'existing' });
               setAddressError('');
@@ -1431,7 +1469,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.customerMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${form.customerMode === 'new' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
             onClick={() => {
               setForm({ ...form, customerMode: 'new', customerId: '' });
               setAddressError('');
@@ -1444,7 +1482,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         {form.customerMode === 'existing' ? (
           <div className="space-y-3">
             <select
-              className="w-full rounded border px-3 py-2"
+              className={inputClass}
               value={form.customerId}
               onChange={(event) => {
                 setForm({
@@ -1468,7 +1506,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             {customersLoading ? (
               <p className="text-sm text-slate-500">Chargement des clients...</p>
             ) : selectedCustomer ? (
-              <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                 <p className="font-medium text-slate-900">{formatCustomerLabel(selectedCustomer)}</p>
                 <p>{selectedCustomer.email || '-'}</p>
                 <p>{formatAddressLabel(selectedCustomer.address)}</p>
@@ -1478,107 +1516,134 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Prenom"
-                value={form.customer.firstName}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, firstName: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Nom"
-                value={form.customer.lastName}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, lastName: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Entreprise"
-                value={form.customer.company}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, company: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Email"
-                value={form.customer.email}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, email: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Telephone"
-                value={form.customer.phone}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, phone: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Telephone mobile"
-                value={form.customer.mobile}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, mobile: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="SIRET"
-                value={form.customer.siret}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, siret: event.target.value },
-                  })
-                }
-              />
-              <input
-                className="rounded border px-3 py-2"
-                placeholder="Numero TVA"
-                value={form.customer.vatNumber}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    customer: { ...form.customer, vatNumber: event.target.value },
-                  })
-                }
-              />
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Prénom</span>
+                <input
+                  className={inputClass}
+                  placeholder="Prenom"
+                  value={form.customer.firstName}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, firstName: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Nom</span>
+                <input
+                  className={inputClass}
+                  placeholder="Nom"
+                  value={form.customer.lastName}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, lastName: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Entreprise</span>
+                <input
+                  className={inputClass}
+                  placeholder="Entreprise"
+                  value={form.customer.company}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, company: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Email</span>
+                <input
+                  className={inputClass}
+                  placeholder="Email"
+                  value={form.customer.email}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, email: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Téléphone</span>
+                <input
+                  className={inputClass}
+                  placeholder="Telephone"
+                  value={form.customer.phone}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, phone: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Téléphone mobile</span>
+                <input
+                  className={inputClass}
+                  placeholder="Telephone mobile"
+                  value={form.customer.mobile}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, mobile: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>SIRET</span>
+                <input
+                  className={inputClass}
+                  placeholder="SIRET"
+                  value={form.customer.siret}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, siret: event.target.value },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className={labelClass}>Numéro de TVA</span>
+                <input
+                  className={inputClass}
+                  placeholder="Numero TVA"
+                  value={form.customer.vatNumber}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      customer: { ...form.customer, vatNumber: event.target.value },
+                    })
+                  }
+                />
+              </label>
             </div>
 
-            <textarea
-              className="min-h-24 w-full rounded border px-3 py-2"
-              placeholder="Notes client"
-              value={form.customer.notes}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  customer: { ...form.customer, notes: event.target.value },
-                })
-              }
-            />
+            <label className="flex flex-col gap-1.5">
+              <span className={labelClass}>Notes client</span>
+              <textarea
+                className={`${inputClass} min-h-24`}
+                placeholder="Notes client"
+                value={form.customer.notes}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    customer: { ...form.customer, notes: event.target.value },
+                  })
+                }
+              />
+            </label>
 
             <div>
               <p className="mb-2 text-sm font-medium text-slate-700">Adresse de facturation du client</p>
@@ -1596,19 +1661,22 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Adresse du chantier</h4>
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>5</span>
+          Adresse du chantier
+        </h4>
         {addressError && (
-          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{addressError}</div>
+          <div className={`mb-3 ${alertError}`}>{addressError}</div>
         )}
         {addressSuccess && (
-          <div className="mb-3 rounded bg-green-100 p-3 text-green-700">{addressSuccess}</div>
+          <div className={`mb-3 ${alertSuccess}`}>{addressSuccess}</div>
         )}
 
         <div className="mb-4 flex flex-wrap gap-2">
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'new' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={form.workOrderAddressMode === 'new' ? btnSecondaryActive : btnSecondary}
             onClick={() => {
               setForm({
                 ...form,
@@ -1623,7 +1691,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'existing' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={form.workOrderAddressMode === 'existing' ? btnSecondaryActive : btnSecondary}
             onClick={() => {
               setForm({
                 ...form,
@@ -1637,7 +1705,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className="rounded border bg-blue-400 px-3 py-2 text-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+            className={`${btnAccent} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
             onClick={handleUseCustomerAddress}
             disabled={form.customerMode !== 'existing' || !form.customerId}
           >
@@ -1645,7 +1713,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
           <button
             type="button"
-            className={`rounded border px-3 py-2 ${form.workOrderAddressMode === 'none' ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
+            className={form.workOrderAddressMode === 'none' ? btnSecondaryActive : btnSecondary}
             onClick={() => {
               setForm({
                 ...form,
@@ -1679,13 +1747,16 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h4 className="text-lg font-semibold">Lignes du devis</h4>
+      <section className={sectionClass}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h4 className={`${sectionTitleClass} mb-0 border-b-0 pb-0`}>
+            <span className={stepBadgeClass}>6</span>
+            Lignes du devis
+          </h4>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded border bg-blue-400 px-3 py-2 text-white"
+              className={btnAccent}
               onClick={() =>
                 updateQuoteItems((items) => [...items, createEmptyQuoteItem(items.length)])
               }
@@ -1694,46 +1765,46 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             </button>
             <button
               type="button"
-              className="rounded border bg-slate-200 px-3 py-2"
+              className={btnSecondary}
               onClick={() => {
                 void openWorkOrderSelector('addLines');
               }}
             >
-              Ajouter des lignes à partir d&apos;un chantier
+              Depuis un chantier
             </button>
             <button
               type="button"
-              className="rounded border bg-slate-200 px-3 py-2"
+              className={btnSecondary}
               onClick={() => {
                 void openCatalogItemSelector();
               }}
             >
-              Ajouter une ligne à partir du catalogue
+              Depuis le catalogue
             </button>
           </div>
         </div>
 
         {workOrdersError && (
-          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{workOrdersError}</div>
+          <div className={`mb-3 ${alertError}`}>{workOrdersError}</div>
         )}
         {catalogItemsError && (
-          <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>
+          <div className={`mb-3 ${alertError}`}>{catalogItemsError}</div>
         )}
 
         {showWorkOrdersList && (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <h4 className="text-lg font-semibold">Sélectionner un chantier</h4>
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <h5 className="text-sm font-semibold text-slate-700">Sélectionner un chantier</h5>
               <button
                 type="button"
-                className="ml-auto rounded border px-3 py-2"
+                className={`${btnSecondary} ml-auto`}
                 onClick={() => setShowWorkOrdersList(false)}
               >
                 Fermer la liste
               </button>
             </div>
             {workOrdersLoading ? (
-              <p>Chargement des chantiers...</p>
+              <p className="text-sm text-slate-500">Chargement des chantiers...</p>
             ) : (
               <WorkOrdersList
                 workOrders={workOrders}
@@ -1749,19 +1820,19 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         )}
 
         {!showWorkOrdersList && !doubleCheckShowWorkOrdersListTop && selectedWorkOrder && (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <h4 className="mb-3 text-lg font-semibold">Chantier sélectionné</h4>
-            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-              <p><strong>Titre:</strong> {selectedWorkOrder.title}</p>
-              <p><strong>Description:</strong> {selectedWorkOrder.description || '-'}</p>
-              <p><strong>Référence:</strong> {selectedWorkOrder.reference || '-'}</p>
-              <p><strong>Nombre d&apos;étapes:</strong> {selectedWorkOrder.items.length || 0}</p>
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h5 className="mb-3 text-sm font-semibold text-slate-700">Chantier sélectionné</h5>
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+              <p><span className="font-medium text-slate-900">Titre :</span> {selectedWorkOrder.title}</p>
+              <p><span className="font-medium text-slate-900">Description :</span> {selectedWorkOrder.description || '-'}</p>
+              <p><span className="font-medium text-slate-900">Référence :</span> {selectedWorkOrder.reference || '-'}</p>
+              <p><span className="font-medium text-slate-900">Nombre d&apos;étapes :</span> {selectedWorkOrder.items.length || 0}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={chooseSelectedWorkOrder}
-                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+                className={btnConfirm}
               >
                 {workOrderSelectionMode === 'fillForm'
                   ? 'Remplir le devis avec ce chantier'
@@ -1772,7 +1843,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 onClick={() => {
                   setShowWorkOrdersList(true);
                 }}
-                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                className={btnSecondary}
               >
                 Choisir un autre chantier
               </button>
@@ -1781,19 +1852,19 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         )}
 
         {showCatalogItemsList && (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <h4 className="text-lg font-semibold">Sélectionner un article catalogue</h4>
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <h5 className="text-sm font-semibold text-slate-700">Sélectionner un article catalogue</h5>
               <button
                 type="button"
-                className="ml-auto rounded border px-3 py-2"
+                className={`${btnSecondary} ml-auto`}
                 onClick={() => setShowCatalogItemsList(false)}
               >
                 Fermer la liste
               </button>
             </div>
             {catalogItemsLoading ? (
-              <p>Chargement des articles catalogue...</p>
+              <p className="text-sm text-slate-500">Chargement des articles catalogue...</p>
             ) : (
               <CatalogItemList
                 catalogItems={catalogItems}
@@ -1809,24 +1880,24 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         )}
 
         {!showCatalogItemsList && selectedCatalogItem && (
-          <div className="mb-4 rounded-md border-2 p-4">
-            <h4 className="mb-3 text-lg font-semibold">Article catalogue sélectionné</h4>
-            <div className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-              <p><strong>Titre:</strong> {selectedCatalogItem.title}</p>
-              <p><strong>Type:</strong> {selectedCatalogItem.type}</p>
-              <p><strong>Description:</strong> {selectedCatalogItem.description || '-'}</p>
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h5 className="mb-3 text-sm font-semibold text-slate-700">Article catalogue sélectionné</h5>
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+              <p><span className="font-medium text-slate-900">Titre :</span> {selectedCatalogItem.title}</p>
+              <p><span className="font-medium text-slate-900">Type :</span> {selectedCatalogItem.type}</p>
+              <p><span className="font-medium text-slate-900">Description :</span> {selectedCatalogItem.description || '-'}</p>
               <p>
-                <strong>Quantité/Unité:</strong> {Number(selectedCatalogItem.defaultQuantity) || 1} {selectedCatalogItem.unit || '-'}
+                <span className="font-medium text-slate-900">Quantité/Unité :</span> {Number(selectedCatalogItem.defaultQuantity) || 1} {selectedCatalogItem.unit || '-'}
               </p>
               <p>
-                <strong>Prix / TVA:</strong> {Number(selectedCatalogItem.unitPrice) || 0} / {Number(selectedCatalogItem.vatRate) || 0}%
+                <span className="font-medium text-slate-900">Prix / TVA :</span> {Number(selectedCatalogItem.unitPrice) || 0} / {Number(selectedCatalogItem.vatRate) || 0}%
               </p>
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={chooseSelectedCatalogItem}
-                className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400"
+                className={btnConfirm}
               >
                 Choisir cet article
               </button>
@@ -1835,7 +1906,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 onClick={() => {
                   setShowCatalogItemsList(true);
                 }}
-                className="rounded-md border-2 bg-slate-200 p-2 hover:bg-slate-300 active:bg-slate-400"
+                className={btnSecondary}
               >
                 Choisir un autre article
               </button>
@@ -1938,50 +2009,67 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               ))}
             </SortableContext>
           </DndContext>
+          {form.quoteItems.length === 0 && (
+            <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              Aucune ligne pour le moment. Ajoutez-en une manuellement ou depuis un chantier / le catalogue.
+            </p>
+          )}
         </div>
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 p-4">
-        <h4 className="mb-3 text-lg font-semibold">Conditions et totaux</h4>
+      <section className={sectionClass}>
+        <h4 className={sectionTitleClass}>
+          <span className={stepBadgeClass}>7</span>
+          Conditions et totaux
+        </h4>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <textarea
-            className="min-h-28 rounded border px-3 py-2"
-            placeholder="Conditions de paiement"
-            value={form.paymentTerms}
-            onChange={(event) => setForm({ ...form, paymentTerms: event.target.value })}
-          />
-          <textarea
-            className="min-h-28 rounded border px-3 py-2"
-            placeholder="Mentions legales"
-            value={form.legalMentions}
-            onChange={(event) => setForm({ ...form, legalMentions: event.target.value })}
-          />
-          <textarea
-            className="min-h-28 rounded border px-3 py-2 sm:col-span-2"
-            placeholder="Notes"
-            value={form.notes}
-            onChange={(event) => setForm({ ...form, notes: event.target.value })}
-          />
+          <label className="flex flex-col gap-1.5">
+            <span className={labelClass}>Conditions de paiement</span>
+            <textarea
+              className={`${inputClass} min-h-28`}
+              placeholder="Conditions de paiement"
+              value={form.paymentTerms}
+              onChange={(event) => setForm({ ...form, paymentTerms: event.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className={labelClass}>Mentions légales</span>
+            <textarea
+              className={`${inputClass} min-h-28`}
+              placeholder="Mentions legales"
+              value={form.legalMentions}
+              onChange={(event) => setForm({ ...form, legalMentions: event.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 sm:col-span-2">
+            <span className={labelClass}>Notes</span>
+            <textarea
+              className={`${inputClass} min-h-28`}
+              placeholder="Notes"
+              value={form.notes}
+              onChange={(event) => setForm({ ...form, notes: event.target.value })}
+            />
+          </label>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-sm text-slate-500">Sous-total HT</p>
-            <p className="text-lg font-semibold">{form.subtotal.toFixed(2)} {form.currency || 'EUR'}</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sous-total HT</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{form.subtotal.toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-sm text-slate-500">TVA</p>
-            <p className="text-lg font-semibold">{form.vatAmount.toFixed(2)} {form.currency || 'EUR'}</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">TVA</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{form.vatAmount.toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
-          <div className="rounded border border-slate-200 bg-slate-900 px-3 py-2 text-white">
-            <p className="text-sm text-slate-300">Total TTC</p>
-            <p className="text-lg font-semibold">{form.total.toFixed(2)} {form.currency || 'EUR'}</p>
+          <div className="rounded-lg bg-slate-900 px-4 py-3 text-white">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-300">Total TTC</p>
+            <p className="mt-1 text-lg font-semibold">{form.total.toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
         </div>
       </section>
 
-      <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
-        Creer le devis
+      <button type="submit" className={`${btnPrimary} w-full sm:w-auto`}>
+        Créer le devis
       </button>
     </form>
   );

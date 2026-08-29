@@ -155,6 +155,11 @@ export class InvoiceService {
     const grossTotal = this.roundMoney(subtotal + vatAmount);
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
 
+    const invoiceInput = dto as CreateInvoiceDto & {
+      subtotal?: unknown;
+      total?: unknown;
+      paymentMethod?: unknown;
+    };
     const {
       invoiceItems: _ignoredInvoiceItems,
       number: _ignoredFrontendNumber,
@@ -162,15 +167,21 @@ export class InvoiceService {
       customerLastName: _customerLastName,
       tenantIban: _tenantIban,
       tenantBic: _tenantBic,
+      subtotal: _ignoredFrontendSubtotal,
+      total: _ignoredFrontendTotal,
+      paymentMethod: _paymentMethod,
       legalMentions: _legalMentions,
       notes: _notes,
       depositAmount: _depositAmount,
       discountAmount: _discountAmount,
       paidAt: _paidAt,
       ...invoiceData
-    } = dto;
+    } = invoiceInput;
     void _ignoredInvoiceItems;
     void _ignoredFrontendNumber;
+    void _ignoredFrontendSubtotal;
+    void _ignoredFrontendTotal;
+    void _paymentMethod;
     const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
     const dueDate = this.parseOptionalDate(dto.dueDate);
     const workOrderStartDate = this.parseOptionalDate(dto.workOrderStartDate);
@@ -445,7 +456,15 @@ export class InvoiceService {
 
   }
 
-  async update(tenantId: string, id: string, dto: Partial<CreateInvoiceDto>) {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: Partial<CreateInvoiceDto> & {
+      subtotal?: unknown;
+      total?: unknown;
+      paymentMethod?: unknown;
+    },
+  ) {
     const {
       invoiceItems,
       number: _number,
@@ -454,6 +473,9 @@ export class InvoiceService {
       tenantIban: _tenantIban,
       tenantBic: _tenantBic,
       legalMentions: _legalMentions,
+      subtotal: _subtotal,
+      total: _total,
+      paymentMethod: _paymentMethod,
       depositAmount: _depositAmount,
       discountAmount: _discountAmount,
       paidAt: _paidAt,
@@ -465,6 +487,9 @@ export class InvoiceService {
     void _tenantIban;
     void _tenantBic;
     void _legalMentions;
+    void _subtotal;
+    void _total;
+    void _paymentMethod;
     void _depositAmount;
     void _discountAmount;
     void _paidAt;

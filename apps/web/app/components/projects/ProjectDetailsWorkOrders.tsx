@@ -7,6 +7,7 @@ import { useApiClient } from '../../api-client';
 import AddWorkOrderForm from '../AddWorkOrderForm';
 import AddWorklogForm from './AddWorklogForm';
 import WorkLogsList from './WorkLogsList';
+import { CardHeader, WorkOrderStatusBadge, alertError, btnGhost, btnPrimary, cardClass } from './theme';
 
 type ProjectDetailsWorkOrdersProps = {
 	project: Project;
@@ -79,18 +80,6 @@ function formatCustomerName(customer: WorkOrderDetails['customer']): string {
 		.filter((value): value is string => Boolean(value?.trim()))
 		.map((value) => value.trim())
 		.join(' ') || '-';
-}
-
-function statusLabel(status: WorkOrderStatus): string {
-	const labels: Record<WorkOrderStatus, string> = {
-		DRAFT: 'Brouillon',
-		PLANNED: 'Planifié',
-		IN_PROGRESS: 'En cours',
-		COMPLETED: 'Terminé',
-		CANCELLED: 'Annulé',
-	};
-
-	return labels[status];
 }
 
 export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWorkOrdersProps) {
@@ -214,67 +203,67 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 	}
 
 	return (
-		<div className="space-y-3">
-			<div className="flex items-center justify-between gap-3">
-				<h3 className="text-lg font-semibold text-zinc-900">Chantiers</h3>
+		<div className="space-y-4">
+			<div className={cardClass}>
+				<CardHeader title="Chantiers" />
 				<button
 					type="button"
-					className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+					className={btnPrimary}
 					onClick={() => setShowAddWorkOrderModal(true)}
 				>
 					Ajouter un chantier
 				</button>
 			</div>
-			{loading && <p className="text-sm text-zinc-600">Chargement des chantiers...</p>}
-			{error && <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+			{loading && <p className="text-sm text-slate-500">Chargement des chantiers...</p>}
+			{error && <div className={alertError}>{error}</div>}
 			{!loading && !error && !workOrders.length && (
-				<p className="text-sm text-zinc-600">Aucun chantier associé à ce projet.</p>
+				<p className="text-sm text-slate-500">Aucun chantier associé à ce projet.</p>
 			)}
 			{!loading && !error && workOrders.length > 0 && (
 				<div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
 					{workOrders.map((workOrder) => (
-						<article key={workOrder.id} className="grid gap-4 border border-zinc-200 bg-white p-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(20rem,1.5fr)_minmax(14rem,0.9fr)]">
+						<article key={workOrder.id} className={`grid gap-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(20rem,1.5fr)_minmax(14rem,0.9fr)] ${cardClass}`}>
 							<div className="space-y-2 text-sm">
 								<button
 									type="button"
-									className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
+									className={btnGhost}
 									onClick={() => setWorkOrderForEdit(workOrder)}
 								>
 									Modifier le chantier
 								</button>
-								<p className="font-medium text-zinc-900">{workOrder.reference}</p>
-								<h4 className="text-base font-semibold text-zinc-900">{workOrder.title}</h4>
-								<p className="text-zinc-600"><strong className="text-zinc-900">Statut:</strong> {statusLabel(workOrder.status)}</p>
-								<p className="whitespace-pre-wrap text-zinc-600">{workOrder.description || 'Aucune description.'}</p>
-								<div className="border-t border-zinc-200 pt-3">
-									<h5 className="mb-2 font-medium text-zinc-900">Étapes</h5>
+								<p className="font-medium text-slate-900">{workOrder.reference}</p>
+								<h4 className="text-base font-semibold text-slate-900">{workOrder.title}</h4>
+								<div><WorkOrderStatusBadge status={workOrder.status} /></div>
+								<p className="whitespace-pre-wrap text-slate-600">{workOrder.description || 'Aucune description.'}</p>
+								<div className="border-t border-slate-200 pt-3">
+									<h5 className="mb-2 font-medium text-slate-900">Étapes</h5>
 									{workOrder.items.length ? (
 										<ol className="space-y-2">
 											{workOrder.items.map((item) => (
-												<li key={item.id} className="border-l-2 border-zinc-300 pl-2">
-													<p className="font-medium text-zinc-900">{item.title}</p>
-													{item.description && <p className="text-zinc-600">{item.description}</p>}
-													<p className="mt-1 text-xs text-zinc-500">{item.quantity} {item.unit || 'unité'}</p>
+												<li key={item.id} className="border-l-2 border-slate-300 pl-2">
+													<p className="font-medium text-slate-900">{item.title}</p>
+													{item.description && <p className="text-slate-600">{item.description}</p>}
+													<p className="mt-1 text-xs text-slate-500">{item.quantity} {item.unit || 'unité'}</p>
 												</li>
 											))}
 										</ol>
-									) : <p className="text-zinc-600">Aucune étape.</p>}
+									) : <p className="text-slate-600">Aucune étape.</p>}
 								</div>
 							</div>
-							<div className="min-w-0 border-y border-zinc-200 py-4 lg:border-x lg:border-y-0 lg:px-4 lg:py-0">
+							<div className="min-w-0 border-y border-slate-200 py-4 lg:border-x lg:border-y-0 lg:px-4 lg:py-0">
 								<div className="mb-3 flex items-center justify-between gap-3">
-									<h4 className="text-sm font-medium text-zinc-900">Fiches de suivi</h4>
-									<button type="button" className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-700" onClick={() => setWorkOrderForNewLog(workOrder)}>
+									<h4 className="text-sm font-medium text-slate-900">Fiches de suivi</h4>
+									<button type="button" className={btnPrimary} onClick={() => setWorkOrderForNewLog(workOrder)}>
 										Ajouter une fiche de suivi
 									</button>
 								</div>
 								<WorkLogsList workOrderId={workOrder.id} refreshKey={workLogsRefreshKey} />
 							</div>
-							<div className="space-y-2 text-sm text-zinc-600">
-								<p><strong className="text-zinc-900">Client:</strong> {formatCustomerName(workOrder.customer)}</p>
-								<p><strong className="text-zinc-900">Adresse:</strong> {workOrder.address ? <><br />{workOrder.address.street1}<br />{workOrder.address.postalCode} {workOrder.address.city}</> : '-'}</p>
-								<p><strong className="text-zinc-900">Début:</strong> {formatDate(workOrder.startDate)}</p>
-								<p><strong className="text-zinc-900">Fin:</strong> {formatDate(workOrder.endDate)}</p>
+							<div className="space-y-2 text-sm text-slate-600">
+								<p><strong className="text-slate-900">Client:</strong> {formatCustomerName(workOrder.customer)}</p>
+								<p><strong className="text-slate-900">Adresse:</strong> {workOrder.address ? <><br />{workOrder.address.street1}<br />{workOrder.address.postalCode} {workOrder.address.city}</> : '-'}</p>
+								<p><strong className="text-slate-900">Début:</strong> {formatDate(workOrder.startDate)}</p>
+								<p><strong className="text-slate-900">Fin:</strong> {formatDate(workOrder.endDate)}</p>
 							</div>
 						</article>
 					))}
@@ -282,25 +271,25 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 			)}
 			{showAddWorkOrderModal && (
 				<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={closeAddWorkOrderModal}>
-					<div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-zinc-900">Ajouter un chantier au projet</h4>
-							<button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={closeAddWorkOrderModal}>Fermer</button>
+							<h4 className="text-lg font-semibold text-slate-900">Ajouter un chantier au projet</h4>
+							<button type="button" className={btnGhost} onClick={closeAddWorkOrderModal}>Fermer</button>
 						</div>
-						<div className="mb-4 flex gap-2 border-b border-zinc-200">
-							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'existing' ? 'border-zinc-900 font-medium text-zinc-900' : 'border-transparent text-zinc-500'}`} onClick={() => setAddMode('existing')}>Chantier existant</button>
-							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'new' ? 'border-zinc-900 font-medium text-zinc-900' : 'border-transparent text-zinc-500'}`} onClick={() => setAddMode('new')}>Nouveau chantier</button>
+						<div className="mb-4 flex gap-2 border-b border-slate-200">
+							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'existing' ? 'border-indigo-600 font-medium text-indigo-700' : 'border-transparent text-slate-500'}`} onClick={() => setAddMode('existing')}>Chantier existant</button>
+							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'new' ? 'border-indigo-600 font-medium text-indigo-700' : 'border-transparent text-slate-500'}`} onClick={() => setAddMode('new')}>Nouveau chantier</button>
 						</div>
-						{associationError && <p className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{associationError}</p>}
+						{associationError && <div className={`mb-4 ${alertError}`}>{associationError}</div>}
 						{addMode === 'existing' ? (
 							<div className="space-y-4">
-								{availableWorkOrdersLoading ? <p className="text-sm text-zinc-600">Chargement des chantiers...</p> : (
-									<select className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" value={selectedWorkOrderId} onChange={(event) => setSelectedWorkOrderId(event.target.value)}>
+								{availableWorkOrdersLoading ? <p className="text-sm text-slate-500">Chargement des chantiers...</p> : (
+									<select className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" value={selectedWorkOrderId} onChange={(event) => setSelectedWorkOrderId(event.target.value)}>
 										<option value="">-- Sélectionner un chantier --</option>
 										{availableWorkOrders.map((workOrder) => <option key={workOrder.id} value={workOrder.id}>{workOrder.reference} - {workOrder.title}</option>)}
 									</select>
 								)}
-								<button type="button" disabled={!selectedWorkOrderId || associating} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void associateWorkOrder(selectedWorkOrderId)}>
+								<button type="button" disabled={!selectedWorkOrderId || associating} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-50`} onClick={() => void associateWorkOrder(selectedWorkOrderId)}>
 									{associating ? 'Association...' : 'Associer au projet'}
 								</button>
 							</div>
@@ -312,10 +301,10 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 			)}
 			{workOrderForNewLog && (
 				<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setWorkOrderForNewLog(null)}>
-					<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-zinc-900">Nouvelle fiche de suivi: {workOrderForNewLog.title}</h4>
-							<button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setWorkOrderForNewLog(null)}>Fermer</button>
+							<h4 className="text-lg font-semibold text-slate-900">Nouvelle fiche de suivi: {workOrderForNewLog.title}</h4>
+							<button type="button" className={btnGhost} onClick={() => setWorkOrderForNewLog(null)}>Fermer</button>
 						</div>
 						<AddWorklogForm
 							projectId={project.id}
@@ -330,10 +319,10 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 			)}
 			{workOrderForEdit && (
 				<div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4" onClick={() => setWorkOrderForEdit(null)}>
-					<div className="w-full max-w-6xl rounded-lg bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="w-full max-w-6xl rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-xl font-semibold text-zinc-900">Modifier le chantier</h4>
-							<button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setWorkOrderForEdit(null)}>Fermer</button>
+							<h4 className="text-xl font-semibold text-slate-900">Modifier le chantier</h4>
+							<button type="button" className={btnGhost} onClick={() => setWorkOrderForEdit(null)}>Fermer</button>
 						</div>
 						<AddWorkOrderForm
 							show={true}

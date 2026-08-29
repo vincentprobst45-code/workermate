@@ -246,6 +246,8 @@ model CalendarEvent {
   allDay Boolean @default(false)
   status CalendarEventStatus @default(SCHEDULED)
 
+  type CalendarEventType @default(OTHER)
+
   color     String?
 
   notes     String?
@@ -257,6 +259,17 @@ model CalendarEvent {
 
   @@index([tenantId, startDate])
   @@index([projectId, startDate])
+}
+
+enum CalendarEventType {
+  CUSTOMER_APPOINTMENT
+  SITE_VISIT
+  WORK
+  MAINTENANCE
+  DELIVERY
+  ADMINISTRATIVE
+  ABSENCE
+  OTHER
 }
 
 model WorkOrder {
