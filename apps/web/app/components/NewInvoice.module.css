@@ -5,6 +5,7 @@
 }
 
 .invoiceDocument {
+  position: relative;
   width: 210mm;
   min-height: 297mm;
   box-sizing: border-box;
@@ -17,6 +18,21 @@
   font-family: "Segoe UI", Tahoma, sans-serif;
   font-size: 3.5mm;
   line-height: 1.35;
+}
+
+.draftWatermark {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 28mm;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: rgba(220, 38, 38, 0.15);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  z-index: 5;
 }
 
 .invoiceHeader {

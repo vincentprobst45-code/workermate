@@ -20,6 +20,7 @@ export interface InvoiceItem {
 	unitLabel?: string;
 	subtotal?: number;
 	vatCategory?: string;
+	vatExemptionReason?: string | null;
 	adjustments?: InvoiceItemAdjustment[];
 }
 
@@ -145,6 +146,49 @@ function getEffectiveVatRate(vatCategory: VatCategory | string | undefined, vatR
 	return vatCategory === VatCategory.STANDARD ? vatRate : 0;
 }
 
+function invoiceTitleFor(kind?: string): string {
+	switch (kind) {
+		case 'CREDIT_NOTE':
+			return 'AVOIR';
+		case 'CORRECTIVE':
+			return 'FACTURE RECTIFICATIVE';
+		case 'DEPOSIT':
+			return 'FACTURE D\'ACOMPTE';
+		case 'PROGRESS':
+			return 'FACTURE DE SITUATION';
+		case 'BALANCE':
+			return 'FACTURE DE SOLDE';
+		default:
+			return 'FACTURE';
+	}
+}
+
+// Short in-table marker for lines that aren't taxed at a standard rate.
+const VAT_CATEGORY_SHORT_LABELS: Partial<Record<string, string>> = {
+	EXEMPT: 'Exo.',
+	REVERSE_CHARGE: 'Autoliq.',
+	INTRA_COMMUNITY_SUPPLY: 'Intracom.',
+	EXPORT: 'Export',
+	OUTSIDE_SCOPE: 'Hors champ',
+};
+
+// Default legal mention per VAT category, used when no explicit exemption reason is recorded.
+const VAT_CATEGORY_MENTIONS: Partial<Record<string, string>> = {
+	EXEMPT: 'Exonération de TVA.',
+	REVERSE_CHARGE: 'Autoliquidation de la TVA par le preneur (art. 283-2 du CGI).',
+	INTRA_COMMUNITY_SUPPLY: 'Livraison intracommunautaire exonérée de TVA (art. 262 ter I du CGI).',
+	EXPORT: 'Exportation hors UE exonérée de TVA (art. 262 I du CGI).',
+	OUTSIDE_SCOPE: 'Opération hors du champ d\'application de la TVA.',
+};
+
+function vatCellLabel(effectiveVatRate: number | null, vatCategory?: string): string {
+	if (vatCategory && vatCategory !== VatCategory.STANDARD && vatCategory !== VatCategory.ZERO) {
+		return VAT_CATEGORY_SHORT_LABELS[vatCategory] ?? '-';
+	}
+
+	return effectiveVatRate === null ? '-' : effectiveVatRate.toFixed(2);
+}
+
 export default function NewInvoice({
 	invoice,
 }: NewInvoiceProps) {
@@ -219,10 +263,28 @@ export default function NewInvoice({
 		? vatLines.reduce((total, vatLine) => total + vatLine.amount, 0)
 		: Number(invoice.vatAmount || 0);
 	const displayedTaxInclusiveAmount = displayedTaxExclusiveAmount + displayedVatAmount;
-	const customerFullName = [invoice.customerName || invoice.customerFirstName, invoice.customerLastName]
-		.filter(Boolean)
-		.join(' ')
-		.trim();
+	// The client's full name is stored as a single field; don't re-append the last name on top of it.
+	const customerFullName = invoice.customerName?.trim()
+		|| [invoice.customerFirstName, invoice.customerLastName].filter(Boolean).join(' ').trim();
+	// Free-text work-order fields can be filled without a real WorkOrder association, so check the values, not the id.
+	const hasWorkOrderInfo = Boolean(
+		invoice.workOrderReference?.trim() ||
+		invoice.workOrderTitle?.trim() ||
+		invoice.workOrderStartDate ||
+		invoice.workOrderEndDate ||
+		invoice.workOrderAddress?.trim() ||
+		invoice.workOrderPostalCode?.trim() ||
+		invoice.workOrderCity?.trim(),
+	);
+	const depositValue = Number(invoice.prepaidAmount ?? invoice.depositAmount ?? 0);
+	const netToPay = invoice.amountDue ?? (displayedTaxInclusiveAmount - depositValue);
+	const hasAnyLineAdjustments = computedLines.some((line) => (line.adjustments?.length ?? 0) > 0);
+	const exemptionMentions = Array.from(new Set(
+		computedLines
+			.filter((line) => line.vatCategory && line.vatCategory !== VatCategory.STANDARD && line.vatCategory !== VatCategory.ZERO)
+			.map((line) => line.vatExemptionReason?.trim() || VAT_CATEGORY_MENTIONS[line.vatCategory as string])
+			.filter((mention): mention is string => Boolean(mention)),
+	));
 	const initialInvoiceReference = invoice.kind === 'CORRECTIVE'
 		? invoice.correctedInvoiceNumber
 		: invoice.kind === 'CREDIT_NOTE'
@@ -237,14 +299,21 @@ export default function NewInvoice({
 	return (
 		<section className={styles.invoicePage}>
 		<article className={styles.invoiceDocument}>
+			{invoice.status === 'DRAFT' && (
+				<div className={styles.draftWatermark} aria-hidden="true">BROUILLON</div>
+			)}
 			<header className={`${styles.invoiceHeader} ${styles.keepTogether}`}>
 				<div>
-					<h1 className={styles.invoiceTitle}>FACTURE</h1>
+					<h1 className={styles.invoiceTitle}>{invoiceTitleFor(invoice.kind)}</h1>
 					<p className={styles.invoiceMuted}>Numero: {invoice.number}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(invoice.issueDate, locale)}</p>
 					<p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(invoice.dueDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Reference chantier: {invoice.workOrderReference || '-'}</p>
-					<p className={styles.invoiceMuted}>Chantier: {invoice.workOrderTitle}</p>
+					{hasWorkOrderInfo && (
+						<>
+							<p className={styles.invoiceMuted}>Reference chantier: {invoice.workOrderReference || '-'}</p>
+							<p className={styles.invoiceMuted}>Chantier: {invoice.workOrderTitle || '-'}</p>
+						</>
+					)}
 					{initialInvoiceReference && (
 						<>
 							<p className={styles.invoiceMuted}>Facture initiale: {initialInvoiceReference}</p>
@@ -267,18 +336,20 @@ export default function NewInvoice({
 				<div>
 					<h3 className={styles.invoiceSectionTitle}>Client</h3>
 					<p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
-					<p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
+					{invoice.customerVatNumber && <p className={styles.invoiceMuted}>TVA: {invoice.customerVatNumber}</p>}
 					<p className={styles.invoiceMuted}>{formatAddress(invoice.customerStreet1, invoice.customerStreet2, invoice.customerPostalCode, invoice.customerCity)}</p>
 					<p className={styles.invoiceMuted}>Email: {invoice.customerEmail || '-'}</p>
 					<p className={styles.invoiceMuted}>Tel: {invoice.customerPhoneNumber || '-'}</p>
 				</div>
 
-				<div className={styles.rightBlock}>
-					<h3 className={styles.invoiceSectionTitle}>Infos chantier</h3>
-					<p className={styles.invoiceMuted}>Debut: {formatDate(invoice.workOrderStartDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Fin: {formatDate(invoice.workOrderEndDate, locale)}</p>
-					<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(invoice.workOrderAddress, undefined, invoice.workOrderPostalCode, invoice.workOrderCity)}</p>
-				</div>
+				{hasWorkOrderInfo && (
+					<div className={styles.rightBlock}>
+						<h3 className={styles.invoiceSectionTitle}>Infos chantier</h3>
+						<p className={styles.invoiceMuted}>Debut: {formatDate(invoice.workOrderStartDate, locale)}</p>
+						<p className={styles.invoiceMuted}>Fin: {formatDate(invoice.workOrderEndDate, locale)}</p>
+						<p className={styles.invoiceMuted}>Adresse chantier: {formatAddress(invoice.workOrderAddress, undefined, invoice.workOrderPostalCode, invoice.workOrderCity)}</p>
+					</div>
+				)}
 			</section>
 
 			<section className={`${styles.invoiceLines} ${styles.keepTogether}`}>
@@ -290,7 +361,7 @@ export default function NewInvoice({
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>Qte</th>
 							<th className={styles.invoiceTableHeadCell}>Unite</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>PU HT</th>
-							<th className={styles.invoiceTableHeadCell}>Remises / charges</th>
+							{hasAnyLineAdjustments && <th className={styles.invoiceTableHeadCell}>Remises / charges</th>}
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>TVA %</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>Total HT</th>
 						</tr>
@@ -306,14 +377,16 @@ export default function NewInvoice({
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
 								<td className={styles.invoiceTableCell}>{line.unitLabel || line.unitCode || line.unit || '-'}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
-								<td className={styles.invoiceTableCell}>
-									{line.adjustments?.length ? line.adjustments.map((adjustment) => (
-										<p key={adjustment.id ?? `${line.id}-${adjustment.position}`} className={styles.invoiceSubtext}>
-											{adjustment.type === 'ALLOWANCE' ? 'Remise' : 'Charge'}: {adjustment.percentage == null ? formatMoney(Number(adjustment.amount || 0), locale, currency) : `${Number(adjustment.percentage)} % (${formatMoney(Number(adjustment.amount || 0), locale, currency)})`}{adjustment.reason ? ` - ${adjustment.reason}` : ''}
-										</p>
-									)) : '-'}
-								</td>
-								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.effectiveVatRate === null ? '-' : line.effectiveVatRate.toFixed(2)}</td>
+								{hasAnyLineAdjustments && (
+									<td className={styles.invoiceTableCell}>
+										{line.adjustments?.length ? line.adjustments.map((adjustment) => (
+											<p key={adjustment.id ?? `${line.id}-${adjustment.position}`} className={styles.invoiceSubtext}>
+												{adjustment.type === 'ALLOWANCE' ? 'Remise' : 'Charge'}: {adjustment.percentage == null ? formatMoney(Number(adjustment.amount || 0), locale, currency) : `${Number(adjustment.percentage)} % (${formatMoney(Number(adjustment.amount || 0), locale, currency)})`}{adjustment.reason ? ` - ${adjustment.reason}` : ''}
+											</p>
+										)) : '-'}
+									</td>
+								)}
+								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{vatCellLabel(line.effectiveVatRate, line.vatCategory)}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.totalExclTax, locale, currency)}</td>
 							</tr>
 						))}
@@ -355,21 +428,35 @@ export default function NewInvoice({
 							<strong>{formatMoney(invoice.vatAmount, locale, currency)}</strong>
 						</div>
 					)}
-					{!!invoice.prepaidAmount && (
+					{!!depositValue && (
 						<div className={styles.invoiceTotalLine}>
 							<span>Acompte</span>
-							<strong>-{formatMoney(invoice.prepaidAmount, locale, currency)}</strong>
+							<strong>-{formatMoney(depositValue, locale, currency)}</strong>
 						</div>
 					)}
 					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
 						<span>Total TTC</span>
 						<strong>{formatMoney(displayedTaxInclusiveAmount, locale, currency)}</strong>
 					</div>
+					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
+						<span>Net a payer</span>
+						<strong>{formatMoney(netToPay, locale, currency)}</strong>
+					</div>
 				</div>
 			</section>
 
 			<footer className={`${styles.invoiceFooter} ${styles.keepTogether}`}>
 				<p className={styles.invoiceMuted}>{invoice.paymentTerms || 'Paiement a 30 jours fin de mois.'}</p>
+				{(invoice.tenantIban || invoice.tenantBic) && (
+					<p className={styles.invoiceMuted}>
+						{invoice.tenantIban && `IBAN: ${invoice.tenantIban}`}
+						{invoice.tenantIban && invoice.tenantBic ? ' - ' : ''}
+						{invoice.tenantBic && `BIC: ${invoice.tenantBic}`}
+					</p>
+				)}
+				{exemptionMentions.map((mention) => (
+					<p key={mention} className={styles.invoiceMuted}>{mention}</p>
+				))}
 				{invoice.internalNotes && <p className={styles.invoiceMuted}>Notes internes: {invoice.internalNotes}</p>}
 				{invoice.notes && <p className={styles.invoiceMuted}>Notes: {Array.isArray(invoice.notes) ? invoice.notes.map((note) => note.text).join(' ') : invoice.notes}</p>}
 				<p className={styles.invoiceMuted}>{invoice.legalMentions || 'Merci pour votre confiance.'}</p>

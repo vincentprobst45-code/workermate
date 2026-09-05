@@ -1,14 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useApiClient } from '../api-client';
 import AddProjectForm, { type Project } from '../components/AddProjectForm';
 import ProjectsList from '../components/ProjectsList';
+import ProjectDetailsContainer from '../components/projects/ProjectDetailsContainer';
 import { ProtectedRoute } from '../protected-route';
 
 export default function ProjectsPage() {
   const api = useApiClient();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -59,11 +63,64 @@ export default function ProjectsPage() {
       }
 
       setProjects((currentProjects) => currentProjects.filter((project) => project.id !== id));
+      if (selectedProject?.id === id) {
+        setSelectedProject(null);
+      }
       setError('');
       setSuccess('Projet supprimé avec succès');
     } catch {
       setError('Erreur lors de la suppression');
     }
+  }
+
+  const activeSelectedProject = selectedProject
+    ? projects.find((project) => project.id === selectedProject.id) ?? selectedProject
+    : null;
+
+  if (activeSelectedProject) {
+    return (
+      <ProtectedRoute>
+        <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <nav aria-label="Fil d'ariane" className="flex items-center gap-2 text-sm text-slate-500">
+              <Link
+                href="/"
+                className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
+              >
+                Accueil
+              </Link>
+              <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => setSelectedProject(null)}
+                className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
+              >
+                Projets
+              </button>
+              <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <span className="font-semibold text-slate-900" aria-current="page">
+                {activeSelectedProject.reference}
+                {activeSelectedProject.title ? ` — ${activeSelectedProject.title}` : ''}
+              </span>
+            </nav>
+
+            <button
+              type="button"
+              onClick={() => setSelectedProject(null)}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <span>Retour</span>
+            </button>
+          </div>
+
+          <ProjectDetailsContainer
+            project={activeSelectedProject}
+            onClose={() => setSelectedProject(null)}
+          />
+        </main>
+      </ProtectedRoute>
+    );
   }
 
   return (
@@ -138,7 +195,11 @@ export default function ProjectsPage() {
         {loading ? (
           <p className="text-sm text-slate-500">Chargement des projets...</p>
         ) : (
-          <ProjectsList projects={projects} onDelete={handleDelete} />
+          <ProjectsList
+            projects={projects}
+            onDelete={handleDelete}
+            handleSelectedProject={setSelectedProject}
+          />
         )}
       </main>
     </ProtectedRoute>

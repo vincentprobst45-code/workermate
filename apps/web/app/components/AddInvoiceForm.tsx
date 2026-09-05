@@ -152,6 +152,7 @@ export interface AddInvoiceFormData {
 	status: InvoiceStatus;
 	currency: string;
 	subtotal: number;
+	vatAmount: number;
 	vatBreakdowns: InvoiceVatBreakdownFormData[];
 	total: number;
 	allowanceTotal: number;
@@ -1875,7 +1876,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			customerVatNumber: trimToUndefined(form.customerVatNumber),
 			tenantSirenNumber: form.tenantSiretNumber.trim(),
 			tenantCountryCode: 'FR',
-			customerName: [form.customerFirstName, form.customerLastName].filter(Boolean).join(' ').trim() || form.customerId.trim(),
+			customerName: [form.customerFirstName, form.customerLastName].filter(Boolean).join(' ').trim(),
 			customerCountryCode: 'FR',
 			workOrderStartDate: trimToUndefined(form.workOrderStartDate),
 			workOrderEndDate: trimToUndefined(form.workOrderEndDate),
@@ -2595,6 +2596,12 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 						</div>
 					)}
 					<FieldLabel label="Total TTC" required>
+						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={roundMoney(form.taxExclusiveAmount + form.vatAmount)} readOnly required />
+					</FieldLabel>
+					<FieldLabel label="Acompte">
+						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount ?? 0} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
+					</FieldLabel>
+					<FieldLabel label="Net à payer" required>
 						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.total} readOnly required />
 					</FieldLabel>
 					<FieldLabel label="Conditions de paiement">
@@ -2605,9 +2612,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 					</FieldLabel>
 					<FieldLabel label="Notes">
 						<input className={fieldClassName} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
-					</FieldLabel>
-					<FieldLabel label="Acompte">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount ?? 0} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
 					</FieldLabel>
 					<FieldLabel label="Date de paiement">
 						<input type="datetime-local" className={fieldClassName} value={form.paidAt} onChange={(event) => setForm({ ...form, paidAt: event.target.value })} />

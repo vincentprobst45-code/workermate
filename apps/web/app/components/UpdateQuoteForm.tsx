@@ -1,6 +1,5 @@
 'use client';
 
-import { QuoteStatus, WorkOrderItemType } from '@prisma/client';
 import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';

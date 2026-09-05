@@ -2,6 +2,8 @@
 
 import { ProjectStatus } from '@prisma/client';
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import type { Project } from './AddProjectForm';
 import ProjectDetailsContainer from './projects/ProjectDetailsContainer';
 
@@ -59,7 +61,6 @@ function CountStat({ label, value }: { label: string; value: number }) {
 }
 
 export default function ProjectsList({ projects, onDelete, handleSelectedProject = null }: ProjectsListProps) {
-  const [showProjectDetails, setShowProjectDetails] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectsPerPage, setProjectsPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
@@ -98,12 +99,55 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
     if (handleSelectedProject) {
       void handleSelectedProject(project);
     } else {
-      setShowProjectDetails(true);
       setSelectedProject(project);
     }
   }
 
   const hasRowActions = Boolean(onDelete);
+
+  if (selectedProject) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <nav aria-label="Fil d'ariane" className="flex items-center gap-2 text-sm text-slate-500">
+            <Link
+              href="/"
+              className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
+            >
+              Accueil
+            </Link>
+            <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setSelectedProject(null)}
+              className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
+            >
+              Projets
+            </button>
+            <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <span className="font-semibold text-slate-900" aria-current="page">
+              {selectedProject.reference}
+              {selectedProject.title ? ` — ${selectedProject.title}` : ''}
+            </span>
+          </nav>
+
+          <button
+            type="button"
+            onClick={() => setSelectedProject(null)}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Retour</span>
+          </button>
+        </div>
+
+        <ProjectDetailsContainer
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -302,24 +346,6 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
           >
             Suivant
           </button>
-        </div>
-      )}
-
-      {showProjectDetails && selectedProject && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={() => {
-            setShowProjectDetails(false);
-            setSelectedProject(null);
-          }}
-        >
-          <ProjectDetailsContainer
-            project={selectedProject}
-            onClose={() => {
-              setShowProjectDetails(false);
-              setSelectedProject(null);
-            }}
-          />
         </div>
       )}
     </>
