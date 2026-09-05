@@ -19,6 +19,7 @@ import { ProjectModule } from './project/project.module';
 import { WorkLogModule } from './worklog/worklog.module';
 import { MembershipModule } from './membership/membership.module';
 import { NotificationModule } from './notification/notification.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { NotificationModule } from './notification/notification.module';
     WorkLogModule,
     MembershipModule,
     NotificationModule,
+    PaymentModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],
@@ -69,6 +71,7 @@ export class AppModule implements NestModule {
         'customers',
         'workorders',
         'invoices',
+        'payments',
         'quotes',
         'calendarevents',
         'addresses',
@@ -89,6 +92,7 @@ export class AppModule implements NestModule {
         'customers',
         'workorders',
         'invoices',
+        'payments',
         'quotes',
         'calendarevents',
         'addresses',

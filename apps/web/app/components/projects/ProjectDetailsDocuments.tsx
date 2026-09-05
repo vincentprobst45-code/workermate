@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { InvoiceKind } from '@prisma/client';
 import { useApiClient } from '../../api-client';
 import type { Project } from '../AddProjectForm';
 import QuotesList, { type Quote } from '../QuotesList';
@@ -317,7 +318,14 @@ export default function ProjectDetailsDocuments({ project }: ProjectDetailsDocum
             {showInvoicesList && (
               <div className="mt-4 border-t border-slate-200 pt-4">
                 {invoices.length > 0 ? (
-                  <InvoicesList invoices={invoices} onDelete={null} onDisassociate={disassociateInvoice} />
+                  <InvoicesList
+                    invoices={invoices}
+                    onDelete={null}
+                    onDisassociate={disassociateInvoice}
+                    onUpdated={(updatedInvoice) => {
+                      setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === updatedInvoice.id ? updatedInvoice : invoice));
+                    }}
+                  />
                 ) : (
                   <p className="text-sm text-slate-500">Aucune facture associée à ce projet.</p>
                 )}
@@ -493,6 +501,7 @@ export default function ProjectDetailsDocuments({ project }: ProjectDetailsDocum
             ) : (
               <AddInvoiceForm
                 show={true}
+                invoiceKind={InvoiceKind.STANDARD}
                 onCreated={(createdInvoice) => void associateInvoice(createdInvoice.id)}
               />
             )}

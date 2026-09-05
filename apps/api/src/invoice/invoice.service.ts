@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceOperationCategory, LineItemType, Prisma, VatCategory } from '@prisma/client';
+import { InvoiceAdjustmentType, InvoiceKind, InvoiceOperationCategory, LineItemType, Prisma, VatCategory } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
+import { CreateInvoiceItemDto } from './create-invoice-item.dto';
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
 
 // export class CreateInvoiceDto {
@@ -28,6 +29,137 @@ export class InvoiceService {
 
   private roundMoney(value: number): number {
     return Number(value.toFixed(2));
+  }
+
+  private normalizeAdjustments(adjustments: CreateInvoiceDto['adjustments'] | undefined) {
+    return (adjustments ?? []).map((adjustment, index) => {
+      const amount = this.roundMoney(this.toNumber(adjustment.amount));
+      if (amount < 0) {
+        throw new BadRequestException('Le montant d’un ajustement doit être positif.');
+      }
+
+      return {
+        position: index,
+        type: adjustment.type,
+        amount,
+        baseAmount: adjustment.baseAmount === undefined ? undefined : this.roundMoney(this.toNumber(adjustment.baseAmount)),
+        percentage: adjustment.percentage === undefined ? undefined : this.toNumber(adjustment.percentage),
+        vatCategory: adjustment.vatCategory,
+        vatRate: adjustment.vatRate === undefined ? undefined : this.toNumber(adjustment.vatRate),
+        reason: adjustment.reason?.trim() || undefined,
+        reasonCode: adjustment.reasonCode?.trim() || undefined,
+      };
+    });
+  }
+
+  private calculateAdjustmentTotals(adjustments: ReturnType<InvoiceService['normalizeAdjustments']>) {
+    return adjustments.reduce(
+      (totals, adjustment) => {
+        const signedAmount = adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? -adjustment.amount : adjustment.amount;
+        const vatAmount = adjustment.vatCategory === VatCategory.STANDARD
+          ? this.roundMoney(adjustment.amount * (this.toNumber(adjustment.vatRate) / 100)) * (adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? -1 : 1)
+          : 0;
+        return {
+          allowanceTotal: this.roundMoney(totals.allowanceTotal + (adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? adjustment.amount : 0)),
+          chargeTotal: this.roundMoney(totals.chargeTotal + (adjustment.type === InvoiceAdjustmentType.CHARGE ? adjustment.amount : 0)),
+          taxExclusiveAmount: this.roundMoney(totals.taxExclusiveAmount + signedAmount),
+          vatAmount: this.roundMoney(totals.vatAmount + vatAmount),
+        };
+      },
+      { allowanceTotal: 0, chargeTotal: 0, taxExclusiveAmount: 0, vatAmount: 0 },
+    );
+  }
+
+  private normalizeItemAdjustments(item: CreateInvoiceItemDto, quantity: number, unitPrice: number) {
+    const baseAmount = this.roundMoney(quantity * unitPrice);
+    return (item.adjustments ?? []).map((adjustment, index) => {
+      const percentage = adjustment.percentage === undefined ? undefined : this.toNumber(adjustment.percentage);
+      const amount = percentage === undefined
+        ? this.roundMoney(this.toNumber(adjustment.amount))
+        : this.roundMoney(baseAmount * percentage / 100);
+      if (amount < 0 || (percentage !== undefined && percentage < 0)) {
+        throw new BadRequestException('Le montant d’un ajustement de ligne doit être positif.');
+      }
+
+      return {
+        position: index,
+        type: adjustment.type,
+        amount,
+        baseAmount,
+        percentage,
+        reason: adjustment.reason?.trim() || undefined,
+        reasonCode: adjustment.reasonCode?.trim() || undefined,
+      };
+    });
+  }
+
+  private calculateItemSubtotal(quantity: number, unitPrice: number, adjustments: ReturnType<InvoiceService['normalizeItemAdjustments']>) {
+    return this.roundMoney(adjustments.reduce(
+      (subtotal, adjustment) => subtotal + (adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? -adjustment.amount : adjustment.amount),
+      quantity * unitPrice,
+    ));
+  }
+
+  private getEffectiveVatRate(vatCategory: VatCategory, vatRate: number): number | null {
+    if (vatCategory === VatCategory.ZERO) {
+      return null;
+    }
+
+    return vatCategory === VatCategory.STANDARD ? vatRate : 0;
+  }
+
+  private calculateVatBreakdowns(
+    items: Array<{ subtotal: number; vatCategory: VatCategory; vatRate: number }>,
+    adjustments: ReturnType<InvoiceService['normalizeAdjustments']>,
+  ) {
+    const groups = new Map<string, {
+      vatCategory: VatCategory;
+      vatRate: number | null;
+      taxableAmount: number;
+    }>();
+
+    for (const item of items) {
+      const vatRate = this.getEffectiveVatRate(item.vatCategory, item.vatRate);
+      const key = `${item.vatCategory}:${vatRate ?? ''}`;
+      const current = groups.get(key);
+      if (current) {
+        current.taxableAmount = this.roundMoney(current.taxableAmount + item.subtotal);
+      } else {
+        groups.set(key, {
+          vatCategory: item.vatCategory,
+          vatRate,
+          taxableAmount: this.roundMoney(item.subtotal),
+        });
+      }
+    }
+
+    for (const adjustment of adjustments) {
+      const eligibleGroups = Array.from(groups.values()).filter(
+        (group) => group.vatCategory === adjustment.vatCategory,
+      );
+      const eligibleTotal = eligibleGroups.reduce((total, group) => total + group.taxableAmount, 0);
+      if (eligibleTotal === 0 || adjustment.amount === 0) {
+        continue;
+      }
+
+      const signedAmount = adjustment.type === InvoiceAdjustmentType.ALLOWANCE
+        ? -adjustment.amount
+        : adjustment.amount;
+      for (const group of eligibleGroups) {
+        group.taxableAmount = this.roundMoney(
+          group.taxableAmount + signedAmount * group.taxableAmount / eligibleTotal,
+        );
+      }
+    }
+
+    return Array.from(groups.values()).map((group) => ({
+      taxableAmount: group.taxableAmount,
+      vatAmount: group.vatCategory === VatCategory.STANDARD
+        ? this.roundMoney(group.taxableAmount * (this.toNumber(group.vatRate) / 100))
+        : 0,
+      vatCategory: group.vatCategory,
+      vatRate: group.vatRate ?? undefined,
+    }));
   }
 
   private parseRequiredDate(value: unknown, fieldName: string): Date {
@@ -124,10 +256,11 @@ export class InvoiceService {
       const quantity = this.toNumber(item.quantity);
       const unitPrice = this.toNumber(item.unitPrice);
       const vatRate = this.toNumber(item.vatRate);
-      const lineSubtotal = this.roundMoney(quantity * unitPrice);
-      const lineVat = this.roundMoney(lineSubtotal * (vatRate / 100));
-      const total = this.roundMoney(lineSubtotal + lineVat);
-
+      const itemAdjustments = this.normalizeItemAdjustments(item, quantity, unitPrice);
+      const lineSubtotal = this.calculateItemSubtotal(quantity, unitPrice, itemAdjustments);
+      const lineVat = item.vatCategory === VatCategory.STANDARD
+        ? this.roundMoney(lineSubtotal * (vatRate / 100))
+        : 0;
       subtotal += lineSubtotal;
       vatAmount += lineVat;
 
@@ -145,23 +278,63 @@ export class InvoiceService {
         vatRate,
         subtotal: lineSubtotal,
         vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
+        adjustments: itemAdjustments.length ? { create: itemAdjustments } : undefined,
       };
     });
 
     subtotal = this.roundMoney(subtotal);
     vatAmount = this.roundMoney(vatAmount);
-    const discountAmount = this.roundMoney(this.toNumber(dto.discountAmount));
+    const adjustments = this.normalizeAdjustments(dto.adjustments);
+    const adjustmentTotals = this.calculateAdjustmentTotals(adjustments);
     const depositAmount = this.roundMoney(this.toNumber(dto.depositAmount));
-    const grossTotal = this.roundMoney(subtotal + vatAmount);
-    const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
+    const taxExclusiveAmount = this.roundMoney(subtotal + adjustmentTotals.taxExclusiveAmount);
+    const vatBreakdowns = this.calculateVatBreakdowns(
+      items.map((item) => ({
+        subtotal: item.subtotal,
+        vatCategory: item.vatCategory,
+        vatRate: this.toNumber(item.vatRate),
+      })),
+      adjustments,
+    );
+    const adjustedVatAmount = this.roundMoney(vatBreakdowns.reduce((total, breakdown) => total + breakdown.vatAmount, 0));
+    const grossTotal = this.roundMoney(taxExclusiveAmount + adjustedVatAmount);
+    const total = this.roundMoney(Math.max(grossTotal - depositAmount, 0));
 
     const invoiceInput = dto as CreateInvoiceDto & {
       subtotal?: unknown;
       total?: unknown;
       paymentMethod?: unknown;
     };
+    const sourceInvoiceId = dto.kind === InvoiceKind.CORRECTIVE
+      ? dto.correctedInvoiceId
+      : dto.kind === InvoiceKind.CREDIT_NOTE
+        ? dto.referencedInvoiceId
+        : undefined;
+
+    if ((dto.kind === InvoiceKind.CORRECTIVE || dto.kind === InvoiceKind.CREDIT_NOTE) && !sourceInvoiceId) {
+      throw new BadRequestException('Une facture source est obligatoire pour ce type de facture.');
+    }
+
+    const sourceInvoice = sourceInvoiceId
+      ? await this.prisma.invoice.findFirst({
+          where: { id: sourceInvoiceId, tenantId },
+          select: {
+            id: true,
+            number: true,
+            issueDate: true,
+            kind: true,
+            taxInclusiveAmount: true,
+          },
+        })
+      : null;
+
+    if (sourceInvoiceId && !sourceInvoice) {
+      throw new NotFoundException('La facture source est introuvable pour ce tenant.');
+    }
+
     const {
       invoiceItems: _ignoredInvoiceItems,
+      payments: invoicePayments,
       number: _ignoredFrontendNumber,
       customerFirstName: _customerFirstName,
       customerLastName: _customerLastName,
@@ -170,10 +343,13 @@ export class InvoiceService {
       subtotal: _ignoredFrontendSubtotal,
       total: _ignoredFrontendTotal,
       paymentMethod: _paymentMethod,
+      correctedInvoiceId: _correctedInvoiceId,
+      referencedInvoiceId: _referencedInvoiceId,
       legalMentions: _legalMentions,
       notes: _notes,
       depositAmount: _depositAmount,
       discountAmount: _discountAmount,
+      adjustments: _adjustments,
       paidAt: _paidAt,
       ...invoiceData
     } = invoiceInput;
@@ -182,6 +358,8 @@ export class InvoiceService {
     void _ignoredFrontendSubtotal;
     void _ignoredFrontendTotal;
     void _paymentMethod;
+    void _correctedInvoiceId;
+    void _referencedInvoiceId;
     const issueDate = this.parseRequiredDate(dto.issueDate, 'issueDate');
     const dueDate = this.parseOptionalDate(dto.dueDate);
     const workOrderStartDate = this.parseOptionalDate(dto.workOrderStartDate);
@@ -192,10 +370,27 @@ export class InvoiceService {
     void _notes;
     void _depositAmount;
     void _discountAmount;
+    void _adjustments;
     void _paidAt;
+    void _referencedInvoiceId;
 
     void _tenantIban;
     void _tenantBic;
+
+    const normalizedPayments = invoicePayments?.map((payment) => {
+      const amount = this.toNumber(payment.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new BadRequestException('Le montant du paiement doit être supérieur à 0.');
+      }
+
+      return {
+        amount: this.roundMoney(amount),
+        paidAt: this.parseRequiredDate(payment.paidAt, 'paidAt'),
+        method: payment.method,
+        reference: payment.reference?.trim() || undefined,
+        notes: payment.notes?.trim() || undefined,
+      };
+    });
 
     for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
       try {
@@ -203,7 +398,7 @@ export class InvoiceService {
           async (tx) => {
             const invoiceNumber = await this.generateInvoiceNumber(tx, tenantId);
 
-            return tx.invoice.create({
+            const createdInvoice = await tx.invoice.create({
               data: {
                 ...invoiceData,
                 number: invoiceNumber,
@@ -221,26 +416,86 @@ export class InvoiceService {
                 tenantCountryCode: invoiceData.tenantCountryCode || 'FR',
                 customerCountryCode: invoiceData.customerCountryCode || 'FR',
                 lineNetTotal: subtotal,
-                allowanceTotal: discountAmount,
-                taxExclusiveAmount: this.roundMoney(subtotal - discountAmount),
+                allowanceTotal: adjustmentTotals.allowanceTotal,
+                chargeTotal: adjustmentTotals.chargeTotal,
+                taxExclusiveAmount,
                 taxInclusiveAmount: grossTotal,
                 prepaidAmount: depositAmount,
                 amountDue: total,
-                vatAmount,
+                vatAmount: adjustedVatAmount,
                 internalNotes: dto.notes,
                 paymentIban: dto.tenantIban,
                 paymentBic: dto.tenantBic,
+                correctedInvoiceId: dto.kind === InvoiceKind.CORRECTIVE ? sourceInvoice?.id : undefined,
+                correctedInvoiceNumber: dto.kind === InvoiceKind.CORRECTIVE ? sourceInvoice?.number : undefined,
+                correctedInvoiceIssueDate: dto.kind === InvoiceKind.CORRECTIVE ? sourceInvoice?.issueDate : undefined,
                 notes: dto.legalMentions ? { create: [{ position: 0, text: dto.legalMentions }] } : undefined,
+                references: dto.kind === InvoiceKind.CREDIT_NOTE && sourceInvoice
+                  ? {
+                      create: [{
+                        referencedInvoiceId: sourceInvoice.id,
+                        referencedInvoiceNumber: sourceInvoice.number ?? '',
+                        referencedInvoiceIssueDate: sourceInvoice.issueDate ?? issueDate,
+                        referencedInvoiceKind: sourceInvoice.kind,
+                        referencedInvoiceTaxInclusiveAmount: sourceInvoice.taxInclusiveAmount,
+                        position: 0,
+                      }],
+                    }
+                  : undefined,
                 items: {
                   create: items,
                 },
+                adjustments: adjustments.length ? { create: adjustments } : undefined,
+                vatBreakdowns: vatBreakdowns.length ? { create: vatBreakdowns } : undefined,
               },
               include: {
                 items: {
                   orderBy: {
                     position: 'asc',
                   },
+                  include: { adjustments: { orderBy: { position: 'asc' } } },
                 },
+                vatBreakdowns: { orderBy: [{ vatCategory: 'asc' }, { vatRate: 'asc' }] },
+              },
+            });
+
+            if (normalizedPayments?.length) {
+              await tx.payment.createMany({
+                data: normalizedPayments.map((payment) => ({
+                  invoiceId: createdInvoice.id,
+                  tenantId,
+                  amount: payment.amount,
+                  paidAt: payment.paidAt,
+                  method: payment.method,
+                  reference: payment.reference?.trim() || undefined,
+                  notes: payment.notes?.trim() || undefined,
+                })),
+              });
+
+              const paymentTotal = await tx.payment.aggregate({
+                where: { invoiceId: createdInvoice.id },
+                _sum: { amount: true },
+              });
+              const paidAmount = this.roundMoney(this.toNumber(paymentTotal._sum.amount));
+              const paymentStatus = paidAmount <= 0
+                ? 'UNPAID'
+                : paidAmount >= total
+                  ? 'PAID'
+                  : 'PARTIALLY_PAID';
+
+              await tx.invoice.update({
+                where: { id: createdInvoice.id },
+                data: { paidAmount, paymentStatus },
+              });
+            }
+
+            return tx.invoice.findUnique({
+              where: { id: createdInvoice.id },
+              include: {
+                items: { orderBy: { position: 'asc' }, include: { adjustments: { orderBy: { position: 'asc' } } } },
+                payments: { orderBy: { paidAt: 'desc' } },
+                references: { orderBy: { position: 'asc' } },
+                vatBreakdowns: { orderBy: [{ vatCategory: 'asc' }, { vatRate: 'asc' }] },
               },
             });
           },
@@ -314,10 +569,11 @@ export class InvoiceService {
       const quantity = this.toNumber(item.quantity);
       const unitPrice = this.toNumber(item.unitPrice);
       const vatRate = this.toNumber(item.vatRate);
+      const vatCategory = item.vatCategory;
       const lineSubtotal = this.roundMoney(quantity * unitPrice);
-      const lineVat = this.roundMoney(lineSubtotal * (vatRate / 100));
-      const lineTotal = this.roundMoney(lineSubtotal + lineVat);
-
+      const lineVat = vatCategory === VatCategory.STANDARD
+        ? this.roundMoney(lineSubtotal * (vatRate / 100))
+        : 0;
       subtotal += lineSubtotal;
       vatAmount += lineVat;
 
@@ -334,7 +590,7 @@ export class InvoiceService {
         subtotal: lineSubtotal,
         lineIdentifier: String(item.position + 1),
         notes: [],
-        vatCategory: VatCategory.STANDARD,
+        vatCategory,
       };
     });
 
@@ -342,6 +598,14 @@ export class InvoiceService {
     vatAmount = this.roundMoney(vatAmount);
     const grossTotal = this.roundMoney(subtotal + vatAmount);
     const total = this.roundMoney(Math.max(grossTotal - discountAmount - depositAmount, 0));
+    const vatBreakdowns = this.calculateVatBreakdowns(
+      items.map((item) => ({
+        subtotal: item.subtotal,
+        vatCategory: item.vatCategory,
+        vatRate: this.toNumber(item.vatRate),
+      })),
+      [],
+    );
 
     const invoiceData: Prisma.InvoiceUncheckedCreateInput = {
       tenantId,
@@ -406,9 +670,11 @@ export class InvoiceService {
                       create: items,
                     }
                   : undefined,
+                vatBreakdowns: vatBreakdowns.length ? { create: vatBreakdowns } : undefined,
               },
               include: {
                 items: true,
+                vatBreakdowns: true,
               },
             });
           },
@@ -435,7 +701,18 @@ export class InvoiceService {
           orderBy: {
             position: 'asc',
           },
+          include: { adjustments: { orderBy: { position: 'asc' } } },
         },
+        payments: {
+          orderBy: { paidAt: 'desc' },
+        },
+        references: {
+          orderBy: { position: 'asc' },
+        },
+        adjustments: {
+          orderBy: { position: 'asc' },
+        },
+        vatBreakdowns: { orderBy: [{ vatCategory: 'asc' }, { vatRate: 'asc' }] },
       },
     });
     return results;
@@ -449,7 +726,18 @@ export class InvoiceService {
           orderBy: {
             position: 'asc',
           },
+          include: { adjustments: { orderBy: { position: 'asc' } } },
         },
+        payments: {
+          orderBy: { paidAt: 'desc' },
+        },
+        references: {
+          orderBy: { position: 'asc' },
+        },
+        adjustments: {
+          orderBy: { position: 'asc' },
+        },
+        vatBreakdowns: { orderBy: [{ vatCategory: 'asc' }, { vatRate: 'asc' }] },
       },
     });
     return results;
@@ -463,6 +751,7 @@ export class InvoiceService {
       subtotal?: unknown;
       total?: unknown;
       paymentMethod?: unknown;
+      vatBreakdowns?: unknown;
     },
   ) {
     const {
@@ -478,7 +767,10 @@ export class InvoiceService {
       paymentMethod: _paymentMethod,
       depositAmount: _depositAmount,
       discountAmount: _discountAmount,
+      adjustments,
+      vatBreakdowns: _vatBreakdowns,
       paidAt: _paidAt,
+      referencedInvoiceId: _referencedInvoiceId,
       ...invoiceData
     } = dto;
     void _number;
@@ -493,12 +785,21 @@ export class InvoiceService {
     void _depositAmount;
     void _discountAmount;
     void _paidAt;
+    void _vatBreakdowns;
+    void _referencedInvoiceId;
 
+    const normalizedAdjustments = adjustments === undefined ? null : this.normalizeAdjustments(adjustments);
     const recalculatedTotals = invoiceItems
       ? invoiceItems.reduce(
           (totals, item) => {
-            const lineSubtotal = this.roundMoney(Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)));
-            const lineVat = this.roundMoney(lineSubtotal * (Number(item.vatRate) / 100));
+            const quantity = this.toNumber(item.quantity);
+            const unitPrice = this.toNumber(item.unitPrice);
+            const itemAdjustments = this.normalizeItemAdjustments(item, quantity, unitPrice);
+            const lineSubtotal = this.calculateItemSubtotal(quantity, unitPrice, itemAdjustments);
+            const vatCategory = (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD;
+            const lineVat = vatCategory === VatCategory.STANDARD
+              ? this.roundMoney(lineSubtotal * (Number(item.vatRate) / 100))
+              : 0;
             return {
               subtotal: this.roundMoney(totals.subtotal + lineSubtotal),
               vatAmount: this.roundMoney(totals.vatAmount + lineVat),
@@ -510,7 +811,10 @@ export class InvoiceService {
 
     const existing = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
-      select: { id: true, allowanceTotal: true, prepaidAmount: true },
+      include: {
+        items: { include: { adjustments: true } },
+        adjustments: true,
+      },
     });
 
     if (!existing) {
@@ -518,20 +822,60 @@ export class InvoiceService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const currentAdjustments = normalizedAdjustments ?? this.normalizeAdjustments(existing.adjustments.map((adjustment) => ({
+        type: adjustment.type,
+        amount: this.toNumber(adjustment.amount),
+        baseAmount: adjustment.baseAmount === null ? undefined : this.toNumber(adjustment.baseAmount),
+        percentage: adjustment.percentage === null ? undefined : this.toNumber(adjustment.percentage),
+        vatCategory: adjustment.vatCategory,
+        vatRate: adjustment.vatRate === null ? undefined : this.toNumber(adjustment.vatRate),
+        reason: adjustment.reason ?? undefined,
+        reasonCode: adjustment.reasonCode ?? undefined,
+      })));
+      const adjustmentTotals = this.calculateAdjustmentTotals(currentAdjustments);
+      const currentLineTotals = recalculatedTotals ?? {
+        subtotal: Number(existing.lineNetTotal),
+        vatAmount: Number(existing.vatAmount),
+      };
+      const currentLineItems = invoiceItems
+        ? invoiceItems.map((item) => {
+            const quantity = this.toNumber(item.quantity);
+            const unitPrice = this.toNumber(item.unitPrice);
+            const itemAdjustments = this.normalizeItemAdjustments(item, quantity, unitPrice);
+            const vatCategory = (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD;
+            return {
+              subtotal: this.calculateItemSubtotal(quantity, unitPrice, itemAdjustments),
+              vatCategory,
+              vatRate: this.toNumber(item.vatRate),
+            };
+          })
+        : existing.items.map((item) => ({
+            subtotal: Number(item.subtotal),
+            vatCategory: item.vatCategory,
+            vatRate: this.toNumber(item.vatRate),
+          }));
+      const vatBreakdowns = this.calculateVatBreakdowns(currentLineItems, currentAdjustments);
+          const adjustedVatAmount = this.roundMoney(vatBreakdowns.reduce((total, breakdown) => total + breakdown.vatAmount, 0));
       await tx.invoice.update({
         where: { id: existing.id },
         data: {
           ...invoiceData,
-          ...(recalculatedTotals
+          ...(adjustments !== undefined
             ? {
-                lineNetTotal: recalculatedTotals.subtotal,
-                taxExclusiveAmount: this.roundMoney(recalculatedTotals.subtotal - Number(existing.allowanceTotal)),
-                vatAmount: recalculatedTotals.vatAmount,
-                taxInclusiveAmount: this.roundMoney(recalculatedTotals.subtotal + recalculatedTotals.vatAmount),
+                allowanceTotal: adjustmentTotals.allowanceTotal,
+                chargeTotal: adjustmentTotals.chargeTotal,
+              }
+            : {}),
+          ...(recalculatedTotals || adjustments !== undefined
+            ? {
+                lineNetTotal: currentLineTotals.subtotal,
+                taxExclusiveAmount: this.roundMoney(currentLineTotals.subtotal + adjustmentTotals.taxExclusiveAmount),
+                vatAmount: adjustedVatAmount,
+                taxInclusiveAmount: this.roundMoney(
+                  currentLineTotals.subtotal + adjustmentTotals.taxExclusiveAmount + adjustedVatAmount,
+                ),
                 amountDue: this.roundMoney(
-                  recalculatedTotals.subtotal +
-                    recalculatedTotals.vatAmount -
-                    Number(existing.allowanceTotal) -
+                  currentLineTotals.subtotal + adjustmentTotals.taxExclusiveAmount + adjustedVatAmount -
                     Number(existing.prepaidAmount),
                 ),
               }
@@ -546,8 +890,12 @@ export class InvoiceService {
 
       if (invoiceItems) {
         await tx.invoiceItem.deleteMany({ where: { invoiceId: existing.id } });
-        await tx.invoiceItem.createMany({
-          data: invoiceItems.map((item, position) => ({
+        for (const [position, item] of invoiceItems.entries()) {
+          const quantity = this.toNumber(item.quantity);
+          const unitPrice = this.toNumber(item.unitPrice);
+          const itemAdjustments = this.normalizeItemAdjustments(item, quantity, unitPrice);
+          await tx.invoiceItem.create({
+            data: {
             invoiceId: existing.id,
             type: item.type ?? LineItemType.OTHER,
             position,
@@ -555,15 +903,41 @@ export class InvoiceService {
             notes: [],
             title: item.title.trim(),
             description: item.description?.trim() ?? '',
-            quantity: Number(item.quantity),
+            quantity,
             unitCode: item.unitCode?.trim() || 'C62',
             unitLabel: item.unit?.trim() || undefined,
-            unitPrice: Number(item.unitPrice),
+            unitPrice,
             vatRate: Number(item.vatRate),
-            subtotal: Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)),
+            subtotal: this.calculateItemSubtotal(quantity, unitPrice, itemAdjustments),
             vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
-          })),
-        });
+            adjustments: itemAdjustments.length ? { create: itemAdjustments } : undefined,
+            },
+          });
+        }
+      }
+
+      if (adjustments !== undefined) {
+        await tx.invoiceAdjustment.deleteMany({ where: { invoiceId: existing.id } });
+        if (normalizedAdjustments?.length) {
+          await tx.invoiceAdjustment.createMany({
+            data: normalizedAdjustments.map((adjustment) => ({
+              invoiceId: existing.id,
+              ...adjustment,
+            })),
+          });
+        }
+      }
+
+      if (invoiceItems !== undefined || adjustments !== undefined) {
+        await tx.invoiceVatBreakdown.deleteMany({ where: { invoiceId: existing.id } });
+        if (vatBreakdowns.length) {
+          await tx.invoiceVatBreakdown.createMany({
+            data: vatBreakdowns.map((breakdown) => ({
+              invoiceId: existing.id,
+              ...breakdown,
+            })),
+          });
+        }
       }
     });
 

@@ -17,16 +17,22 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
 	InvoicePdpStatus,
+	InvoiceKind,
 	InvoiceStatus,
 	PaymentMethod,
 	LineItemType as WorkOrderItemType,
+	InvoiceAdjustmentType,
+	VatCategory,
 } from '@prisma/client';
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import CatalogItemList, { type CatalogItem } from './CatalogItemList';
 import AddCustomerForm, { type Customer } from './AddCustomerForm';
 import AddWorkOrderForm from './AddWorkOrderForm';
-import type { Invoice as CreatedInvoice } from './InvoicesList';
+import AddInvoiceAdjustmentForm, { type InvoiceAdjustmentFormData } from './AddInvoiceAdjustmentForm';
+import AddInvoiceItemAdjustmentForm, { type InvoiceItemAdjustmentFormData } from './AddInvoiceItemAdjustmentForm';
+import CustomersList, { type Customer as CustomerRecord } from './CustomersList';
+import InvoicesList, { type Invoice as CreatedInvoice } from './InvoicesList';
 import type { Invoice as PreviewInvoice } from './NewInvoice';
 import QuotesList, { type Quote as QuoteOption } from './QuotesList';
 import WorkOrdersList, { type WorkOrder as WorkOrderBase } from './WorkOrdersList';
@@ -89,7 +95,25 @@ interface AddInvoiceItemFormData {
 	unit?: string;
 	unitPrice: number;
 	vatRate: number;
+	vatCategory: VatCategory;
 	total: number;
+	adjustments: InvoiceItemAdjustmentFormData[];
+}
+
+interface InvoiceVatBreakdownFormData {
+	taxableAmount: number;
+	vatAmount: number;
+	vatCategory: VatCategory;
+	vatRate?: number;
+}
+
+interface InvoicePaymentFormData {
+	rowId: string;
+	amount: string;
+	paidAt: string;
+	method: PaymentMethod | '';
+	reference: string;
+	notes: string;
 }
 
 export interface AddInvoiceFormData {
@@ -128,8 +152,11 @@ export interface AddInvoiceFormData {
 	status: InvoiceStatus;
 	currency: string;
 	subtotal: number;
-	vatAmount: number;
+	vatBreakdowns: InvoiceVatBreakdownFormData[];
 	total: number;
+	allowanceTotal: number;
+	chargeTotal: number;
+	taxExclusiveAmount: number;
 	paymentTerms: string;
 	legalMentions: string;
 	notes: string;
@@ -143,6 +170,8 @@ export interface AddInvoiceFormData {
 	quoteId: string;
 	quoteNumber: string;
 	invoiceItems: AddInvoiceItemFormData[];
+	payments: InvoicePaymentFormData[];
+	adjustments: InvoiceAdjustmentFormData[];
 }
 
 interface CreateInvoiceItemPayload {
@@ -155,6 +184,7 @@ interface CreateInvoiceItemPayload {
 	unitPrice: number;
 	vatRate: number;
 	total: number;
+	adjustments: InvoiceItemAdjustmentFormData[];
 }
 
 interface CreateInvoiceDto {
@@ -194,6 +224,7 @@ interface CreateInvoiceDto {
 	currency?: string;
 	subtotal: number;
 	vatAmount: number;
+	vatBreakdowns?: InvoiceVatBreakdownFormData[];
 	total: number;
 	paymentTerms?: string;
 	legalMentions?: string;
@@ -208,7 +239,10 @@ interface CreateInvoiceDto {
 	quoteId?: string;
 	quoteNumber?: string;
 	invoiceItems?: CreateInvoiceItemPayload[];
+	adjustments?: InvoiceAdjustmentFormData[];
 	kind?: string;
+	correctedInvoiceId?: string;
+	referencedInvoiceId?: string;
 	operationCategory: 'GOODS' | 'SERVICES' | 'MIXED';
 	tenantSirenNumber: string;
 	tenantCountryCode: string;
@@ -216,6 +250,13 @@ interface CreateInvoiceDto {
 	customerCountryCode: string;
 	accountingCurrency?: string;
 	internalNotes?: string;
+	payments?: Array<{
+		amount: number;
+		paidAt: string;
+		method?: PaymentMethod;
+		reference?: string;
+		notes?: string;
+	}>;
 }
 
 const INVOICE_NUMBER_PREFIX = 'FAC';
@@ -334,6 +375,11 @@ function createEmptyInvoice(tenantDefaults?: TenantInvoiceDefaults): AddInvoiceF
 		currency: tenantDefaults?.defaultCurrency ?? 'EUR',
 		subtotal: 0,
 		vatAmount: 0,
+		vatBreakdowns: [],
+		vatRate: 20,
+		allowanceTotal: 0,
+		chargeTotal: 0,
+		taxExclusiveAmount: 0,
 		total: 0,
 		paymentTerms: tenantDefaults?.defaultPaymentTerms ?? '',
 		legalMentions: tenantDefaults?.defaultLegalMentions ?? '',
@@ -348,6 +394,8 @@ function createEmptyInvoice(tenantDefaults?: TenantInvoiceDefaults): AddInvoiceF
 		quoteId: '',
 		quoteNumber: '',
 		invoiceItems: [createEmptyInvoiceItem(0)],
+		payments: [],
+		adjustments: [],
 	};
 }
 
@@ -358,6 +406,18 @@ function toFiniteNumber(value: unknown): number {
 
 function roundMoney(value: number): number {
 	return Math.round(value * 100) / 100;
+}
+
+function calculateInvoiceItemSubtotal(item: Pick<AddInvoiceItemFormData, 'quantity' | 'unitPrice' | 'adjustments'>): number {
+	const baseAmount = roundMoney(toFiniteNumber(item.quantity) * toFiniteNumber(item.unitPrice));
+	const adjustmentTotal = item.adjustments.reduce((sum, adjustment) => {
+		const amount = adjustment.percentage == null
+			? toFiniteNumber(adjustment.amount)
+			: roundMoney(baseAmount * toFiniteNumber(adjustment.percentage) / 100);
+		return sum + (adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? -amount : amount);
+	}, 0);
+
+	return roundMoney(baseAmount + adjustmentTotal);
 }
 
 function createInvoiceItemRowId(): string {
@@ -374,8 +434,20 @@ function createEmptyInvoiceItem(position: number): AddInvoiceItemFormData {
 		quantity: 1,
 		unit: '',
 		unitPrice: 0,
-		vatRate: 20,
+		vatCategory: VatCategory.STANDARD,
 		total: 0,
+		adjustments: [],
+	};
+}
+
+function createEmptyInvoicePayment(): InvoicePaymentFormData {
+	return {
+		rowId: crypto.randomUUID(),
+		amount: '',
+		paidAt: toDatetimeLocal(new Date()),
+		method: '',
+		reference: '',
+		notes: '',
 	};
 }
 
@@ -392,11 +464,16 @@ function recomputeInvoice(
 	items: AddInvoiceItemFormData[],
 	depositAmount: number,
 	discountAmount: number,
+	adjustments: InvoiceAdjustmentFormData[] = [],
 ): {
 	invoiceItems: AddInvoiceItemFormData[];
 	subtotal: number;
 	vatAmount: number;
+	vatBreakdowns?: InvoiceVatBreakdownFormData[];
 	total: number;
+	allowanceTotal: number;
+	chargeTotal: number;
+	taxExclusiveAmount: number;
 } {
 	let subtotal = 0;
 	let vatAmount = 0;
@@ -405,8 +482,11 @@ function recomputeInvoice(
 		const quantity = toFiniteNumber(item.quantity);
 		const unitPrice = toFiniteNumber(item.unitPrice);
 		const vatRate = toFiniteNumber(item.vatRate);
-		const lineSubtotal = roundMoney(quantity * unitPrice);
-		const lineVat = roundMoney(lineSubtotal * (vatRate / 100));
+		const baseAmount = roundMoney(quantity * unitPrice);
+		const lineSubtotal = calculateInvoiceItemSubtotal(item);
+		const lineVat = item.vatCategory === VatCategory.STANDARD
+			? roundMoney(lineSubtotal * (vatRate / 100))
+			: 0;
 		const total = roundMoney(lineSubtotal + lineVat);
 
 		subtotal += lineSubtotal;
@@ -418,22 +498,77 @@ function recomputeInvoice(
 			quantity,
 			unitPrice,
 			vatRate,
+			vatCategory: item.vatCategory,
 			total,
+			adjustments: item.adjustments.map((adjustment, adjustmentIndex) => ({
+				...adjustment,
+				position: adjustmentIndex,
+				baseAmount,
+				amount: adjustment.percentage == null
+					? toFiniteNumber(adjustment.amount)
+					: roundMoney(baseAmount * toFiniteNumber(adjustment.percentage) / 100),
+			})),
 		};
 	});
 
 	subtotal = roundMoney(subtotal);
 	vatAmount = roundMoney(vatAmount);
-	const grossTotal = roundMoney(subtotal + vatAmount);
+	const breakdowns = new Map<string, InvoiceVatBreakdownFormData>();
+	for (const item of invoiceItems) {
+		const effectiveRate = item.vatCategory === VatCategory.STANDARD ? toFiniteNumber(item.vatRate) : undefined;
+		const key = `${item.vatCategory}:${effectiveRate ?? ''}`;
+		const current = breakdowns.get(key);
+		const lineSubtotal = calculateInvoiceItemSubtotal(item);
+		if (current) {
+			current.taxableAmount = roundMoney(current.taxableAmount + lineSubtotal);
+		} else {
+			breakdowns.set(key, {
+				taxableAmount: lineSubtotal,
+				vatAmount: 0,
+				vatCategory: item.vatCategory,
+				vatRate: effectiveRate,
+			});
+		}
+	}
+	const allowanceTotal = roundMoney(adjustments.filter((adjustment) => adjustment.type === InvoiceAdjustmentType.ALLOWANCE).reduce((sum, adjustment) => sum + toFiniteNumber(adjustment.amount), 0));
+	const chargeTotal = roundMoney(adjustments.filter((adjustment) => adjustment.type === InvoiceAdjustmentType.CHARGE).reduce((sum, adjustment) => sum + toFiniteNumber(adjustment.amount), 0));
+	const taxExclusiveAmount = roundMoney(subtotal - allowanceTotal + chargeTotal);
+	for (const adjustment of adjustments) {
+		const eligible = Array.from(breakdowns.values()).filter(
+			(breakdown) => breakdown.vatCategory === adjustment.vatCategory,
+		);
+		const eligibleTotal = eligible.reduce((sum, breakdown) => sum + breakdown.taxableAmount, 0);
+		if (eligibleTotal === 0) continue;
+		const signedAmount = adjustment.type === InvoiceAdjustmentType.ALLOWANCE
+			? -toFiniteNumber(adjustment.amount)
+			: toFiniteNumber(adjustment.amount);
+		for (const breakdown of eligible) {
+			breakdown.taxableAmount = roundMoney(
+				breakdown.taxableAmount + signedAmount * breakdown.taxableAmount / eligibleTotal,
+			);
+		}
+	}
+	const vatBreakdowns = Array.from(breakdowns.values()).map((breakdown) => ({
+		...breakdown,
+		vatAmount: breakdown.vatCategory === VatCategory.STANDARD
+			? roundMoney(breakdown.taxableAmount * toFiniteNumber(breakdown.vatRate) / 100)
+			: 0,
+	}));
+	vatAmount = roundMoney(vatBreakdowns.reduce((sum, breakdown) => sum + breakdown.vatAmount, 0));
+	const grossTotal = roundMoney(taxExclusiveAmount + vatAmount);
 	const total = roundMoney(
-		Math.max(grossTotal - toFiniteNumber(discountAmount) - toFiniteNumber(depositAmount), 0),
+		Math.max(grossTotal - toFiniteNumber(depositAmount), 0),
 	);
 
 	return {
 		invoiceItems,
 		subtotal,
 		vatAmount,
+				vatBreakdowns,
 		total,
+		allowanceTotal,
+		chargeTotal,
+		taxExclusiveAmount,
 	};
 }
 
@@ -445,6 +580,7 @@ function buildImportedInvoiceItems(
 		unit?: string;
 		unitPrice: number;
 		vatRate: number;
+		vatCategory?: VatCategory;
 		type?: WorkOrderItemType;
 	}>,
 ): AddInvoiceItemFormData[] {
@@ -458,7 +594,9 @@ function buildImportedInvoiceItems(
 		unit: item.unit ?? '',
 		unitPrice: Number(item.unitPrice) || 0,
 		vatRate: Number(item.vatRate) || 0,
+		vatCategory: item.vatCategory ?? VatCategory.STANDARD,
 		total: 0,
+		adjustments: [],
 	}));
 }
 
@@ -486,10 +624,6 @@ function formatCustomerLabel(customer: CustomerOption): string {
 	return person || customer.company?.trim() || customer.id;
 }
 
-function formatWorkOrderLabel(workOrder: WorkOrderOption): string {
-	return `${workOrder.reference} - ${workOrder.title}`;
-}
-
 type SortableInvoiceLineProps = {
 	item: AddInvoiceItemFormData;
 	index: number;
@@ -504,6 +638,9 @@ type SortableInvoiceLineProps = {
 	onDescriptionChange: (value: string) => void;
 	onUnitPriceChange: (value: number) => void;
 	onVatRateChange: (value: number) => void;
+	onAddAdjustment: () => void;
+	onEditAdjustment: (adjustment: InvoiceItemAdjustmentFormData) => void;
+	onDeleteAdjustment: (adjustmentIndex: number) => void;
 	onDelete: () => void;
 };
 
@@ -521,11 +658,15 @@ function SortableInvoiceLine({
 	onDescriptionChange,
 	onUnitPriceChange,
 	onVatRateChange,
+	onAddAdjustment,
+	onEditAdjustment,
+	onDeleteAdjustment,
 	onDelete,
 }: SortableInvoiceLineProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: item.rowId,
 	});
+	const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
@@ -536,13 +677,31 @@ function SortableInvoiceLine({
 		<div
 			ref={setNodeRef}
 			style={style}
-			className={`rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
+			className={`border-b border-zinc-200 bg-white py-2 ${isDragging ? 'opacity-60 shadow-lg' : ''}`}
 		>
-			<div className="flex gap-3">
-				<div className="flex flex-col gap-2">
+			<div className="flex items-start gap-2">
+				<div className="flex w-7 shrink-0 flex-col items-center gap-1 pt-0.5">
 					<button
 						type="button"
-						className="cursor-grab rounded border px-2 py-1 text-sm active:cursor-grabbing"
+						className="rounded px-1.5 py-0.5 text-sm text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+						onClick={onDelete}
+						aria-label="Supprimer la ligne"
+						title="Supprimer la ligne"
+					>
+						X
+					</button>
+					<button
+						type="button"
+						className="rounded px-1.5 py-0.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+						onClick={onMoveUp}
+						disabled={index === 0}
+						aria-label="Monter la ligne"
+					>
+						↑
+					</button>
+					<button
+						type="button"
+						className="cursor-grab rounded px-1.5 py-0.5 text-sm text-zinc-500 hover:bg-zinc-100 active:cursor-grabbing"
 						aria-label="Glisser la ligne"
 						title="Glisser la ligne"
 						{...attributes}
@@ -552,61 +711,66 @@ function SortableInvoiceLine({
 					</button>
 					<button
 						type="button"
-						className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-						onClick={onMoveUp}
-						disabled={index === 0}
-					>
-						↑
-					</button>
-					<button
-						type="button"
-						className="rounded border px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+						className="rounded px-1.5 py-0.5 text-sm text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
 						onClick={onMoveDown}
 						disabled={index === totalItems - 1}
+						aria-label="Descendre la ligne"
 					>
 						↓
 					</button>
 				</div>
-				<div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-					<FieldLabel label="Type">
-						<select className={fieldClassName} value={item.type} onChange={(event) => onTypeChange(event.target.value as WorkOrderItemType)}>
-							{invoiceItemTypeOptions.map((option) => (
-								<option key={option.value} value={option.value}>
-									{option.label}
-								</option>
-							))}
-						</select>
-					</FieldLabel>
-					<FieldLabel label="Titre" required className="lg:col-span-2">
-						<input className={fieldClassName} value={item.title} onChange={(event) => onTitleChange(event.target.value)} required />
-					</FieldLabel>
-					<FieldLabel label="Quantité">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={item.quantity} onChange={(event) => onQuantityChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
-					</FieldLabel>
-					<FieldLabel label="Unité">
-						<input className={fieldClassName} value={item.unit || ''} onChange={(event) => onUnitChange(event.target.value)} />
-					</FieldLabel>
-					<FieldLabel label="Description" className="sm:col-span-2 lg:col-span-4">
-						<textarea className="min-h-24 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900" value={item.description} onChange={(event) => onDescriptionChange(event.target.value)} />
-					</FieldLabel>
-					<FieldLabel label="Prix unitaire">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={item.unitPrice} onChange={(event) => onUnitPriceChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
-					</FieldLabel>
-					<FieldLabel label="TVA (%)">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={item.vatRate} onChange={(event) => onVatRateChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
-					</FieldLabel>
-					<div className="flex items-end rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-						Total ligne: {item.total.toFixed(2)} {currency || 'EUR'}
+				<div className="min-w-0 flex-1">
+					<div className="grid grid-cols-[minmax(0,3fr)_minmax(4rem,0.8fr)_minmax(4rem,0.9fr)_minmax(5rem,1fr)_minmax(4.5rem,0.8fr)_minmax(5.5rem,1fr)] items-end gap-2">
+						<FieldLabel label="Libellé" required compact>
+							<input className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.title} onChange={(event) => onTitleChange(event.target.value)} required />
+						</FieldLabel>
+						<FieldLabel label="Qté" compact>
+							<input type="number" min="0" step="0.01" className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.quantity} onChange={(event) => onQuantityChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
+						</FieldLabel>
+						<FieldLabel label="Unité" compact>
+							<input className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.unit || ''} onChange={(event) => onUnitChange(event.target.value)} />
+						</FieldLabel>
+						<FieldLabel label="PU HT" compact>
+							<input type="number" min="0" step="0.01" className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.unitPrice} onChange={(event) => onUnitPriceChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
+						</FieldLabel>
+						<FieldLabel label="TVA" compact>
+							<input type="number" min="0" step="0.01" className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.vatRate} onChange={(event) => onVatRateChange(Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber)} />
+						</FieldLabel>
+						<div className="min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-700">
+							<span className="block truncate" title={`${calculateInvoiceItemSubtotal(item).toFixed(2)} ${currency || 'EUR'}`}>{calculateInvoiceItemSubtotal(item).toFixed(2)} {currency || 'EUR'}</span>
+						</div>
 					</div>
-					<div className="flex items-end">
-						<button
-							type="button"
-							className="w-full rounded-md border border-red-300 bg-red-100 px-3 py-2 text-sm text-red-700 transition hover:bg-red-200"
-							onClick={onDelete}
-						>
-							Supprimer la ligne
+					<div className="mt-1 flex items-center gap-2">
+						<p className="min-w-0 flex-1 truncate text-xs text-zinc-500">{item.description || 'Aucune description'}</p>
+						<button type="button" className="shrink-0 text-xs text-zinc-500 underline hover:text-zinc-900" onClick={() => setShowAdvancedOptions((current) => !current)}>
+							••• Options avancées
 						</button>
 					</div>
+					{showAdvancedOptions && (
+						<div className="mt-2 grid grid-cols-1 gap-2 rounded-md bg-zinc-50 p-2 sm:grid-cols-2">
+							<FieldLabel label="Type" compact>
+								<select className={`${fieldClassName} px-2 py-1.5 text-xs`} value={item.type} onChange={(event) => onTypeChange(event.target.value as WorkOrderItemType)}>
+									{invoiceItemTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+								</select>
+							</FieldLabel>
+							<FieldLabel label="Description détaillée" compact>
+								<textarea className="min-h-12 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900" value={item.description} onChange={(event) => onDescriptionChange(event.target.value)} />
+							</FieldLabel>
+							<div className="sm:col-span-2">
+								<button type="button" className="text-xs font-medium text-emerald-700 underline hover:text-emerald-900" onClick={onAddAdjustment}>
+									+ Ajouter une remise ou des frais de ligne
+								</button>
+								{item.adjustments.length > 0 && <div className="mt-2 space-y-1">
+									{item.adjustments.map((adjustment, adjustmentIndex) => (
+										<div key={adjustment.id ?? `${item.rowId}-adjustment-${adjustmentIndex}`} className="flex items-center justify-between gap-2 text-xs text-zinc-700">
+											<span>{adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? 'Remise' : 'Frais / charge'}: {adjustment.percentage == null ? `${adjustment.amount.toFixed(2)} ${currency}` : `${adjustment.percentage}% (${adjustment.amount.toFixed(2)} ${currency})`}{adjustment.reason ? ` - ${adjustment.reason}` : ''}</span>
+											<span className="flex shrink-0 gap-2"><button type="button" className="underline" onClick={() => onEditAdjustment(adjustment)}>Modifier</button><button type="button" className="text-red-700 underline" onClick={() => onDeleteAdjustment(adjustmentIndex)}>Supprimer</button></span>
+										</div>
+									))}
+								</div>}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>
@@ -617,20 +781,39 @@ type AddInvoiceFormProps = {
 	onCreated: (invoice: CreatedInvoice) => void;
 	onUpdated?: (invoice: CreatedInvoice) => void;
 	initialInvoice?: CreatedInvoice;
+	invoiceKind: InvoiceKind;
 	onChange?: (invoice: PreviewInvoice) => void;
 	show: boolean;
 };
 
 const fieldClassName = 'rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900';
 
+const invoiceKindLabels: Record<InvoiceKind, string> = {
+	[InvoiceKind.STANDARD]: 'standard',
+	[InvoiceKind.DEPOSIT]: 'd’acompte',
+	[InvoiceKind.PROGRESS]: 'de situation',
+	[InvoiceKind.BALANCE]: 'de solde',
+	[InvoiceKind.CORRECTIVE]: 'rectificative',
+	[InvoiceKind.CREDIT_NOTE]: 'd’avoir',
+};
+
 type FieldLabelProps = {
 	label: string;
 	required?: boolean;
 	children: ReactNode;
 	className?: string;
+	compact?: boolean;
 };
 
-function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
+function createDraftPreviewInvoice(
+	form: AddInvoiceFormData,
+	sourceInvoice?: CreatedInvoice | null,
+	kind?: InvoiceKind,
+	sourceSnapshot?: { number?: string; issueDate?: string },
+): PreviewInvoice {
+	const sourceNumber = sourceInvoice?.number ?? sourceSnapshot?.number;
+	const sourceIssueDate = sourceInvoice?.issueDate ?? sourceSnapshot?.issueDate;
+
 	return {
 		id: 'draft-invoice',
 		tenantId: 'draft-tenant',
@@ -669,6 +852,10 @@ function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
 		status: form.status,
 		currency: trimOrEmpty(form.currency) || 'EUR',
 		subtotal: toFiniteNumber(form.subtotal),
+		lineNetTotal: toFiniteNumber(form.subtotal),
+		allowanceTotal: toFiniteNumber(form.allowanceTotal),
+		chargeTotal: toFiniteNumber(form.chargeTotal),
+		taxExclusiveAmount: toFiniteNumber(form.taxExclusiveAmount),
 		vatAmount: toFiniteNumber(form.vatAmount),
 		total: toFiniteNumber(form.total),
 		paymentTerms: trimToUndefined(form.paymentTerms),
@@ -683,6 +870,13 @@ function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
 		pdpMessageId: trimToUndefined(form.pdpMessageId),
 		quoteId: trimToUndefined(form.quoteId),
 		quoteNumber: trimToUndefined(form.quoteNumber),
+		kind,
+		correctedInvoiceNumber: kind === InvoiceKind.CORRECTIVE ? sourceNumber : undefined,
+		correctedInvoiceIssueDate: kind === InvoiceKind.CORRECTIVE ? sourceIssueDate : undefined,
+		references: kind === InvoiceKind.CREDIT_NOTE && sourceNumber && sourceIssueDate ? [{
+			referencedInvoiceNumber: sourceNumber,
+			referencedInvoiceIssueDate: sourceIssueDate,
+		}] : undefined,
 		createdAt: form.issueDate || new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
 		items: form.invoiceItems.map((item) => ({
@@ -695,15 +889,37 @@ function createDraftPreviewInvoice(form: AddInvoiceFormData): PreviewInvoice {
 			unit: trimToUndefined(item.unit),
 			unitPrice: item.unitPrice,
 			vatRate: item.vatRate,
+			vatCategory: item.vatCategory,
 			total: item.total,
+			subtotal: calculateInvoiceItemSubtotal(item),
+			adjustments: item.adjustments.map((adjustment) => ({
+				id: adjustment.id,
+				position: adjustment.position,
+				type: adjustment.type,
+				amount: adjustment.amount,
+				baseAmount: adjustment.baseAmount,
+				percentage: adjustment.percentage,
+				reason: adjustment.reason,
+				reasonCode: adjustment.reasonCode,
+			})),
+		})),
+		adjustments: form.adjustments.map((adjustment, position) => ({
+			id: adjustment.id ?? `draft-adjustment-${position}`,
+			position,
+			type: adjustment.type,
+			amount: adjustment.amount,
+			reason: adjustment.reason,
+			vatCategory: adjustment.vatCategory,
+			vatRate: adjustment.vatRate,
 		})),
 	};
 }
 
-function FieldLabel({ label, required = false, children, className = '' }: FieldLabelProps) {
+
+function FieldLabel({ label, required = false, children, className = '', compact = false }: FieldLabelProps) {
 	return (
-		<label className={`flex flex-col gap-1.5 ${className}`.trim()}>
-			<span className="text-sm font-medium text-zinc-700">
+		<label className={`flex flex-col ${compact ? 'gap-0.5' : 'gap-1.5'} ${className}`.trim()}>
+			<span className={`${compact ? 'text-[11px]' : 'text-sm'} font-medium text-zinc-700`}>
 				{label}
 				{required ? ' *' : ''}
 			</span>
@@ -712,7 +928,7 @@ function FieldLabel({ label, required = false, children, className = '' }: Field
 	);
 }
 
-export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, onChange, show }: AddInvoiceFormProps) {
+export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, invoiceKind, onChange, show }: AddInvoiceFormProps) {
 	const api = useApiClient();
 	const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults | null>(null);
 	const [form, setForm] = useState<AddInvoiceFormData>(() => {
@@ -740,7 +956,9 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			workOrderCity: initialInvoice.workOrderCity ?? '',
 			paymentTerms: initialInvoice.paymentTerms ?? '',
 			legalMentions: initialInvoice.legalMentions ?? '',
-			notes: initialInvoice.notes ?? '',
+			notes: Array.isArray(initialInvoice.notes)
+				? initialInvoice.notes.map((note) => note.text).join(' ')
+				: initialInvoice.notes ?? '',
 			depositAmount: Number(initialInvoice.depositAmount ?? 0),
 			discountAmount: Number(initialInvoice.discountAmount ?? 0),
 			paidAt: initialInvoice.paidAt ?? '',
@@ -749,8 +967,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			quoteId: initialInvoice.quoteId ?? '',
 			quoteNumber: initialInvoice.quoteNumber ?? '',
 			currency: initialInvoice.currency ?? 'EUR',
-			issueDate: initialInvoice.issueDate,
-			dueDate: initialInvoice.dueDate ?? '',
+			issueDate: toDatetimeLocalValue(initialInvoice.issueDate),
+			dueDate: toDatetimeLocalValue(initialInvoice.dueDate),
 			paymentMethod: initialInvoice.paymentMethod ?? '',
 			invoiceItems: (initialInvoice.items ?? []).map((item, index) => ({
 				rowId: item.id || createInvoiceItemRowId(),
@@ -762,7 +980,41 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				unit: item.unit ?? '',
 				unitPrice: Number(item.unitPrice) || 0,
 				vatRate: Number(item.vatRate) || 0,
-				total: Number(item.total) || 0,
+				vatCategory: item.vatCategory ?? VatCategory.STANDARD,
+				total: roundMoney(
+					Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)) *
+					(1 + (item.vatCategory === VatCategory.STANDARD ? Number(item.vatRate || 0) : 0) / 100),
+				),
+				adjustments: (item.adjustments ?? []).map((adjustment) => ({
+					id: adjustment.id,
+					position: adjustment.position,
+					type: adjustment.type,
+					amount: Number(adjustment.amount) || 0,
+					baseAmount: Number(adjustment.baseAmount ?? Number(item.quantity) * Number(item.unitPrice)),
+					percentage: adjustment.percentage == null ? undefined : Number(adjustment.percentage),
+					reason: adjustment.reason ?? '',
+					reasonCode: adjustment.reasonCode ?? '',
+				})),
+			})),
+			payments: (initialInvoice.payments ?? []).map((payment) => ({
+				rowId: payment.id,
+				amount: String(payment.amount ?? ''),
+				paidAt: toDatetimeLocalValue(payment.paidAt),
+				method: payment.method ?? '',
+				reference: payment.reference ?? '',
+				notes: payment.notes ?? '',
+			})),
+			adjustments: (initialInvoice.adjustments ?? []).map((adjustment) => ({
+				id: adjustment.id,
+				position: adjustment.position,
+				type: adjustment.type,
+				amount: Number(adjustment.amount) || 0,
+				baseAmount: adjustment.baseAmount === undefined ? undefined : Number(adjustment.baseAmount),
+				percentage: adjustment.percentage == null ? undefined : Number(adjustment.percentage),
+				vatCategory: adjustment.vatCategory as VatCategory,
+				vatRate: adjustment.vatRate === undefined ? undefined : Number(adjustment.vatRate),
+				reason: adjustment.reason ?? '',
+				reasonCode: adjustment.reasonCode ?? '',
 			})),
 		};
 	});
@@ -778,6 +1030,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 	const [quotesError, setQuotesError] = useState('');
 	const [showQuotesList, setShowQuotesList] = useState(false);
 	const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
+	const [showAssociatedQuoteModal, setShowAssociatedQuoteModal] = useState(false);
+	const [associatedQuote, setAssociatedQuote] = useState<QuoteOption | null>(null);
 	const [showTopQuotesList, setShowTopQuotesList] = useState(false);
 	const [selectedTopQuote, setSelectedTopQuote] = useState<QuoteOption | null>(null);
 	const [topQuotesError, setTopQuotesError] = useState('');
@@ -785,21 +1039,32 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 	const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
 	const [catalogItemsError, setCatalogItemsError] = useState('');
 	const [showCatalogItemsList, setShowCatalogItemsList] = useState(false);
+	const [showAddLineMenu, setShowAddLineMenu] = useState(false);
 	const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
 	const [showTopWorkOrdersList, setShowTopWorkOrdersList] = useState(false);
 	const [selectedTopWorkOrder, setSelectedTopWorkOrder] = useState<WorkOrderOption | null>(null);
 	const [topWorkOrdersError, setTopWorkOrdersError] = useState('');
-	const [customerMode, setCustomerMode] = useState<CustomerMode>(
+	const [, setCustomerMode] = useState<CustomerMode>(
 		initialInvoice?.customerId ? 'existing' : 'new',
 	);
-	const [workOrderMode, setWorkOrderMode] = useState<WorkOrderMode>(
+	const [, setWorkOrderMode] = useState<WorkOrderMode>(
 		initialInvoice?.workOrderId ? 'existing' : 'new',
 	);
 	const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+	const [showCustomerSelector, setShowCustomerSelector] = useState(false);
 	const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
+	const [showWorkOrderSelector, setShowWorkOrderSelector] = useState(false);
 	const [showCustomerFields, setShowCustomerFields] = useState(false);
 	const [showWorkOrderFields, setShowWorkOrderFields] = useState(false);
 	const [showTenantFields, setShowTenantFields] = useState(false);
+	const [selectedSourceInvoice, setSelectedSourceInvoice] = useState<CreatedInvoice | null>(null);
+	const [showSourceInvoiceModal, setShowSourceInvoiceModal] = useState(false);
+	const [showInvoiceAdjustmentModal, setShowInvoiceAdjustmentModal] = useState(false);
+	const [editingInvoiceAdjustment, setEditingInvoiceAdjustment] = useState<InvoiceAdjustmentFormData | null>(null);
+	const [lineAdjustmentTarget, setLineAdjustmentTarget] = useState<{ rowId: string; adjustment?: InvoiceItemAdjustmentFormData } | null>(null);
+	const [sourceInvoices, setSourceInvoices] = useState<CreatedInvoice[]>([]);
+	const [sourceInvoicesLoading, setSourceInvoicesLoading] = useState(false);
+	const [sourceInvoicesError, setSourceInvoicesError] = useState('');
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
 	const sensors = useSensors(useSensor(PointerSensor));
@@ -808,10 +1073,47 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 		(invoiceSequenceByYear[getInvoiceYear(form.issueDate)] ?? 0) + 1,
 	);
 	const displayedInvoiceNumber = initialInvoice ? (form.number || initialInvoice.number || '') : generatedInvoiceNumber;
+	const sourceInvoiceButtonLabel = invoiceKind === InvoiceKind.CORRECTIVE
+		? 'Choisir la facture à corriger'
+		: 'Choisir la facture pour laquelle créer un avoir';
+	const customerListItems: CustomerRecord[] = customers.map((customer) => ({
+		id: customer.id,
+		tenantId: 'current-tenant',
+		firstName: customer.firstName ?? '',
+		lastName: customer.lastName,
+		company: customer.company,
+		email: customer.email,
+		phone: customer.phone,
+		mobile: customer.mobile,
+		vatNumber: customer.vatNumber,
+		address: customer.address,
+		createdAt: '',
+	}));
+	const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
+	const customerSummaryName = selectedCustomer ? formatCustomerLabel(selectedCustomer) : `${form.customerFirstName} ${form.customerLastName}`.trim();
+	const customerSummaryContact = selectedCustomer?.email || selectedCustomer?.phone || selectedCustomer?.mobile || form.customerEmail || form.customerPhoneNumber || '-';
+	const customerSummaryLocation = selectedCustomer
+		? [selectedCustomer.address?.postalCode, selectedCustomer.address?.city].filter(Boolean).join(' ')
+		: [form.customerPostalCode, form.customerCity].filter(Boolean).join(' ');
+	const hasCustomerSummary = Boolean(customerSummaryName || customerSummaryContact !== '-' || customerSummaryLocation);
 
 	useEffect(() => {
-		onChange?.(createDraftPreviewInvoice({ ...form, number: displayedInvoiceNumber }));
-	}, [displayedInvoiceNumber, form, onChange]);
+		onChange?.(createDraftPreviewInvoice(
+		{ ...form, number: displayedInvoiceNumber },
+		selectedSourceInvoice,
+		invoiceKind,
+		initialInvoice?.kind === invoiceKind
+			? {
+				number: invoiceKind === InvoiceKind.CORRECTIVE
+					? initialInvoice.correctedInvoiceNumber
+					: initialInvoice.references?.[0]?.referencedInvoiceNumber,
+				issueDate: invoiceKind === InvoiceKind.CORRECTIVE
+					? initialInvoice.correctedInvoiceIssueDate
+					: initialInvoice.references?.[0]?.referencedInvoiceIssueDate,
+			}
+			: undefined,
+	));
+	}, [displayedInvoiceNumber, form, initialInvoice, invoiceKind, onChange, selectedSourceInvoice]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -954,6 +1256,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				nextItems,
 				currentForm.depositAmount,
 				currentForm.discountAmount,
+				currentForm.adjustments,
 			);
 
 			return {
@@ -973,6 +1276,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				nextForm.invoiceItems,
 				nextForm.depositAmount,
 				nextForm.discountAmount,
+				nextForm.adjustments,
 			);
 
 			return {
@@ -980,6 +1284,47 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				...totals,
 			};
 		});
+	}
+
+	function updateInvoiceAdjustments(adjustments: InvoiceAdjustmentFormData[]) {
+		setForm((currentForm) => ({
+			...currentForm,
+			...recomputeInvoice(currentForm.invoiceItems, currentForm.depositAmount, currentForm.discountAmount, adjustments),
+			adjustments: adjustments.map((adjustment, position) => ({ ...adjustment, position })),
+		}));
+	}
+
+	function openInvoiceAdjustmentForm(adjustment?: InvoiceAdjustmentFormData) {
+		setEditingInvoiceAdjustment(adjustment ?? null);
+		setShowInvoiceAdjustmentModal(true);
+	}
+
+	function updateLineAdjustments(rowId: string, adjustments: InvoiceItemAdjustmentFormData[]) {
+		updateInvoiceItems((items) => items.map((item) => item.rowId === rowId ? { ...item, adjustments } : item));
+	}
+
+	function openLineAdjustmentForm(rowId: string, adjustment?: InvoiceItemAdjustmentFormData) {
+		setLineAdjustmentTarget({ rowId, adjustment });
+	}
+
+	async function openSourceInvoiceSelector() {
+		setShowSourceInvoiceModal(true);
+		setSourceInvoicesLoading(true);
+		setSourceInvoicesError('');
+
+		try {
+			const response = await api.get('/invoices');
+			if (!response.ok) {
+				throw new Error('Erreur');
+			}
+
+			setSourceInvoices((await response.json()) as CreatedInvoice[]);
+		} catch {
+			setSourceInvoices([]);
+			setSourceInvoicesError('Erreur lors de la récupération des factures.');
+		} finally {
+			setSourceInvoicesLoading(false);
+		}
 	}
 
 	function handleDragEnd(event: DragEndEvent) {
@@ -1025,6 +1370,39 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 		}
 	}
 
+	async function openAssociatedQuoteSelector() {
+		setQuotesError('');
+		setShowAssociatedQuoteModal(true);
+		setShowQuotesList(false);
+		setShowTopQuotesList(false);
+		setQuotesLoading(true);
+
+		try {
+			const response = await api.get('/quotes');
+			if (!response.ok) {
+				throw new Error('Erreur');
+			}
+
+			setQuotes((await response.json()) as QuoteOption[]);
+		} catch {
+			setQuotes([]);
+			setQuotesError('Erreur lors de la récupération des devis');
+		} finally {
+			setQuotesLoading(false);
+		}
+	}
+
+	function handleAssociatedQuoteSelection(quote: QuoteOption) {
+		setAssociatedQuote(quote);
+		setForm((currentForm) => ({
+			...currentForm,
+			quoteId: quote.id,
+			quoteNumber: quote.number,
+		}));
+		setShowAssociatedQuoteModal(false);
+		setQuotesError('');
+	}
+
 	async function openTopQuoteSelector() {
 		setTopQuotesError('');
 		setShowTopQuotesList(true);
@@ -1057,6 +1435,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				unit: quoteItem.unit ?? '',
 				unitPrice: Number(quoteItem.unitPrice) || 0,
 				vatRate: Number(quoteItem.vatRate) || 0,
+				vatCategory: quoteItem.vatCategory,
 				type: 'type' in quoteItem ? (quoteItem.type as WorkOrderItemType | undefined) : 'OTHER',
 			})),
 		);
@@ -1188,6 +1567,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				unit: workOrderItem.unit ?? '',
 				unitPrice: Number(workOrderItem.unitPrice) || 0,
 				vatRate: Number(workOrderItem.vatRate) || 0,
+				vatCategory: workOrderItem.vatCategory,
 				type: workOrderItem.type,
 			})),
 		);
@@ -1314,6 +1694,25 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 		setSuccess('Ligne importée depuis le catalogue.');
 	}
 
+	function handleSelectedCustomer(customer: CustomerRecord) {
+		setForm((currentForm) => ({
+			...currentForm,
+			customerId: customer.id,
+			customerFirstName: customer.firstName ?? customer.company ?? '',
+			customerLastName: customer.lastName ?? '',
+			customerStreet1: customer.address?.street1 ?? '',
+			customerStreet2: '',
+			customerPostalCode: customer.address?.postalCode ?? '',
+			customerCity: customer.address?.city ?? '',
+			customerEmail: customer.email ?? '',
+			customerPhoneNumber: customer.phone ?? customer.mobile ?? '',
+			customerVatNumber: customer.vatNumber ?? '',
+		}));
+		setCustomerMode('existing');
+		setShowCustomerSelector(false);
+		setError('');
+	}
+
 	function handleCreatedCustomer(customer: Customer) {
 		setCustomers((currentOptions) => {
 			if (currentOptions.some((option) => option.id === customer.id)) {
@@ -1394,6 +1793,23 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 		setSuccess('Chantier créé et associé à la facture.');
 	}
 
+	function handleSelectedWorkOrder(workOrder: WorkOrderBase) {
+		setForm((currentForm) => ({
+			...currentForm,
+			workOrderId: workOrder.id,
+			workOrderReference: workOrder.reference ?? '',
+			workOrderTitle: workOrder.title ?? '',
+			workOrderStartDate: toDatetimeLocalValue(workOrder.plannedStartDate ?? workOrder.startDate),
+			workOrderEndDate: toDatetimeLocalValue(workOrder.plannedEndDate ?? workOrder.endDate),
+			workOrderAddress: 'address' in workOrder ? workOrder.address?.street1 ?? '' : '',
+			workOrderPostalCode: 'address' in workOrder ? workOrder.address?.postalCode ?? '' : '',
+			workOrderCity: 'address' in workOrder ? workOrder.address?.city ?? '' : '',
+		}));
+		setWorkOrderMode('existing');
+		setShowWorkOrderSelector(false);
+		setError('');
+	}
+
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		setError('');
@@ -1406,6 +1822,11 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 
 		if (!form.customerId.trim()) {
 			setError('Le client est obligatoire.');
+			return;
+		}
+
+		if ((invoiceKind === InvoiceKind.CORRECTIVE || invoiceKind === InvoiceKind.CREDIT_NOTE) && !selectedSourceInvoice) {
+			setError('Sélectionnez une facture source.');
 			return;
 		}
 
@@ -1467,7 +1888,9 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			vatAmount: form.vatAmount,
 			total: form.total,
 			operationCategory: 'SERVICES',
-			kind: 'STANDARD',
+			kind: invoiceKind,
+			correctedInvoiceId: invoiceKind === InvoiceKind.CORRECTIVE ? selectedSourceInvoice?.id : undefined,
+			referencedInvoiceId: invoiceKind === InvoiceKind.CREDIT_NOTE ? selectedSourceInvoice?.id : undefined,
 			paymentTerms: trimToUndefined(form.paymentTerms),
 			legalMentions: trimToUndefined(form.legalMentions),
 			notes: trimToUndefined(form.notes),
@@ -1492,8 +1915,29 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				vatRate: item.vatRate,
 								total: item.total,
 				subtotal: item.total,
-				vatCategory: 'STANDARD',
+				vatCategory: item.vatCategory,
+				adjustments: item.adjustments.map((adjustment, position) => ({
+					...adjustment,
+					position,
+					id: undefined,
+				})),
 			})),
+			adjustments: form.adjustments.map((adjustment, position) => ({
+				...adjustment,
+				position,
+				id: undefined,
+			})),
+			...(!initialInvoice && {
+				payments: form.payments
+					.filter((payment) => payment.amount.trim() && payment.paidAt)
+					.map((payment) => ({
+						amount: Number(payment.amount),
+						paidAt: payment.paidAt,
+						method: payment.method || undefined,
+						reference: trimToUndefined(payment.reference),
+						notes: trimToUndefined(payment.notes),
+					})),
+			}),
 		};
 
 		try {
@@ -1518,6 +1962,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			} else {
 				onCreated(data);
 				setForm(createEmptyInvoice(tenantDefaults || undefined));
+				setAssociatedQuote(null);
+				setSelectedSourceInvoice(null);
 				setCustomerMode('new');
 				setWorkOrderMode('new');
 				setSuccess('Facture créée avec succès.');
@@ -1539,7 +1985,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
 		>
 			<h3 className="text-lg font-semibold text-zinc-900">
-				{initialInvoice ? 'Modifier la facture' : 'Créer une facture'}
+				{initialInvoice ? 'Modifier la facture' : `Nouvelle facture ${invoiceKindLabels[invoiceKind]}`}
 			</h3>
 			<div className="flex flex-wrap gap-2">
 				<button
@@ -1654,6 +2100,25 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			{error && <div className="rounded bg-red-100 p-3 text-red-700">{error}</div>}
 			{success && <div className="rounded bg-green-100 p-3 text-green-700">{success}</div>}
 
+			{(invoiceKind === InvoiceKind.CORRECTIVE || invoiceKind === InvoiceKind.CREDIT_NOTE) && (
+				<section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+					<div className="flex flex-wrap items-center gap-3">
+						<button
+							type="button"
+							className="rounded-md border border-amber-700 bg-amber-700 px-3 py-2 text-sm text-white transition hover:bg-amber-800"
+							onClick={() => { void openSourceInvoiceSelector(); }}
+						>
+							{sourceInvoiceButtonLabel}
+						</button>
+						{selectedSourceInvoice && (
+							<p className="min-w-0 text-sm text-amber-950">
+								<strong>{selectedSourceInvoice.number || '-'}</strong> · {selectedSourceInvoice.workOrderTitle || '-'} · {selectedSourceInvoice.customerName || `${selectedSourceInvoice.customerFirstName} ${selectedSourceInvoice.customerLastName}`.trim() || '-'} · {selectedSourceInvoice.issueDate ? new Date(selectedSourceInvoice.issueDate).toLocaleDateString('fr-FR') : '-'} · {selectedSourceInvoice.status} · {Number(selectedSourceInvoice.taxInclusiveAmount ?? selectedSourceInvoice.total ?? 0).toFixed(2)} {selectedSourceInvoice.currency || 'EUR'}
+							</p>
+						)}
+					</div>
+				</section>
+			)}
+
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Client</h4>
@@ -1661,93 +2126,35 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				<div className="mb-4 flex flex-wrap gap-2">
 					<button
 						type="button"
-						className={`rounded-md border px-3 py-2 text-sm transition ${customerMode === 'existing' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
-						onClick={() => setCustomerMode('existing')}
+						className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+						onClick={() => setShowCustomerSelector(true)}
 					>
 						Remplir depuis un client existant
 					</button>
 					<button
 						type="button"
-						className={`rounded-md border px-3 py-2 text-sm transition ${customerMode === 'new' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
-						onClick={() => setCustomerMode('new')}
+						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+						onClick={() => setShowNewCustomerModal(true)}
 					>
 						Nouveau client
 					</button>
 				</div>
 
-				{customerMode === 'existing' && (
-					<div className="mb-4">
-						<FieldLabel label="Client existant">
-							<select
-								className={fieldClassName}
-								value={form.customerId}
-								onChange={(event) => {
-									const nextCustomerId = event.target.value;
-									const nextCustomer = customers.find((customer) => customer.id === nextCustomerId);
-
-									if (!nextCustomer) {
-										setForm((currentForm) => ({
-											...currentForm,
-											customerId: nextCustomerId,
-											customerFirstName: '',
-											customerLastName: '',
-											customerStreet1: '',
-											customerStreet2: '',
-											customerPostalCode: '',
-											customerCity: '',
-											customerEmail: '',
-											customerPhoneNumber: '',
-											customerVatNumber: '',
-										}));
-										return;
-									}
-
-									setForm((currentForm) => ({
-										...currentForm,
-										customerId: nextCustomer.id,
-										customerFirstName: nextCustomer.firstName ?? nextCustomer.company ?? '',
-										customerLastName: nextCustomer.lastName ?? '',
-										customerStreet1: nextCustomer.address?.street1 ?? '',
-										customerStreet2: nextCustomer.address?.street2 ?? '',
-										customerPostalCode: nextCustomer.address?.postalCode ?? '',
-										customerCity: nextCustomer.address?.city ?? '',
-										customerEmail: nextCustomer.email ?? '',
-										customerPhoneNumber: nextCustomer.phone ?? nextCustomer.mobile ?? '',
-										customerVatNumber: nextCustomer.vatNumber ?? '',
-									}));
-									setError('');
-								}}
-							>
-								<option value="">-- Sélectionner un client --</option>
-								{customers.map((customer) => (
-									<option key={customer.id} value={customer.id}>
-										{formatCustomerLabel(customer)}
-									</option>
-								))}
-							</select>
-						</FieldLabel>
-					</div>
-				)}
-
-				{customerMode === 'new' && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-3">
-						<p className="mb-3 text-sm text-zinc-600">Créez un nouveau client puis associez-le automatiquement à la facture.</p>
+				{hasCustomerSummary && (
+					<div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 text-sm text-zinc-700">
+						<p className="min-w-0 truncate">
+							<strong>{customerSummaryName || '-'}</strong> · {customerSummaryContact} · {customerSummaryLocation || '-'}
+						</p>
 						<button
 							type="button"
-							className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
-							onClick={() => setShowNewCustomerModal(true)}
+							className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-100"
+							onClick={() => setShowCustomerFields((current) => !current)}
 						>
-							Créer un nouveau client
+							{showCustomerFields ? 'Fermer' : 'Modifier'}
 						</button>
 					</div>
 				)}
-					<button
-						type="button"
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-						onClick={() => setShowCustomerFields((current) => !current)}
-					>
-						{showCustomerFields ? 'Fermer' : 'Modifier'}
-					</button>
+
 				{showCustomerFields && (
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					<FieldLabel label="Prénom client" required>
@@ -1782,95 +2189,59 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			</section>
 
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Ajustements de facture</h4>
+					<button type="button" className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm text-white transition hover:bg-emerald-800" onClick={() => openInvoiceAdjustmentForm()}>
+						+ Ajouter une remise ou des frais
+					</button>
+				</div>
+				{form.adjustments.length === 0 ? <p className="text-sm text-zinc-500">Aucun ajustement enregistré.</p> : (
+					<div className="space-y-2">
+						{form.adjustments.map((adjustment, index) => (
+							<div key={adjustment.id ?? `adjustment-${index}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm">
+								<span className="min-w-0 flex-1 truncate text-zinc-700">{adjustment.type === InvoiceAdjustmentType.ALLOWANCE ? 'Remise' : 'Frais / charge'}: {adjustment.reason || 'Sans motif'} ({adjustment.amount.toFixed(2)} {form.currency || 'EUR'}, {adjustment.vatRate ?? 0}% TVA)</span>
+								<span className="flex shrink-0 gap-2"><button type="button" className="rounded border border-zinc-300 px-2 py-1 text-xs" onClick={() => openInvoiceAdjustmentForm(adjustment)}>Modifier</button><button type="button" className="rounded border border-red-300 px-2 py-1 text-xs text-red-700" onClick={() => updateInvoiceAdjustments(form.adjustments.filter((_, currentIndex) => currentIndex !== index))}>Supprimer</button></span>
+							</div>
+						))}
+					</div>
+				)}
+			</section>
+
+			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Chantier</h4>
 				</div>
 				<div className="mb-4 flex flex-wrap gap-2">
 					<button
 						type="button"
-						className={`rounded-md border px-3 py-2 text-sm transition ${workOrderMode === 'existing' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
-						onClick={() => setWorkOrderMode('existing')}
+						className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+						onClick={() => setShowWorkOrderSelector(true)}
 					>
 						Remplir depuis un chantier existant
 					</button>
 					<button
 						type="button"
-						className={`rounded-md border px-3 py-2 text-sm transition ${workOrderMode === 'new' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'}`}
-						onClick={() => setWorkOrderMode('new')}
+						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+						onClick={() => setShowNewWorkOrderModal(true)}
 					>
 						Nouveau chantier
 					</button>
 				</div>
 
-				{workOrderMode === 'existing' && (
-					<div className="mb-4">
-						<FieldLabel label="Chantier existant">
-							<select
-								className={fieldClassName}
-								value={form.workOrderId}
-								onChange={(event) => {
-									const nextWorkOrderId = event.target.value;
-									const nextWorkOrder = workOrders.find((workOrder) => workOrder.id === nextWorkOrderId);
-
-									if (!nextWorkOrder) {
-										setForm((currentForm) => ({
-											...currentForm,
-											workOrderId: nextWorkOrderId,
-											workOrderReference: '',
-											workOrderTitle: '',
-											workOrderStartDate: '',
-											workOrderEndDate: '',
-											workOrderAddress: '',
-											workOrderPostalCode: '',
-											workOrderCity: '',
-										}));
-										return;
-									}
-
-									setForm((currentForm) => ({
-										...currentForm,
-										workOrderId: nextWorkOrder.id,
-										workOrderReference: nextWorkOrder.reference ?? '',
-										workOrderTitle: nextWorkOrder.title ?? '',
-										workOrderStartDate: toDatetimeLocalValue(nextWorkOrder.plannedStartDate ?? nextWorkOrder.startDate),
-										workOrderEndDate: toDatetimeLocalValue(nextWorkOrder.plannedEndDate ?? nextWorkOrder.endDate),
-										workOrderAddress: nextWorkOrder.address?.street1 ?? '',
-										workOrderPostalCode: nextWorkOrder.address?.postalCode ?? '',
-										workOrderCity: nextWorkOrder.address?.city ?? '',
-									}));
-									setError('');
-								}}
-							>
-								<option value="">-- Sélectionner un chantier --</option>
-								{workOrders.map((workOrder) => (
-									<option key={workOrder.id} value={workOrder.id}>
-										{formatWorkOrderLabel(workOrder)}
-									</option>
-								))}
-							</select>
-						</FieldLabel>
-					</div>
-				)}
-
-				{workOrderMode === 'new' && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-3">
-						<p className="mb-3 text-sm text-zinc-600">Créez un nouveau chantier puis associez-le automatiquement à la facture.</p>
+				{form.workOrderId && (
+					<div className="flex items-center justify-between gap-3 border-t border-zinc-200 pt-3 text-sm text-zinc-700">
+						<p className="min-w-0 truncate">
+							<strong>{form.workOrderTitle || '-'}</strong> · {form.workOrderReference || '-'} · {[form.workOrderPostalCode, form.workOrderCity].filter(Boolean).join(' ') || '-'}
+						</p>
 						<button
 							type="button"
-							className="rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-800 hover:bg-blue-100"
-							onClick={() => setShowNewWorkOrderModal(true)}
+							className="shrink-0 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-100"
+							onClick={() => setShowWorkOrderFields((current) => !current)}
 						>
-							Créer un nouveau chantier
+							{showWorkOrderFields ? 'Fermer' : 'Modifier'}
 						</button>
 					</div>
 				)}
-					<button
-						type="button"
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
-						onClick={() => setShowWorkOrderFields((current) => !current)}
-					>
-						{showWorkOrderFields ? 'Fermer' : 'Modifier'}
-					</button>
 				{showWorkOrderFields && (
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					<FieldLabel label="Référence chantier" required>
@@ -1901,41 +2272,18 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
 				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Lignes de facture</h4>
-					<div className="flex flex-wrap gap-2">
-						<button
-							type="button"
-							className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
-							onClick={() =>
-								updateInvoiceItems((items) => [...items, createEmptyInvoiceItem(items.length)])
-							}
-						>
-							Ajouter une ligne
+					<div className="relative">
+						<button type="button" className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700" onClick={() => setShowAddLineMenu((current) => !current)}>
+							+ Ajouter une ligne
 						</button>
-						<button
-							type="button"
-							className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100"
-							onClick={() => {
-								void openQuoteSelector();
-							}}
-						>
-							Ajouter des lignes à partir d&apos;un devis
-						</button>
-						<button
-							type="button"
-							className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100"
-							onClick={openWorkOrderLineSelector}
-						>
-							Ajouter des lignes à partir d&apos;un chantier
-						</button>
-						<button
-							type="button"
-							className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100"
-							onClick={() => {
-								void openCatalogItemSelector();
-							}}
-						>
-							Ajouter une ligne à partir du catalogue
-						</button>
+						{showAddLineMenu && (
+							<div className="absolute right-0 z-20 mt-2 w-52 rounded-md border border-zinc-200 bg-white p-1 shadow-lg">
+								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); void openCatalogItemSelector(); }}>Depuis le catalogue</button>
+								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); updateInvoiceItems((items) => [...items, createEmptyInvoiceItem(items.length)]); }}>Ligne libre</button>
+								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); void openQuoteSelector(); }}>Depuis le devis</button>
+								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); openWorkOrderLineSelector(); }}>Depuis le chantier</button>
+							</div>
+						)}
 					</div>
 				</div>
 
@@ -1944,11 +2292,12 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				{catalogItemsError && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>}
 
 				{showQuotesList && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-4">
+					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowQuotesList(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-3 flex items-center gap-2">
 							<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un devis</h4>
-							<button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowQuotesList(false)}>
-								Fermer la liste
+							<button type="button" className="ml-auto rounded border px-3 py-2 text-sm" onClick={() => setShowQuotesList(false)}>
+								Fermer
 							</button>
 						</div>
 						{quotesLoading ? (
@@ -1964,6 +2313,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 								}}
 							/>
 						)}
+					</div>
 					</div>
 				)}
 
@@ -1987,11 +2337,12 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				)}
 
 				{showWorkOrdersList && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-4">
+					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowWorkOrdersList(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-3 flex items-center gap-2">
 							<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un chantier</h4>
-							<button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowWorkOrdersList(false)}>
-								Fermer la liste
+							<button type="button" className="ml-auto rounded border px-3 py-2 text-sm" onClick={() => setShowWorkOrdersList(false)}>
+								Fermer
 							</button>
 						</div>
 						{workOrdersLoading ? (
@@ -2007,6 +2358,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 								}}
 							/>
 						)}
+					</div>
 					</div>
 				)}
 
@@ -2030,11 +2382,12 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				)}
 
 				{showCatalogItemsList && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-4">
+					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowCatalogItemsList(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-3 flex items-center gap-2">
 							<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un article catalogue</h4>
-							<button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowCatalogItemsList(false)}>
-								Fermer la liste
+							<button type="button" className="ml-auto rounded border px-3 py-2 text-sm" onClick={() => setShowCatalogItemsList(false)}>
+								Fermer
 							</button>
 						</div>
 						{catalogItemsLoading ? (
@@ -2050,6 +2403,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 								}}
 							/>
 						)}
+					</div>
 					</div>
 				)}
 
@@ -2111,6 +2465,9 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 									onDescriptionChange={(value) => updateInvoiceItems((items) => items.map((currentItem) => currentItem.rowId === item.rowId ? { ...currentItem, description: value } : currentItem))}
 									onUnitPriceChange={(value) => updateInvoiceItems((items) => items.map((currentItem) => currentItem.rowId === item.rowId ? { ...currentItem, unitPrice: value } : currentItem))}
 									onVatRateChange={(value) => updateInvoiceItems((items) => items.map((currentItem) => currentItem.rowId === item.rowId ? { ...currentItem, vatRate: value } : currentItem))}
+									onAddAdjustment={() => openLineAdjustmentForm(item.rowId)}
+									onEditAdjustment={(adjustment) => openLineAdjustmentForm(item.rowId, adjustment)}
+									onDeleteAdjustment={(adjustmentIndex) => updateLineAdjustments(item.rowId, item.adjustments.filter((_, currentIndex) => currentIndex !== adjustmentIndex))}
 									onDelete={() => updateInvoiceItems((items) => items.length === 1 ? [createEmptyInvoiceItem(0)] : items.filter((currentItem) => currentItem.rowId !== item.rowId))}
 								/>
 							))}
@@ -2171,6 +2528,33 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			</section>
 
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Paiements</h4>
+					<button type="button" className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm text-white transition hover:bg-emerald-800" onClick={() => setForm((currentForm) => ({ ...currentForm, payments: [...currentForm.payments, createEmptyInvoicePayment()] }))}>
+						Ajouter un paiement
+					</button>
+				</div>
+				{form.payments.length === 0 && <p className="text-sm text-zinc-500">Aucun paiement enregistré.</p>}
+				<div className="space-y-3">
+					{form.payments.map((payment, index) => (
+						<div key={payment.rowId} className="rounded-lg border border-zinc-200 bg-white p-3">
+							<div className="mb-3 flex items-center justify-between gap-2">
+								<span className="text-sm font-medium text-zinc-700">Paiement {index + 1}</span>
+								<button type="button" className="rounded border border-red-300 px-2 py-1 text-sm text-red-700 hover:bg-red-50" onClick={() => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.filter((currentPayment) => currentPayment.rowId !== payment.rowId) }))}>Supprimer</button>
+							</div>
+							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+								<FieldLabel label="Montant" required><input type="number" min="0.01" step="0.01" className={fieldClassName} value={payment.amount} onChange={(event) => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.map((currentPayment) => currentPayment.rowId === payment.rowId ? { ...currentPayment, amount: event.target.value } : currentPayment) }))} required /></FieldLabel>
+								<FieldLabel label="Date du paiement" required><input type="datetime-local" className={fieldClassName} value={payment.paidAt} onChange={(event) => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.map((currentPayment) => currentPayment.rowId === payment.rowId ? { ...currentPayment, paidAt: event.target.value } : currentPayment) }))} required /></FieldLabel>
+								<FieldLabel label="Méthode"><select className={fieldClassName} value={payment.method} onChange={(event) => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.map((currentPayment) => currentPayment.rowId === payment.rowId ? { ...currentPayment, method: event.target.value as PaymentMethod | '' } : currentPayment) }))}><option value="">Non précisée</option><option value="BANK_TRANSFER">Virement</option><option value="CARD">Carte</option><option value="CASH">Espèces</option><option value="CHECK">Chèque</option><option value="OTHER">Autre</option></select></FieldLabel>
+								<FieldLabel label="Référence"><input className={fieldClassName} value={payment.reference} onChange={(event) => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.map((currentPayment) => currentPayment.rowId === payment.rowId ? { ...currentPayment, reference: event.target.value } : currentPayment) }))} /></FieldLabel>
+								<FieldLabel label="Notes" className="sm:col-span-2 lg:col-span-4"><input className={fieldClassName} value={payment.notes} onChange={(event) => setForm((currentForm) => ({ ...currentForm, payments: currentForm.payments.map((currentPayment) => currentPayment.rowId === payment.rowId ? { ...currentPayment, notes: event.target.value } : currentPayment) }))} /></FieldLabel>
+							</div>
+						</div>
+					))}
+				</div>
+			</section>
+
+			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
 				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Infos facture</h4>
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					<FieldLabel label="Numéro facture" required>
@@ -2199,6 +2583,17 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 					<FieldLabel label="TVA" required>
 						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.vatAmount} readOnly required />
 					</FieldLabel>
+					{form.vatBreakdowns.length > 0 && (
+						<div className="text-xs text-zinc-600">
+							<p className="font-medium text-zinc-700">Ventilation TVA</p>
+							{form.vatBreakdowns.map((breakdown) => (
+								<div key={`${breakdown.vatCategory}-${breakdown.vatRate ?? 'none'}`} className="flex justify-between gap-3">
+									<span>{breakdown.vatCategory}{breakdown.vatRate === undefined ? '' : ` ${breakdown.vatRate}%`}</span>
+									<span>{toFiniteNumber(breakdown.vatAmount).toFixed(2)} {form.currency || 'EUR'}</span>
+								</div>
+							))}
+						</div>
+					)}
 					<FieldLabel label="Total TTC" required>
 						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.total} readOnly required />
 					</FieldLabel>
@@ -2213,9 +2608,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 					</FieldLabel>
 					<FieldLabel label="Acompte">
 						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount ?? 0} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
-					</FieldLabel>
-					<FieldLabel label="Remise">
-						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.discountAmount ?? 0} onChange={(event) => updateInvoiceSummary({ discountAmount: toFiniteNumber(event.target.valueAsNumber) })} />
 					</FieldLabel>
 					<FieldLabel label="Date de paiement">
 						<input type="datetime-local" className={fieldClassName} value={form.paidAt} onChange={(event) => setForm({ ...form, paidAt: event.target.value })} />
@@ -2244,12 +2636,33 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 					<FieldLabel label="PDP Message ID">
 						<input className={fieldClassName} value={form.pdpMessageId} onChange={(event) => setForm({ ...form, pdpMessageId: event.target.value })} />
 					</FieldLabel>
-					<FieldLabel label="Quote ID">
-						<input className={fieldClassName} value={form.quoteId} onChange={(event) => setForm({ ...form, quoteId: event.target.value })} />
-					</FieldLabel>
-					<FieldLabel label="Quote Number">
-						<input className={fieldClassName} value={form.quoteNumber} onChange={(event) => setForm({ ...form, quoteNumber: event.target.value })} />
-					</FieldLabel>
+					<div className="flex flex-col gap-1.5">
+						<span className="text-sm font-medium text-zinc-700">Devis associé</span>
+						<button
+							type="button"
+							className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+							onClick={() => { void openAssociatedQuoteSelector(); }}
+						>
+							Associer un devis
+						</button>
+						{(associatedQuote || form.quoteNumber) && (
+							<div className="flex min-w-0 items-center gap-3">
+								<p className="min-w-0 truncate text-sm text-zinc-600">
+									{associatedQuote?.number || form.quoteNumber} · {associatedQuote?.title || 'Devis associé'}
+								</p>
+								<button
+									type="button"
+									className="shrink-0 rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-700 transition hover:bg-red-50"
+									onClick={() => {
+										setAssociatedQuote(null);
+										setForm((currentForm) => ({ ...currentForm, quoteId: '', quoteNumber: '' }));
+									}}
+								>
+									Désassocier
+								</button>
+							</div>
+						)}
+					</div>
 				</div>
 			</section>
 
@@ -2257,6 +2670,72 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 				{initialInvoice ? 'Modifier' : 'Créer la facture'}
 			</button>
 		</form>
+
+			{showAssociatedQuoteModal && (
+				<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAssociatedQuoteModal(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
+						<div className="mb-3 flex items-center justify-between gap-3">
+							<h4 className="text-lg font-semibold text-zinc-900">Associer un devis</h4>
+							<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowAssociatedQuoteModal(false)}>
+								Fermer
+							</button>
+						</div>
+						{quotesError && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{quotesError}</div>}
+						{quotesLoading ? (
+							<p>Chargement des devis...</p>
+						) : (
+							<QuotesList
+								quotes={quotes}
+								onDelete={null}
+								handleSelectedQuote={handleAssociatedQuoteSelection}
+							/>
+						)}
+					</div>
+				</div>
+			)}
+
+		{lineAdjustmentTarget && (() => {
+			const targetItem = form.invoiceItems.find((item) => item.rowId === lineAdjustmentTarget.rowId);
+			if (!targetItem) return null;
+			const baseAmount = roundMoney(targetItem.quantity * targetItem.unitPrice);
+			return (
+				<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={() => setLineAdjustmentTarget(null)}>
+					<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+						<div className="mb-4 flex items-center justify-between gap-3">
+							<h4 className="text-lg font-semibold text-zinc-900">Remise ou frais de ligne</h4>
+							<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setLineAdjustmentTarget(null)}>Fermer</button>
+						</div>
+						<AddInvoiceItemAdjustmentForm
+							key={`${lineAdjustmentTarget.rowId}-${lineAdjustmentTarget.adjustment?.id ?? 'new'}`}
+							show={true}
+							baseAmount={baseAmount}
+							initialAdjustment={lineAdjustmentTarget.adjustment}
+							onCreated={(adjustment) => updateLineAdjustments(targetItem.rowId, [...targetItem.adjustments, adjustment])}
+							onUpdated={(adjustment) => updateLineAdjustments(targetItem.rowId, targetItem.adjustments.map((current) => current.id === adjustment.id ? adjustment : current))}
+							onClose={() => setLineAdjustmentTarget(null)}
+						/>
+					</div>
+				</div>
+			);
+		})()}
+
+		{showCustomerSelector && (
+			<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowCustomerSelector(false)}>
+				<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="mb-3 flex items-center justify-between gap-3">
+						<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un client</h4>
+						<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowCustomerSelector(false)}>
+							Fermer
+						</button>
+					</div>
+					<CustomersList
+						customers={customerListItems}
+						onDelete={null}
+						handleSelectedCustomer={handleSelectedCustomer}
+					/>
+				</div>
+			</div>
+		)}
 
 		{showNewCustomerModal && (
 			<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
@@ -2279,6 +2758,28 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 			</div>
 		)}
 
+		{showWorkOrderSelector && (
+			<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowWorkOrderSelector(false)}>
+				<div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="mb-3 flex items-center justify-between gap-3">
+						<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un chantier</h4>
+						<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowWorkOrderSelector(false)}>
+							Fermer
+						</button>
+					</div>
+					{workOrdersLoading ? (
+						<p>Chargement des chantiers...</p>
+					) : (
+						<WorkOrdersList
+							workOrders={workOrders}
+							onDelete={null}
+							handleSelectedWorkOrder={handleSelectedWorkOrder}
+						/>
+					)}
+				</div>
+			</div>
+		)}
+
 		{showNewWorkOrderModal && (
 			<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
 				<div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl">
@@ -2295,6 +2796,58 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, o
 					<AddWorkOrderForm
 						show={true}
 						onCreated={handleCreatedWorkOrder}
+					/>
+				</div>
+			</div>
+		)}
+
+		{showSourceInvoiceModal && (
+			<div
+				className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+				onClick={() => setShowSourceInvoiceModal(false)}
+			>
+				<div
+					className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl"
+					onClick={(event) => event.stopPropagation()}
+				>
+					<div className="mb-3 flex items-center justify-between gap-3">
+						<h4 className="text-lg font-semibold text-zinc-900">Sélectionner une facture source</h4>
+						<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowSourceInvoiceModal(false)}>
+							Fermer
+						</button>
+					</div>
+					{sourceInvoicesError && <p className="mb-3 rounded bg-red-100 p-3 text-red-700">{sourceInvoicesError}</p>}
+					{sourceInvoicesLoading ? (
+						<p>Chargement des factures...</p>
+					) : (
+						<InvoicesList
+							invoices={sourceInvoices}
+							onDelete={null}
+							handleSelectedInvoice={(invoice) => {
+								setSelectedSourceInvoice(invoice);
+								setShowSourceInvoiceModal(false);
+								setSourceInvoicesError('');
+							}}
+						/>
+					)}
+				</div>
+			</div>
+		)}
+
+		{showInvoiceAdjustmentModal && (
+			<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowInvoiceAdjustmentModal(false)}>
+				<div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="mb-4 flex items-center justify-between gap-3">
+						<h4 className="text-lg font-semibold text-zinc-900">{editingInvoiceAdjustment ? 'Modifier l’ajustement' : 'Ajouter une remise ou des frais'}</h4>
+						<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowInvoiceAdjustmentModal(false)}>Fermer</button>
+					</div>
+					<AddInvoiceAdjustmentForm
+						key={editingInvoiceAdjustment?.id ?? 'new-adjustment'}
+						show={true}
+						initialAdjustment={editingInvoiceAdjustment ?? undefined}
+						onCreated={(adjustment) => updateInvoiceAdjustments([...form.adjustments, adjustment])}
+						onUpdated={(adjustment) => updateInvoiceAdjustments(form.adjustments.map((current) => current.id === adjustment.id ? adjustment : current))}
+						onClose={() => { setShowInvoiceAdjustmentModal(false); setEditingInvoiceAdjustment(null); }}
 					/>
 				</div>
 			</div>

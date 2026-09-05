@@ -1,10 +1,21 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { InvoiceKind } from '@prisma/client';
 import { useApiClient } from '../api-client';
 import AddInvoiceForm from '../components/AddInvoiceForm';
+import AddPaymentForm, { type Payment } from '../components/AddPaymentForm';
 import InvoicesList, { type Invoice } from '../components/InvoicesList';
 import NewInvoice, { type Invoice as DraftInvoice } from '../components/NewInvoice';
 import { ProtectedRoute } from '../protected-route';
+
+const invoiceKindOptions: Array<{ value: InvoiceKind; label: string }> = [
+  { value: InvoiceKind.STANDARD, label: 'Facture standard' },
+  { value: InvoiceKind.DEPOSIT, label: 'Facture d’acompte' },
+  { value: InvoiceKind.PROGRESS, label: 'Facture de situation' },
+  { value: InvoiceKind.BALANCE, label: 'Facture de solde' },
+  { value: InvoiceKind.CORRECTIVE, label: 'Facture rectificative' },
+  { value: InvoiceKind.CREDIT_NOTE, label: 'Avoir' },
+];
 
 export default function InvoicesPage() {
   const api = useApiClient();
@@ -12,6 +23,9 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [isChoosingInvoiceKind, setIsChoosingInvoiceKind] = useState(false);
+  const [selectedInvoiceKind, setSelectedInvoiceKind] = useState<InvoiceKind | null>(null);
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [draftInvoice, setDraftInvoice] = useState<DraftInvoice | null>(null);
   const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
 
@@ -60,20 +74,90 @@ export default function InvoicesPage() {
       <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-2xl font-semibold">Gestion des Factures</h2>
-          <button
-            type="button"
-            onClick={() => setIsCreatingInvoice((current) => !current)}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
-          >
-            {isCreatingInvoice ? 'Masquer le formulaire' : 'Créer une nouvelle facture'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAddingPayment(true)}
+              className="rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+            >
+              Ajouter un paiement
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (isCreatingInvoice) {
+                  setIsCreatingInvoice(false);
+                } else {
+                  setIsChoosingInvoiceKind(true);
+                  setSelectedInvoiceKind(null);
+                }
+              }}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
+            >
+              {isCreatingInvoice ? 'Masquer le formulaire' : 'Créer une nouvelle facture'}
+            </button>
+          </div>
         </div>
 
-        {isCreatingInvoice && (
+        {isAddingPayment && (
+          <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-semibold text-zinc-900">Ajouter un paiement</h3>
+              <button type="button" onClick={() => setIsAddingPayment(false)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100">
+                Fermer
+              </button>
+            </div>
+            <AddPaymentForm
+              invoices={invoices}
+              onCreated={(payment: Payment) => {
+                setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === payment.invoiceId
+                  ? { ...invoice, payments: [payment, ...(invoice.payments ?? [])] }
+                  : invoice));
+                setIsAddingPayment(false);
+              }}
+              onCancel={() => setIsAddingPayment(false)}
+            />
+          </div>
+        )}
+
+        {isChoosingInvoiceKind && !isCreatingInvoice && (
+          <section className="mb-8 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+            <h3 className="mb-3 text-lg font-semibold text-zinc-900">Choisir le type de facture</h3>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex min-w-64 flex-1 flex-col gap-1.5">
+                <span className="text-sm font-medium text-zinc-700">Type de facture</span>
+                <select
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+                  defaultValue=""
+                  onChange={(event) => setSelectedInvoiceKind(event.target.value as InvoiceKind || null)}
+                >
+                  <option value="">-- Sélectionner un type --</option>
+                  {invoiceKindOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                disabled={!selectedInvoiceKind}
+                onClick={() => {
+                  setIsChoosingInvoiceKind(false);
+                  setIsCreatingInvoice(true);
+                }}
+                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Continuer
+              </button>
+            </div>
+          </section>
+        )}
+
+        {isCreatingInvoice && selectedInvoiceKind && (
           <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start">
             <div className="min-w-0 flex-1">
               <AddInvoiceForm
                 show={true}
+                invoiceKind={selectedInvoiceKind!}
                 onChange={setDraftInvoice}
                 onCreated={(invoice) => {
                   setInvoices((current) => [invoice, ...current]);
@@ -137,7 +221,13 @@ export default function InvoicesPage() {
         {loading ? (
           <p>Chargement...</p>
         ) : (
-          <InvoicesList invoices={invoices} onDelete={handleDelete} />
+          <InvoicesList
+            invoices={invoices}
+            onDelete={handleDelete}
+            onUpdated={(updatedInvoice) => {
+              setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === updatedInvoice.id ? updatedInvoice : invoice));
+            }}
+          />
         )}
       </main>
     </ProtectedRoute>

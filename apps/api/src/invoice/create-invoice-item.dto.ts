@@ -1,6 +1,7 @@
-import { Type } from 'class-transformer';
 import { LineItemType } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { CreateInvoiceItemAdjustmentDto } from './create-invoice-item-adjustment.dto';
 
 export class CreateInvoiceItemDto {
   @IsOptional()
@@ -54,4 +55,10 @@ export class CreateInvoiceItemDto {
   @IsNumber()
   @Min(0)
   subtotal?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateInvoiceItemAdjustmentDto)
+  adjustments?: CreateInvoiceItemAdjustmentDto[];
 }

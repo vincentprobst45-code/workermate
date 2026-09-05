@@ -1,6 +1,7 @@
 'use client';
 
 import type { InvoicePdpStatus, InvoiceStatus, PaymentMethod } from '@prisma/client';
+import { VatCategory } from '@prisma/client';
 import styles from './NewInvoice.module.css';
 
 export interface InvoiceItem {
@@ -19,6 +20,18 @@ export interface InvoiceItem {
 	unitLabel?: string;
 	subtotal?: number;
 	vatCategory?: string;
+	adjustments?: InvoiceItemAdjustment[];
+}
+
+interface InvoiceItemAdjustment {
+	id?: string;
+	position: number;
+	type: 'ALLOWANCE' | 'CHARGE';
+	amount: number;
+	baseAmount?: number;
+	percentage?: number;
+	reason?: string;
+	reasonCode?: string;
 }
 
 export interface Invoice {
@@ -63,7 +76,6 @@ export interface Invoice {
 	total: number;
 	paymentTerms?: string;
 	legalMentions?: string;
-	notes?: string;
 	depositAmount?: number;
 	discountAmount?: number;
 	paidAt?: string;
@@ -77,6 +89,12 @@ export interface Invoice {
 	updatedAt: string;
 	items?: InvoiceItem[];
 	kind?: string;
+	correctedInvoiceNumber?: string;
+	correctedInvoiceIssueDate?: string;
+	references?: Array<{
+		referencedInvoiceNumber: string;
+		referencedInvoiceIssueDate: string;
+	}>;
 	operationCategory?: string;
 	tenantSirenNumber?: string;
 	tenantCountryCode?: string;
@@ -89,6 +107,9 @@ export interface Invoice {
 	amountDue?: number;
 	internalNotes?: string;
 	allowanceTotal?: number;
+	chargeTotal?: number;
+	adjustments?: Array<{ id: string; position: number; type: 'ALLOWANCE' | 'CHARGE'; amount: number; reason?: string; vatCategory?: VatCategory; vatRate?: number }>;
+	vatBreakdowns?: Array<{ taxableAmount: number; vatAmount: number; vatCategory: VatCategory; vatRate?: number | null }>;
 	notes?: string | Array<{ text: string }>;
 }
 
@@ -116,6 +137,14 @@ function formatAddress(street1?: string, street2?: string, postalCode?: string, 
 	return [line1, line2].filter(Boolean).join(' | ') || '-';
 }
 
+function getEffectiveVatRate(vatCategory: VatCategory | string | undefined, vatRate: number): number | null {
+	if (vatCategory === VatCategory.ZERO) {
+		return null;
+	}
+
+	return vatCategory === VatCategory.STANDARD ? vatRate : 0;
+}
+
 export default function NewInvoice({
 	invoice,
 }: NewInvoiceProps) {
@@ -124,20 +153,86 @@ export default function NewInvoice({
 	const lines = (invoice.items || []).slice().sort((a, b) => a.position - b.position);
 
 	const computedLines = lines.map((line) => {
-		const totalExclTax = Number(line.subtotal ?? line.quantity * line.unitPrice);
-		const vatAmount = totalExclTax * (line.vatRate / 100);
+		const baseAmount = Number(line.quantity) * Number(line.unitPrice);
+		const totalExclTax = line.adjustments?.length
+			? line.adjustments.reduce(
+				(total, adjustment) => {
+					const amount = adjustment.percentage == null
+						? Number(adjustment.amount || 0)
+						: baseAmount * Number(adjustment.percentage || 0) / 100;
+					return total + (adjustment.type === 'ALLOWANCE' ? -amount : amount);
+				},
+				baseAmount,
+			)
+			: Number(line.subtotal ?? baseAmount);
+		const effectiveVatRate = getEffectiveVatRate(line.vatCategory, Number(line.vatRate || 0));
+		const vatAmount = effectiveVatRate === null ? 0 : totalExclTax * (effectiveVatRate / 100);
 
 		return {
 			...line,
 			totalExclTax,
+			effectiveVatRate,
 			vatAmount,
 		};
 	});
-
+	const lineSubtotal = computedLines.reduce((total, line) => total + line.totalExclTax, 0);
+	const allowanceTotal = invoice.adjustments?.length
+		? invoice.adjustments.filter((adjustment) => adjustment.type === 'ALLOWANCE').reduce((total, adjustment) => total + Number(adjustment.amount || 0), 0)
+		: Number(invoice.allowanceTotal || 0);
+	const chargeTotal = invoice.adjustments?.length
+		? invoice.adjustments.filter((adjustment) => adjustment.type === 'CHARGE').reduce((total, adjustment) => total + Number(adjustment.amount || 0), 0)
+		: Number(invoice.chargeTotal || 0);
+	const calculatedTaxExclusiveAmount = lineSubtotal - allowanceTotal + chargeTotal;
+	const vatByRate = new Map<number, number>();
+	if (invoice.vatBreakdowns?.length) {
+		invoice.vatBreakdowns.forEach((breakdown) => {
+			if (breakdown.vatCategory !== VatCategory.STANDARD) return;
+			const rate = Number(breakdown.vatRate || 0);
+			vatByRate.set(rate, (vatByRate.get(rate) || 0) + Number(breakdown.vatAmount || 0));
+		});
+	} else {
+		const taxableByRate = new Map<number, number>();
+		computedLines.forEach((line) => {
+			if (line.effectiveVatRate === null) return;
+			const rate = line.effectiveVatRate;
+			taxableByRate.set(rate, (taxableByRate.get(rate) || 0) + line.totalExclTax);
+		});
+		(invoice.adjustments || []).forEach((adjustment) => {
+			if (adjustment.vatCategory && adjustment.vatCategory !== VatCategory.STANDARD) return;
+			const taxableTotal = Array.from(taxableByRate.values()).reduce((total, base) => total + base, 0);
+			if (taxableTotal === 0) return;
+			const signedAmount = adjustment.type === 'ALLOWANCE' ? -Number(adjustment.amount || 0) : Number(adjustment.amount || 0);
+			taxableByRate.forEach((base, rate) => {
+				taxableByRate.set(rate, base + signedAmount * base / taxableTotal);
+			});
+		});
+		taxableByRate.forEach((base, rate) => {
+			vatByRate.set(rate, base * rate / 100);
+		});
+	}
+	const vatLines = Array.from(vatByRate.entries())
+		.filter(([, amount]) => Math.abs(amount) > 0.005)
+		.sort(([rateA], [rateB]) => rateA - rateB)
+		.map(([rate, amount]) => ({ rate, amount }));
+	const displayedTaxExclusiveAmount = calculatedTaxExclusiveAmount;
+	const displayedVatAmount = vatLines.length > 0
+		? vatLines.reduce((total, vatLine) => total + vatLine.amount, 0)
+		: Number(invoice.vatAmount || 0);
+	const displayedTaxInclusiveAmount = displayedTaxExclusiveAmount + displayedVatAmount;
 	const customerFullName = [invoice.customerName || invoice.customerFirstName, invoice.customerLastName]
 		.filter(Boolean)
 		.join(' ')
 		.trim();
+	const initialInvoiceReference = invoice.kind === 'CORRECTIVE'
+		? invoice.correctedInvoiceNumber
+		: invoice.kind === 'CREDIT_NOTE'
+			? invoice.references?.[0]?.referencedInvoiceNumber
+			: undefined;
+	const initialInvoiceIssueDate = invoice.kind === 'CORRECTIVE'
+		? invoice.correctedInvoiceIssueDate
+		: invoice.kind === 'CREDIT_NOTE'
+			? invoice.references?.[0]?.referencedInvoiceIssueDate
+			: undefined;
 
 	return (
 		<section className={styles.invoicePage}>
@@ -150,6 +245,12 @@ export default function NewInvoice({
 					<p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(invoice.dueDate, locale)}</p>
 					<p className={styles.invoiceMuted}>Reference chantier: {invoice.workOrderReference || '-'}</p>
 					<p className={styles.invoiceMuted}>Chantier: {invoice.workOrderTitle}</p>
+					{initialInvoiceReference && (
+						<>
+							<p className={styles.invoiceMuted}>Facture initiale: {initialInvoiceReference}</p>
+							<p className={styles.invoiceMuted}>Date facture initiale: {formatDate(initialInvoiceIssueDate, locale)}</p>
+						</>
+					)}
 				</div>
 
 				<div className={styles.rightBlock}>
@@ -189,6 +290,7 @@ export default function NewInvoice({
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>Qte</th>
 							<th className={styles.invoiceTableHeadCell}>Unite</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>PU HT</th>
+							<th className={styles.invoiceTableHeadCell}>Remises / charges</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>TVA %</th>
 							<th className={`${styles.invoiceTableHeadCell} ${styles.invoiceCellRight}`}>Total HT</th>
 						</tr>
@@ -204,7 +306,14 @@ export default function NewInvoice({
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.quantity}</td>
 								<td className={styles.invoiceTableCell}>{line.unitLabel || line.unitCode || line.unit || '-'}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.unitPrice, locale, currency)}</td>
-								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{Number(line.vatRate).toFixed(2)}</td>
+								<td className={styles.invoiceTableCell}>
+									{line.adjustments?.length ? line.adjustments.map((adjustment) => (
+										<p key={adjustment.id ?? `${line.id}-${adjustment.position}`} className={styles.invoiceSubtext}>
+											{adjustment.type === 'ALLOWANCE' ? 'Remise' : 'Charge'}: {adjustment.percentage == null ? formatMoney(Number(adjustment.amount || 0), locale, currency) : `${Number(adjustment.percentage)} % (${formatMoney(Number(adjustment.amount || 0), locale, currency)})`}{adjustment.reason ? ` - ${adjustment.reason}` : ''}
+										</p>
+									)) : '-'}
+								</td>
+								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{line.effectiveVatRate === null ? '-' : line.effectiveVatRate.toFixed(2)}</td>
 								<td className={`${styles.invoiceTableCell} ${styles.invoiceCellRight}`}>{formatMoney(line.totalExclTax, locale, currency)}</td>
 							</tr>
 						))}
@@ -215,17 +324,35 @@ export default function NewInvoice({
 			<section className={`${styles.invoiceTotals} ${styles.keepTogether}`}>
 				<div className={styles.invoiceTotalsBox}>
 					<div className={styles.invoiceTotalLine}>
-						<span>Total HT</span>
-						<strong>{formatMoney(invoice.taxExclusiveAmount ?? invoice.subtotal, locale, currency)}</strong>
+						<span>Sous-total lignes</span>
+						<strong>{formatMoney(lineSubtotal, locale, currency)}</strong>
 					</div>
-					<div className={styles.invoiceTotalLine}>
-						<span>Total TVA</span>
-						<strong>{formatMoney(invoice.vatAmount, locale, currency)}</strong>
-					</div>
-					{!!invoice.allowanceTotal && (
+					{!!allowanceTotal && (
 						<div className={styles.invoiceTotalLine}>
-							<span>Remise</span>
-							<strong>-{formatMoney(invoice.allowanceTotal, locale, currency)}</strong>
+							<span>Remises globales</span>
+							<strong>-{formatMoney(allowanceTotal, locale, currency)}</strong>
+						</div>
+					)}
+					{!!chargeTotal && (
+						<div className={styles.invoiceTotalLine}>
+							<span>Charges globales</span>
+							<strong>+{formatMoney(chargeTotal, locale, currency)}</strong>
+						</div>
+					)}
+					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
+						<span>Total HT</span>
+						<strong>{formatMoney(displayedTaxExclusiveAmount, locale, currency)}</strong>
+					</div>
+					{vatLines.map((vatLine) => (
+						<div key={vatLine.rate} className={styles.invoiceTotalLine}>
+							<span>TVA {vatLine.rate} %</span>
+							<strong>{formatMoney(vatLine.amount, locale, currency)}</strong>
+						</div>
+					))}
+					{vatLines.length === 0 && (
+						<div className={styles.invoiceTotalLine}>
+							<span>TVA</span>
+							<strong>{formatMoney(invoice.vatAmount, locale, currency)}</strong>
 						</div>
 					)}
 					{!!invoice.prepaidAmount && (
@@ -236,7 +363,7 @@ export default function NewInvoice({
 					)}
 					<div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
 						<span>Total TTC</span>
-						<strong>{formatMoney(invoice.taxInclusiveAmount ?? invoice.total, locale, currency)}</strong>
+						<strong>{formatMoney(displayedTaxInclusiveAmount, locale, currency)}</strong>
 					</div>
 				</div>
 			</section>

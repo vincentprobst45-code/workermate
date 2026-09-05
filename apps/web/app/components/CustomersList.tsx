@@ -29,10 +29,11 @@ export interface Customer {
 
 interface CustomersListProps {
   customers: Customer[];
-  onDelete: (id: string) => void | Promise<void>;
+  onDelete?: ((id: string) => void | Promise<void>) | null;
+  handleSelectedCustomer?: ((customer: Customer) => void | Promise<void>) | null;
 }
 
-export default function CustomersList({ customers, onDelete }: CustomersListProps) {
+export default function CustomersList({ customers, onDelete = null, handleSelectedCustomer = null }: CustomersListProps) {
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customersPerPage, setCustomersPerPage] = useState(5);
@@ -103,10 +104,23 @@ export default function CustomersList({ customers, onDelete }: CustomersListProp
         {currentCustomers.map((customer) => (
           <div
             key={customer.id}
+            role={handleSelectedCustomer ? 'button' : undefined}
+            tabIndex={handleSelectedCustomer ? 0 : undefined}
             className="hover:bg-gray-100 active:bg-gray-400 p-4 bg-white rounded-lg shadow flex justify-between items-center border-2 border-gray-700"
             onClick={() => {
+              if (handleSelectedCustomer) {
+                void handleSelectedCustomer(customer);
+                return;
+              }
+
               setShowCustomerDetails(true);
               setSelectedCustomer(customer);
+            }}
+            onKeyDown={(event) => {
+              if (handleSelectedCustomer && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                void handleSelectedCustomer(customer);
+              }
             }}
           >
             <div>
@@ -121,15 +135,17 @@ export default function CustomersList({ customers, onDelete }: CustomersListProp
               </p>
               {customer.company && <p className="text-sm text-slate-600">{customer.company}</p>}
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                void onDelete(customer.id);
-              }}
-              className="text-red-600 hover:text-red-800"
-            >
-              Supprimer
-            </button>
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onDelete(customer.id);
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                Supprimer
+              </button>
+            )}
           </div>
         ))}
       </section>

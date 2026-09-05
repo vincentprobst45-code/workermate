@@ -16,6 +16,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CreateInvoiceItemDto } from './create-invoice-item.dto';
+import { CreateInvoiceAdjustmentDto } from './create-invoice-adjustment.dto';
+import { CreatePaymentDto } from '../payment/create-payment.dto';
 
 export class CreateInvoiceDto {
   @IsString()
@@ -163,6 +165,14 @@ export class CreateInvoiceDto {
   @IsEnum(InvoiceKind)
   kind?: InvoiceKind;
 
+  @IsOptional()
+  @IsString()
+  correctedInvoiceId?: string;
+
+  @IsOptional()
+  @IsString()
+  referencedInvoiceId?: string;
+
   @IsEnum(InvoiceOperationCategory)
   operationCategory!: InvoiceOperationCategory;
 
@@ -227,4 +237,16 @@ export class CreateInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)
   invoiceItems?: CreateInvoiceItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateInvoiceAdjustmentDto)
+  adjustments?: CreateInvoiceAdjustmentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePaymentDto)
+  payments?: CreatePaymentDto[];
 }
