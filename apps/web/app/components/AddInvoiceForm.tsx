@@ -39,6 +39,13 @@ import WorkOrdersList, { type WorkOrder as WorkOrderBase } from './WorkOrdersLis
 
 type CustomerMode = 'new' | 'existing';
 type WorkOrderMode = 'new' | 'existing';
+type SubmitIntent = 'draft' | 'issue';
+
+type AssociatedQuoteSummary = {
+	id: string;
+	number: string;
+	title: string;
+};
 
 interface TenantInvoiceDefaults {
 	name?: string | null;
@@ -332,6 +339,21 @@ function trimToUndefined(value?: string | null): string | undefined {
 
 function trimOrEmpty(value?: string | null): string {
 	return value?.trim() ?? '';
+}
+
+function getFilledFieldLabels(form: AddInvoiceFormData): string[] {
+	const filledFields: Array<[string, boolean]> = [
+		['Client', Boolean(form.customerId || form.customerFirstName || form.customerLastName)],
+		['Adresse client', Boolean(form.customerStreet1 || form.customerPostalCode || form.customerCity)],
+		['Chantier', Boolean(form.workOrderId || form.workOrderReference || form.workOrderTitle)],
+		['Lignes de facture', form.invoiceItems.some((item) => item.title.trim() || item.quantity || item.unitPrice)],
+		['Ajustements', form.adjustments.length > 0],
+		['Paiements', form.payments.length > 0],
+		['Conditions de paiement', Boolean(form.paymentTerms)],
+		['Notes', Boolean(form.notes)],
+	];
+
+	return filledFields.filter(([, isFilled]) => isFilled).map(([label]) => label);
 }
 
 function createEmptyInvoice(tenantDefaults?: TenantInvoiceDefaults): AddInvoiceFormData {
@@ -1025,16 +1047,19 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
 	const [workOrdersError, setWorkOrdersError] = useState('');
 	const [showWorkOrdersList, setShowWorkOrdersList] = useState(false);
-	const [selectedImportWorkOrder, setSelectedImportWorkOrder] = useState<WorkOrderOption | null>(null);
 	const [quotes, setQuotes] = useState<QuoteOption[]>([]);
 	const [quotesLoading, setQuotesLoading] = useState(false);
 	const [quotesError, setQuotesError] = useState('');
 	const [showQuotesList, setShowQuotesList] = useState(false);
-	const [selectedQuote, setSelectedQuote] = useState<QuoteOption | null>(null);
 	const [showAssociatedQuoteModal, setShowAssociatedQuoteModal] = useState(false);
-	const [associatedQuote, setAssociatedQuote] = useState<QuoteOption | null>(null);
+	const [associatedQuote, setAssociatedQuote] = useState<AssociatedQuoteSummary | null>(() => initialInvoice?.quoteId
+		? {
+			id: initialInvoice.quoteId,
+			number: initialInvoice.quoteNumber ?? '',
+			title: 'Devis associé',
+		}
+		: null);
 	const [showTopQuotesList, setShowTopQuotesList] = useState(false);
-	const [selectedTopQuote, setSelectedTopQuote] = useState<QuoteOption | null>(null);
 	const [topQuotesError, setTopQuotesError] = useState('');
 	const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
 	const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
@@ -1043,7 +1068,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	const [showAddLineMenu, setShowAddLineMenu] = useState(false);
 	const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
 	const [showTopWorkOrdersList, setShowTopWorkOrdersList] = useState(false);
-	const [selectedTopWorkOrder, setSelectedTopWorkOrder] = useState<WorkOrderOption | null>(null);
 	const [topWorkOrdersError, setTopWorkOrdersError] = useState('');
 	const [, setCustomerMode] = useState<CustomerMode>(
 		initialInvoice?.customerId ? 'existing' : 'new',
@@ -1068,6 +1092,9 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	const [sourceInvoicesError, setSourceInvoicesError] = useState('');
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
+	const [validationErrors, setValidationErrors] = useState<string[]>([]);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [activeModal, setActiveModal] = useState<string | null>(null);
 	const sensors = useSensors(useSensor(PointerSensor));
 	const generatedInvoiceNumber = formatInvoiceNumber(
 		getInvoiceYear(form.issueDate),
@@ -1097,6 +1124,36 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		? [selectedCustomer.address?.postalCode, selectedCustomer.address?.city].filter(Boolean).join(' ')
 		: [form.customerPostalCode, form.customerCity].filter(Boolean).join(' ');
 	const hasCustomerSummary = Boolean(customerSummaryName || customerSummaryContact !== '-' || customerSummaryLocation);
+	const filledFieldLabels = getFilledFieldLabels(form);
+	const hasOpenModal = Boolean(activeModal || showTopQuotesList || showTopWorkOrdersList || showQuotesList || showWorkOrdersList || showCatalogItemsList || showCustomerSelector || showNewCustomerModal || showWorkOrderSelector || showNewWorkOrderModal || showSourceInvoiceModal || showInvoiceAdjustmentModal || lineAdjustmentTarget || showAssociatedQuoteModal);
+
+	useEffect(() => {
+		if (!hasOpenModal) {
+			return;
+		}
+
+		function handleModalKeyDown(event: KeyboardEvent) {
+			if (event.key === 'Escape') {
+				setShowTopQuotesList(false);
+				setShowTopWorkOrdersList(false);
+				setShowQuotesList(false);
+				setShowWorkOrdersList(false);
+				setShowCatalogItemsList(false);
+				setShowCustomerSelector(false);
+				setShowNewCustomerModal(false);
+				setShowWorkOrderSelector(false);
+				setShowNewWorkOrderModal(false);
+				setShowSourceInvoiceModal(false);
+				setShowInvoiceAdjustmentModal(false);
+				setShowAssociatedQuoteModal(false);
+				setLineAdjustmentTarget(null);
+				setActiveModal(null);
+			}
+		}
+
+		document.addEventListener('keydown', handleModalKeyDown);
+		return () => document.removeEventListener('keydown', handleModalKeyDown);
+	}, [hasOpenModal]);
 
 	useEffect(() => {
 		onChange?.(createDraftPreviewInvoice(
@@ -1352,7 +1409,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		setShowQuotesList(true);
 		setShowCatalogItemsList(false);
 		setShowWorkOrdersList(false);
-		setSelectedQuote(null);
 		setQuotesLoading(true);
 
 		try {
@@ -1404,11 +1460,20 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		setQuotesError('');
 	}
 
+	function confirmDestructiveReplacement(sourceLabel: string): boolean {
+		if (filledFieldLabels.length === 0) {
+			return true;
+		}
+
+		return window.confirm(
+			`Remplir la facture depuis ${sourceLabel} remplacera les informations déjà saisies:\n\n- ${filledFieldLabels.join('\n- ')}\n\nVoulez-vous continuer ?`,
+		);
+	}
+
 	async function openTopQuoteSelector() {
 		setTopQuotesError('');
 		setShowTopQuotesList(true);
 		setShowTopWorkOrdersList(false);
-		setSelectedTopQuote(null);
 		setQuotesLoading(true);
 
 		try {
@@ -1514,49 +1579,17 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		});
 	}
 
-	function chooseSelectedQuote() {
-		if (!selectedQuote) {
-			return;
-		}
-
-		if (!selectedQuote.items.length) {
-			setQuotesError('Le devis sélectionné ne contient aucune ligne.');
-			return;
-		}
-
-		appendQuoteLinesToForm(selectedQuote);
-
-		setShowQuotesList(false);
-		setSelectedQuote(null);
-		setQuotesError('');
-		setSuccess('Formulaire rempli depuis le devis et lignes importées.');
-	}
-
-	function chooseTopSelectedQuote() {
-		if (!selectedTopQuote) {
-			return;
-		}
-
-		replaceFormFromQuote(selectedTopQuote);
-		setShowTopQuotesList(false);
-		setSelectedTopQuote(null);
-		setTopQuotesError('');
-		setSuccess('Formulaire rempli depuis le devis et lignes importées.');
-	}
-
 	function openWorkOrderLineSelector() {
 		setWorkOrdersError('');
 		setShowWorkOrdersList(true);
 		setShowCatalogItemsList(false);
 		setShowQuotesList(false);
-		setSelectedImportWorkOrder(null);
 	}
 
 	function openTopWorkOrderSelector() {
 		setTopWorkOrdersError('');
 		setShowTopWorkOrdersList(true);
 		setShowTopQuotesList(false);
-		setSelectedTopWorkOrder(null);
 	}
 
 	function buildWorkOrderInvoiceItems(workOrder: WorkOrderOption): AddInvoiceItemFormData[] {
@@ -1611,36 +1644,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				...totals,
 			};
 		});
-	}
-
-	function chooseSelectedWorkOrderLines() {
-		if (!selectedImportWorkOrder) {
-			return;
-		}
-
-		if (!selectedImportWorkOrder.items.length) {
-			setWorkOrdersError('Le chantier sélectionné ne contient aucune étape.');
-			return;
-		}
-
-		appendWorkOrderLinesToForm(selectedImportWorkOrder);
-
-		setShowWorkOrdersList(false);
-		setSelectedImportWorkOrder(null);
-		setWorkOrdersError('');
-		setSuccess('Lignes importées depuis le chantier.');
-	}
-
-	function chooseTopSelectedWorkOrder() {
-		if (!selectedTopWorkOrder) {
-			return;
-		}
-
-		replaceFormFromWorkOrder(selectedTopWorkOrder);
-		setShowTopWorkOrdersList(false);
-		setSelectedTopWorkOrder(null);
-		setTopWorkOrdersError('');
-		setSuccess('Formulaire rempli depuis le chantier et lignes importées.');
 	}
 
 	async function openCatalogItemSelector() {
@@ -1815,34 +1818,42 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		event.preventDefault();
 		setError('');
 		setSuccess('');
+		setValidationErrors([]);
+		if (isSubmitting) {
+			return;
+		}
+
+		const submitter = event.nativeEvent.submitter as HTMLButtonElement | null;
+		const submitIntent: SubmitIntent = submitter?.dataset.submitIntent === 'draft' ? 'draft' : 'issue';
+		const errors: string[] = [];
 
 		if (!displayedInvoiceNumber.trim()) {
-			setError('Le numéro de facture est obligatoire.');
-			return;
+			errors.push('Le numéro de facture est obligatoire.');
 		}
 
 		if (!form.customerId.trim()) {
-			setError('Le client est obligatoire.');
-			return;
+			errors.push('Le client est obligatoire.');
 		}
 
 		if ((invoiceKind === InvoiceKind.CORRECTIVE || invoiceKind === InvoiceKind.CREDIT_NOTE) && !selectedSourceInvoice) {
-			setError('Sélectionnez une facture source.');
-			return;
+			errors.push('Sélectionnez une facture source.');
 		}
 
 		if (!form.invoiceItems.length || form.invoiceItems.some((item) => !item.title.trim())) {
-			setError('Chaque ligne de la facture doit avoir un titre.');
-			return;
+			errors.push('Chaque ligne de la facture doit avoir un titre.');
 		}
 
 		if (!form.customerStreet1.trim() || !form.customerPostalCode.trim() || !form.customerCity.trim()) {
-			setError('Les informations d\'adresse client sont incomplètes.');
-			return;
+			errors.push('Les informations d\'adresse client sont incomplètes.');
 		}
 
 		if (!form.tenantName.trim() || !form.tenantStreet1.trim() || !form.tenantPostalCode.trim() || !form.tenantCity.trim()) {
-			setError('Les informations entreprise sont incomplètes.');
+			errors.push('Les informations entreprise sont incomplètes.');
+		}
+
+		if (errors.length > 0) {
+			setValidationErrors(errors);
+			setError('Corrigez les informations signalées avant de continuer.');
 			return;
 		}
 
@@ -1883,7 +1894,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			workOrderAddress: trimToUndefined(form.workOrderAddress),
 			workOrderPostalCode: trimToUndefined(form.workOrderPostalCode),
 			workOrderCity: trimToUndefined(form.workOrderCity),
-			status: form.status,
+			status: submitIntent === 'issue' ? InvoiceStatus.ISSUED : InvoiceStatus.DRAFT,
 			currency: form.currency.trim() || 'EUR',
 			subtotal: form.subtotal,
 			vatAmount: form.vatAmount,
@@ -1941,6 +1952,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			}),
 		};
 
+		setIsSubmitting(true);
 		try {
 			const response = initialInvoice
 				? await api.put(`/invoices/${initialInvoice.id}`, payload)
@@ -1967,10 +1979,12 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				setSelectedSourceInvoice(null);
 				setCustomerMode('new');
 				setWorkOrderMode('new');
-				setSuccess('Facture créée avec succès.');
+				setSuccess(submitIntent === 'issue' ? 'Facture émise avec succès.' : 'Facture enregistrée comme brouillon.');
 			}
 		} catch {
-			setError('Erreur lors de la création de la facture.');
+			setError(`Impossible d'${initialInvoice ? 'enregistrer les modifications' : 'enregistrer la facture'}. Vérifiez votre connexion puis réessayez.`);
+		} finally {
+			setIsSubmitting(false);
 		}
 	}
 
@@ -1984,10 +1998,23 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				}
 			}}
 			className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
+			aria-busy={isSubmitting}
 		>
 			<h3 className="text-lg font-semibold text-zinc-900">
 				{initialInvoice ? 'Modifier la facture' : `Nouvelle facture ${invoiceKindLabels[invoiceKind]}`}
 			</h3>
+			<p className="text-sm text-zinc-600"><span aria-hidden="true">*</span> Champs obligatoires</p>
+			{(error || validationErrors.length > 0) && (
+				<div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" aria-live="assertive">
+					<p className="font-semibold">{error || 'Des informations sont incomplètes.'}</p>
+					{validationErrors.length > 0 && (
+						<ul className="mt-2 list-disc space-y-1 pl-5">
+							{validationErrors.map((validationError) => <li key={validationError}>{validationError}</li>)}
+						</ul>
+					)}
+				</div>
+			)}
+			{success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800" role="status" aria-live="polite">{success}</div>}
 			<div className="flex flex-wrap gap-2">
 				<button
 					type="button"
@@ -2027,31 +2054,15 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 							quotes={quotes}
 							onDelete={null}
 							handleSelectedQuote={(quote) => {
-								setSelectedTopQuote(quote);
+								if (!confirmDestructiveReplacement(`le devis ${quote.number}`)) return;
+								replaceFormFromQuote(quote);
+								setAssociatedQuote({ id: quote.id, number: quote.number, title: quote.title });
 								setShowTopQuotesList(false);
 								setTopQuotesError('');
+								setSuccess('Facture remplie depuis le devis sélectionné.');
 							}}
 						/>
 					)}
-				</div>
-			)}
-
-			{!showTopQuotesList && selectedTopQuote && (
-				<div className="rounded-md border border-zinc-200 bg-white p-4">
-					<h4 className="mb-3 text-lg font-semibold text-zinc-900">Devis sélectionné</h4>
-					<div className="rounded-md border bg-zinc-50 p-3 text-sm text-zinc-700">
-						<p><strong>Numéro:</strong> {selectedTopQuote.number}</p>
-						<p><strong>Chantier:</strong> {selectedTopQuote.workOrderTitle || '-'}</p>
-						<p><strong>Nombre de lignes:</strong> {selectedTopQuote.items.length || 0}</p>
-					</div>
-					<div className="mt-4 flex flex-wrap gap-3">
-						<button type="button" onClick={chooseTopSelectedQuote} className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400">
-							Choisir ce devis
-						</button>
-						<button type="button" onClick={() => setShowTopQuotesList(true)} className="rounded-md border-2 bg-zinc-200 p-2 hover:bg-zinc-300 active:bg-zinc-400">
-							Choisir un autre devis
-						</button>
-					</div>
 				</div>
 			)}
 
@@ -2070,31 +2081,15 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 							workOrders={workOrders}
 							onDelete={null}
 							handleSelectedWorkOrder={(workOrder) => {
-								setSelectedTopWorkOrder(workOrder as WorkOrderOption);
+								const selectedWorkOrder = workOrder as WorkOrderOption;
+								if (!confirmDestructiveReplacement(`le chantier ${selectedWorkOrder.reference}`)) return;
+								replaceFormFromWorkOrder(selectedWorkOrder);
 								setShowTopWorkOrdersList(false);
 								setTopWorkOrdersError('');
+								setSuccess('Facture remplie depuis le chantier sélectionné.');
 							}}
 						/>
 					)}
-				</div>
-			)}
-
-			{!showTopWorkOrdersList && selectedTopWorkOrder && (
-				<div className="rounded-md border border-zinc-200 bg-white p-4">
-					<h4 className="mb-3 text-lg font-semibold text-zinc-900">Chantier sélectionné</h4>
-					<div className="rounded-md border bg-zinc-50 p-3 text-sm text-zinc-700">
-						<p><strong>Titre:</strong> {selectedTopWorkOrder.title}</p>
-						<p><strong>Référence:</strong> {selectedTopWorkOrder.reference || '-'}</p>
-						<p><strong>Nombre d&apos;étapes:</strong> {selectedTopWorkOrder.items.length || 0}</p>
-					</div>
-					<div className="mt-4 flex flex-wrap gap-3">
-						<button type="button" onClick={chooseTopSelectedWorkOrder} className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400">
-							Choisir ce chantier
-						</button>
-						<button type="button" onClick={() => setShowTopWorkOrdersList(true)} className="rounded-md border-2 bg-zinc-200 p-2 hover:bg-zinc-300 active:bg-zinc-400">
-							Choisir un autre chantier
-						</button>
-					</div>
 				</div>
 			)}
 
@@ -2293,10 +2288,10 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				{catalogItemsError && <div className="mb-3 rounded bg-red-100 p-3 text-red-700">{catalogItemsError}</div>}
 
 				{showQuotesList && (
-					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowQuotesList(false)}>
-					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setShowQuotesList(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="invoice-lines-quote-dialog" tabIndex={-1} onClick={(event) => event.stopPropagation()}>
 						<div className="mb-3 flex items-center gap-2">
-							<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un devis</h4>
+							<h4 id="invoice-lines-quote-dialog" className="text-lg font-semibold text-zinc-900">Sélectionner un devis</h4>
 							<button type="button" className="ml-auto rounded border px-3 py-2 text-sm" onClick={() => setShowQuotesList(false)}>
 								Fermer
 							</button>
@@ -2308,9 +2303,14 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 								quotes={quotes}
 								onDelete={null}
 								handleSelectedQuote={(quote) => {
-									setSelectedQuote(quote);
+									if (!quote.items.length) {
+										setQuotesError('Le devis sélectionné ne contient aucune ligne.');
+										return;
+									}
+									appendQuoteLinesToForm(quote);
 									setShowQuotesList(false);
 									setQuotesError('');
+									setSuccess('Lignes importées depuis le devis sélectionné.');
 								}}
 							/>
 						)}
@@ -2318,30 +2318,11 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 					</div>
 				)}
 
-				{!showQuotesList && selectedQuote && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-4">
-						<h4 className="mb-3 text-lg font-semibold text-zinc-900">Devis sélectionné</h4>
-						<div className="rounded-md border bg-zinc-50 p-3 text-sm text-zinc-700">
-							<p><strong>Numéro:</strong> {selectedQuote.number}</p>
-							<p><strong>Chantier:</strong> {selectedQuote.workOrderTitle || '-'}</p>
-							<p><strong>Nombre de lignes:</strong> {selectedQuote.items.length || 0}</p>
-						</div>
-						<div className="mt-4 flex flex-wrap gap-3">
-							<button type="button" onClick={chooseSelectedQuote} className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400">
-								Choisir ce devis
-							</button>
-							<button type="button" onClick={() => setShowQuotesList(true)} className="rounded-md border-2 bg-zinc-200 p-2 hover:bg-zinc-300 active:bg-zinc-400">
-								Choisir un autre devis
-							</button>
-						</div>
-					</div>
-				)}
-
 				{showWorkOrdersList && (
-					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowWorkOrdersList(false)}>
-					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setShowWorkOrdersList(false)}>
+					<div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="invoice-lines-work-order-dialog" tabIndex={-1} onClick={(event) => event.stopPropagation()}>
 						<div className="mb-3 flex items-center gap-2">
-							<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un chantier</h4>
+							<h4 id="invoice-lines-work-order-dialog" className="text-lg font-semibold text-zinc-900">Sélectionner un chantier</h4>
 							<button type="button" className="ml-auto rounded border px-3 py-2 text-sm" onClick={() => setShowWorkOrdersList(false)}>
 								Fermer
 							</button>
@@ -2353,32 +2334,15 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 								workOrders={workOrders}
 								onDelete={null}
 								handleSelectedWorkOrder={(workOrder) => {
-									setSelectedImportWorkOrder(workOrder as WorkOrderOption);
+									const selectedWorkOrder = workOrder as WorkOrderOption;
+									appendWorkOrderLinesToForm(selectedWorkOrder);
 									setShowWorkOrdersList(false);
 									setWorkOrdersError('');
+									setSuccess('Lignes importées depuis le chantier sélectionné.');
 								}}
 							/>
 						)}
 					</div>
-					</div>
-				)}
-
-				{!showWorkOrdersList && selectedImportWorkOrder && (
-					<div className="mb-4 rounded-md border border-zinc-200 bg-white p-4">
-						<h4 className="mb-3 text-lg font-semibold text-zinc-900">Chantier sélectionné</h4>
-						<div className="rounded-md border bg-zinc-50 p-3 text-sm text-zinc-700">
-							<p><strong>Titre:</strong> {selectedImportWorkOrder.title}</p>
-							<p><strong>Référence:</strong> {selectedImportWorkOrder.reference || '-'}</p>
-							<p><strong>Nombre d&apos;étapes:</strong> {selectedImportWorkOrder.items.length || 0}</p>
-						</div>
-						<div className="mt-4 flex flex-wrap gap-3">
-							<button type="button" onClick={chooseSelectedWorkOrderLines} className="rounded-md border-2 bg-green-200 p-2 hover:bg-green-300 active:bg-green-400">
-								Choisir ce chantier
-							</button>
-							<button type="button" onClick={() => setShowWorkOrdersList(true)} className="rounded-md border-2 bg-zinc-200 p-2 hover:bg-zinc-300 active:bg-zinc-400">
-								Choisir un autre chantier
-							</button>
-						</div>
 					</div>
 				)}
 
@@ -2558,6 +2522,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
 				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Infos facture</h4>
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					<div className="sm:col-span-2 lg:col-span-3 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Identification et dates</div>
 					<FieldLabel label="Numéro facture" required>
 						<input className={`${fieldClassName} bg-zinc-100`} value={displayedInvoiceNumber} readOnly required />
 					</FieldLabel>
@@ -2567,23 +2532,16 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 					<FieldLabel label="Date d'échéance">
 						<input type="datetime-local" className={fieldClassName} value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} />
 					</FieldLabel>
-					<FieldLabel label="Statut">
-						<select className={fieldClassName} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InvoiceStatus })}>
-							<option value="DRAFT">Brouillon</option>
-							<option value="ISSUED">Émise</option>
-							<option value="REPLACED">Remplacée</option>
-							<option value="CANCELLED">Annulée</option>
-						</select>
-					</FieldLabel>
 					<FieldLabel label="Devise" required>
 						<input className={fieldClassName} value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })} required />
 					</FieldLabel>
-					<FieldLabel label="Sous-total HT" required>
-						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.subtotal} readOnly required />
-					</FieldLabel>
-					<FieldLabel label="TVA" required>
-						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.vatAmount} readOnly required />
-					</FieldLabel>
+					<div className="sm:col-span-2 lg:col-span-3 border-b border-zinc-200 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Montants calculés</div>
+					<dl className="sm:col-span-2 lg:col-span-3 grid grid-cols-2 gap-3 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-4">
+						<div><dt className="text-xs text-zinc-500">Sous-total HT</dt><dd className="text-lg font-semibold text-zinc-900">{toFiniteNumber(form.subtotal).toFixed(2)} {form.currency || 'EUR'}</dd></div>
+						<div><dt className="text-xs text-zinc-500">TVA</dt><dd className="text-lg font-semibold text-zinc-900">{toFiniteNumber(form.vatAmount).toFixed(2)} {form.currency || 'EUR'}</dd></div>
+						<div><dt className="text-xs text-zinc-500">Total TTC</dt><dd className="text-lg font-semibold text-zinc-900">{roundMoney(form.taxExclusiveAmount + form.vatAmount).toFixed(2)} {form.currency || 'EUR'}</dd></div>
+						<div><dt className="text-xs text-zinc-500">Net à payer</dt><dd className="text-lg font-semibold text-zinc-900">{toFiniteNumber(form.total).toFixed(2)} {form.currency || 'EUR'}</dd></div>
+					</dl>
 					{form.vatBreakdowns.length > 0 && (
 						<div className="text-xs text-zinc-600">
 							<p className="font-medium text-zinc-700">Ventilation TVA</p>
@@ -2595,14 +2553,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 							))}
 						</div>
 					)}
-					<FieldLabel label="Total TTC" required>
-						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={roundMoney(form.taxExclusiveAmount + form.vatAmount)} readOnly required />
-					</FieldLabel>
 					<FieldLabel label="Acompte">
 						<input type="number" min="0" step="0.01" className={fieldClassName} value={form.depositAmount ?? 0} onChange={(event) => updateInvoiceSummary({ depositAmount: toFiniteNumber(event.target.valueAsNumber) })} />
-					</FieldLabel>
-					<FieldLabel label="Net à payer" required>
-						<input type="number" min="0" step="0.01" className={`${fieldClassName} bg-zinc-100`} value={form.total} readOnly required />
 					</FieldLabel>
 					<FieldLabel label="Conditions de paiement">
 						<input className={fieldClassName} value={form.paymentTerms} onChange={(event) => setForm({ ...form, paymentTerms: event.target.value })} />
@@ -2625,20 +2577,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 							<option value="CHECK">Chèque</option>
 							<option value="OTHER">Autre</option>
 						</select>
-					</FieldLabel>
-					<FieldLabel label="PDF File ID">
-						<input className={fieldClassName} value={form.pdfFileId} onChange={(event) => setForm({ ...form, pdfFileId: event.target.value })} />
-					</FieldLabel>
-					<FieldLabel label="Statut PDP">
-						<select className={fieldClassName} value={form.pdpStatus} onChange={(event) => setForm({ ...form, pdpStatus: event.target.value as InvoicePdpStatus })}>
-							<option value="NOT_SENT">Non envoyé</option>
-							<option value="SENT">Envoyé</option>
-							<option value="ACCEPTED">Accepté</option>
-							<option value="REJECTED">Rejeté</option>
-						</select>
-					</FieldLabel>
-					<FieldLabel label="PDP Message ID">
-						<input className={fieldClassName} value={form.pdpMessageId} onChange={(event) => setForm({ ...form, pdpMessageId: event.target.value })} />
 					</FieldLabel>
 					<div className="flex flex-col gap-1.5">
 						<span className="text-sm font-medium text-zinc-700">Devis associé</span>
@@ -2670,9 +2608,24 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				</div>
 			</section>
 
-			<button type="submit" className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700">
-				{initialInvoice ? 'Modifier' : 'Créer la facture'}
-			</button>
+			<div className="flex flex-wrap justify-end gap-3">
+				<button
+					type="submit"
+					data-submit-intent="draft"
+					disabled={isSubmitting}
+					className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{isSubmitting ? 'Enregistrement...' : 'Enregistrer comme brouillon'}
+				</button>
+				<button
+					type="submit"
+					data-submit-intent="issue"
+					disabled={isSubmitting}
+					className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{isSubmitting ? 'Enregistrement...' : initialInvoice ? 'Emettre la facture' : 'Emettre la facture'}
+				</button>
+			</div>
 		</form>
 
 			{showAssociatedQuoteModal && (
