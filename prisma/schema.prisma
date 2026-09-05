@@ -1879,6 +1879,25 @@ model Quote {
 
   taxInclusiveAmount Decimal @db.Decimal(19, 2)
 
+
+  // ==========================================================================
+  // ACOMPTE DEMANDÉ
+  // ==========================================================================
+
+  // Exemple : 30.00 signifie 30 %.
+  // Nullable pour permettre un acompte fixé directement en euros.
+  depositRate Decimal? @db.Decimal(7, 4)
+
+  // Snapshot du montant effectivement demandé.
+  //
+  // Exemple :
+  // depositRate   = 30
+  // depositAmount = 3 600 €
+  //
+  // Important : ce n'est PAS un paiement reçu.
+  depositAmount Decimal? @db.Decimal(19, 2)
+
+
   // ==========================================================================
   // CONDITIONS / MENTIONS
   // ==========================================================================
