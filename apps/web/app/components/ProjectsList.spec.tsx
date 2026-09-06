@@ -53,6 +53,7 @@ const mockProject: Project = {
 
 describe('ProjectsList', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/projects');
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({
       ok: true,
@@ -77,8 +78,7 @@ describe('ProjectsList', () => {
     expect(screen.getAllByText('PRJ-2026-001').length).toBeGreaterThan(0);
 
     // Click on the project row
-    const projectRow = screen.getAllByText('Rénovation Cuisine')[0];
-    fireEvent.click(projectRow);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ouvrir le projet PRJ-2026-001' })[0]);
 
     // Breadcrumb should be present with aria-label "Fil d'ariane"
     const breadcrumb = screen.getByRole('navigation', { name: "Fil d'ariane" });
@@ -111,9 +111,57 @@ describe('ProjectsList', () => {
       </AuthProvider>,
     );
 
-    const projectRow = screen.getAllByText('Rénovation Cuisine')[0];
-    fireEvent.click(projectRow);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ouvrir le projet PRJ-2026-001' })[0]);
 
     expect(handleSelected).toHaveBeenCalledWith(mockProject);
+    expect(window.location.search).toBe('?project=proj-1');
+  });
+
+  it('filters projects by reference, title, and customer and distinguishes an empty result', () => {
+    render(
+      <AuthProvider session={session}>
+        <ProjectsList projects={[mockProject]} onDelete={null} />
+      </AuthProvider>,
+    );
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Rechercher un projet' }), { target: { value: 'inexistant' } });
+
+    expect(screen.getByText('Aucun résultat')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Réinitialiser les filtres' })).toBeInTheDocument();
+  });
+
+  it('shows the primary customer and the number of other customers', () => {
+    const project = {
+      ...mockProject,
+      customers: [
+        mockProject.customers[0],
+        { customerId: 'cust-2', isPrimary: false, customer: { id: 'cust-2', firstName: 'Marie', lastName: 'Martin' } },
+        { customerId: 'cust-3', isPrimary: false, customer: { id: 'cust-3', firstName: 'Paul', lastName: 'Durand' } },
+      ],
+    };
+
+    render(
+      <AuthProvider session={session}>
+        <ProjectsList projects={[project]} onDelete={null} />
+      </AuthProvider>,
+    );
+
+    expect(screen.getAllByText('Jean Dupont Dupont SARL +2 autres').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Marie Martin/)).toBeNull();
+  });
+
+  it('opens a custom confirmation before deleting a project', () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AuthProvider session={session}>
+        <ProjectsList projects={[mockProject]} onDelete={onDelete} />
+      </AuthProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Supprimer le projet PRJ-2026-001' })[0]);
+    expect(screen.getByRole('dialog', { name: 'Supprimer ce projet ?' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer', exact: true }));
+    expect(onDelete).toHaveBeenCalledWith('proj-1');
   });
 });

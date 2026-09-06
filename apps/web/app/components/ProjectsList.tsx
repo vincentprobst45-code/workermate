@@ -3,11 +3,12 @@
 import { ProjectStatus } from '@prisma/client';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search, X } from 'lucide-react';
 import type { Project } from './AddProjectForm';
 import ProjectDetailsContainer from './projects/ProjectDetailsContainer';
 
-type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'referenceAsc' | 'referenceDesc';
+type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'titleAsc' | 'titleDesc' | 'customerAsc' | 'customerDesc';
+type StatusFilter = 'ALL' | ProjectStatus;
 
 interface ProjectsListProps {
   projects: Project[];
@@ -16,18 +17,17 @@ interface ProjectsListProps {
 }
 
 function formatCustomerNames(project: Project): string {
-  const labels = project.customers
-    .map((link) => [link.customer.firstName, link.customer.lastName, link.customer.company]
-      .filter((value): value is string => Boolean(value && value.trim()))
-      .map((value) => value.trim())
-      .join(' '))
-    .filter(Boolean);
-
-  if (!labels.length) {
+  const primary = project.customers.find((link) => link.isPrimary) ?? project.customers[0];
+  if (!primary) {
     return 'Aucun client';
   }
 
-  return labels.join(', ');
+  const label = [primary.customer.firstName, primary.customer.lastName, primary.customer.company]
+      .filter((value): value is string => Boolean(value && value.trim()))
+      .map((value) => value.trim())
+      .join(' ') || 'Client sans nom';
+  const otherCount = Math.max(0, project.customers.length - 1);
+  return otherCount > 0 ? `${label} +${otherCount} autre${otherCount > 1 ? 's' : ''}` : label;
 }
 
 function formatDate(value?: string): string {
@@ -60,16 +60,53 @@ function CountStat({ label, value }: { label: string; value: number }) {
   );
 }
 
+function getProjectUrl(projectId?: string): string {
+  const url = new URL(window.location.href);
+  if (projectId) {
+    url.searchParams.set('project', projectId);
+  } else {
+    url.searchParams.delete('project');
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function Pagination({ currentPage, totalPages, onChange }: { currentPage: number; totalPages: number; onChange: (page: number) => void }) {
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1].filter((page) => page >= 1 && page <= totalPages));
+  const items: Array<number | 'ellipsis'> = [];
+  [...pages].sort((a, b) => a - b).forEach((page, index, allPages) => {
+    if (index > 0 && page - allPages[index - 1] > 1) items.push('ellipsis');
+    items.push(page);
+  });
+
+  return (
+    <nav aria-label="Pagination des projets" className="mt-5 flex flex-wrap items-center justify-center gap-2">
+      <button type="button" aria-label="Page précédente" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={() => onChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>Précédent</button>
+      {items.map((item, index) => item === 'ellipsis' ? (
+        <span key={`ellipsis-${index}`} className="px-1 text-slate-400" aria-hidden="true">…</span>
+      ) : (
+        <button type="button" key={item} className={`rounded-lg border px-3 py-1.5 text-sm ${item === currentPage ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`} onClick={() => onChange(item)} aria-current={item === currentPage ? 'page' : undefined} aria-label={`Page ${item}`}>{item}</button>
+      ))}
+      <button type="button" aria-label="Page suivante" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={() => onChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>Suivant</button>
+    </nav>
+  );
+}
+
 export default function ProjectsList({ projects, onDelete, handleSelectedProject = null }: ProjectsListProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [projectsPerPage, setProjectsPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | ProjectStatus>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const filteredAndSortedProjects = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('fr');
     const filtered = projects.filter((project) =>
-      statusFilter === 'ALL' ? true : project.status === statusFilter,
+      (statusFilter === 'ALL' || project.status === statusFilter) &&
+      (!normalizedSearch || [project.reference, project.title, ...project.customers.flatMap((link) => [link.customer.firstName, link.customer.lastName, link.customer.company])]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase('fr').includes(normalizedSearch))),
     );
 
     return [...filtered].sort((a, b) => {
@@ -79,12 +116,22 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
       if (sortBy === 'createdAtAsc') {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
-      if (sortBy === 'referenceAsc') {
-        return a.reference.localeCompare(b.reference, 'fr', { sensitivity: 'base' });
+      if (sortBy === 'titleAsc' || sortBy === 'titleDesc') {
+        const comparison = a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' });
+        return sortBy === 'titleAsc' ? comparison : -comparison;
       }
-      return b.reference.localeCompare(a.reference, 'fr', { sensitivity: 'base' });
+      const comparison = formatCustomerNames(a).localeCompare(formatCustomerNames(b), 'fr', { sensitivity: 'base' });
+      return sortBy === 'customerAsc' ? comparison : -comparison;
     });
-  }, [projects, sortBy, statusFilter]);
+  }, [projects, searchTerm, sortBy, statusFilter]);
+
+  const statusCounts = useMemo(() => ({
+    ALL: projects.length,
+    OPEN: projects.filter((project) => project.status === 'OPEN').length,
+    IN_PROGRESS: projects.filter((project) => project.status === 'IN_PROGRESS').length,
+    COMPLETED: projects.filter((project) => project.status === 'COMPLETED').length,
+    CANCELLED: projects.filter((project) => project.status === 'CANCELLED').length,
+  }), [projects]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedProjects.length / projectsPerPage));
   const effectiveCurrentPage = Math.min(currentPage, totalPages);
@@ -93,14 +140,25 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
     firstItemIndex,
     firstItemIndex + projectsPerPage,
   );
-  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   function openProject(project: Project) {
+    window.history.pushState({}, '', getProjectUrl(project.id));
     if (handleSelectedProject) {
       void handleSelectedProject(project);
     } else {
       setSelectedProject(project);
     }
+  }
+
+  function closeProject() {
+    window.history.pushState({}, '', getProjectUrl());
+    setSelectedProject(null);
+  }
+
+  async function confirmDelete() {
+    if (!projectToDelete || !onDelete) return;
+    await onDelete(projectToDelete.id);
+    setProjectToDelete(null);
   }
 
   const hasRowActions = Boolean(onDelete);
@@ -119,7 +177,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
             <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
             <button
               type="button"
-              onClick={() => setSelectedProject(null)}
+              onClick={closeProject}
               className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
             >
               Projets
@@ -133,7 +191,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 
           <button
             type="button"
-            onClick={() => setSelectedProject(null)}
+            onClick={closeProject}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -151,8 +209,14 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-3 text-sm">
-        <label htmlFor="projects-sort" className="text-slate-500">Trier</label>
+      <div className="mb-5 space-y-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+          <label className="relative block">
+            <span className="sr-only">Rechercher un projet</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input type="search" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Rechercher par référence, projet ou client" className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+          </label>
+          <label htmlFor="projects-sort" className="text-sm text-slate-500">Trier par</label>
         <select
           id="projects-sort"
           className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-slate-700"
@@ -162,30 +226,15 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
             setCurrentPage(1);
           }}
         >
-          <option value="createdAtDesc">Date d&apos;ajout: plus récent</option>
-          <option value="createdAtAsc">Date d&apos;ajout: plus ancien</option>
-          <option value="referenceAsc">Référence: A → Z</option>
-          <option value="referenceDesc">Référence: Z → A</option>
+          <option value="createdAtDesc">Plus récents</option>
+          <option value="createdAtAsc">Plus anciens</option>
+          <option value="titleAsc">Titre: A → Z</option>
+          <option value="titleDesc">Titre: Z → A</option>
+          <option value="customerAsc">Nom du client: A → Z</option>
+          <option value="customerDesc">Nom du client: Z → A</option>
         </select>
 
-        <label htmlFor="projects-status" className="text-slate-500">Statut</label>
-        <select
-          id="projects-status"
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-slate-700"
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value as 'ALL' | ProjectStatus);
-            setCurrentPage(1);
-          }}
-        >
-          <option value="ALL">Tous</option>
-          <option value="OPEN">Ouvert</option>
-          <option value="IN_PROGRESS">En cours</option>
-          <option value="COMPLETED">Terminé</option>
-          <option value="CANCELLED">Annulé</option>
-        </select>
-
-        <label htmlFor="projects-per-page" className="text-slate-500">Par page</label>
+          <label htmlFor="projects-per-page" className="text-sm text-slate-500">Projets par page</label>
         <select
           id="projects-per-page"
           className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-slate-700"
@@ -200,6 +249,14 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
           <option value={20}>20</option>
           <option value={50}>50</option>
         </select>
+        </div>
+        <div className="flex flex-wrap gap-2" aria-label="Statistiques des projets">
+          {(['ALL', 'OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
+            <button type="button" key={status} onClick={() => { setStatusFilter(status); setCurrentPage(1); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${statusFilter === status ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`} aria-pressed={statusFilter === status}>
+              {status === 'ALL' ? 'Tous' : STATUS_META[status].label} <span className="ml-1 text-slate-400">{statusCounts[status]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Desktop / tablet: table */}
@@ -208,6 +265,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Action</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Référence</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Projet</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Client(s)</th>
@@ -221,16 +279,9 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
               {currentProjects.map((project) => (
                 <tr
                   key={project.id}
-                  tabIndex={0}
-                  className="cursor-pointer transition hover:bg-indigo-50/60 focus-visible:bg-indigo-50/60 focus-visible:outline-none"
-                  onClick={() => openProject(project)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openProject(project);
-                    }
-                  }}
+                  className="transition hover:bg-slate-50"
                 >
+                  <td className="px-4 py-3"><button type="button" onClick={() => openProject(project)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" aria-label={`Ouvrir le projet ${project.reference}`}>Ouvrir</button></td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{project.reference}</td>
                   <td className="max-w-[14rem] truncate px-4 py-3 text-slate-700">{project.title}</td>
                   <td className="max-w-[12rem] truncate px-4 py-3 text-slate-500">{formatCustomerNames(project)}</td>
@@ -250,9 +301,10 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            void onDelete(project.id);
+                            setProjectToDelete(project);
                           }}
-                          className="text-xs font-medium text-red-600 hover:text-red-800"
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                          aria-label={`Supprimer le projet ${project.reference}`}
                         >
                           Supprimer
                         </button>
@@ -269,18 +321,9 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
       {/* Mobile: stacked cards */}
       <section className="grid gap-3 sm:hidden">
         {currentProjects.map((project) => (
-          <div
+          <article
             key={project.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => openProject(project)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                openProject(project);
-              }
-            }}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition active:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -289,6 +332,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
               </div>
               <StatusBadge status={project.status} />
             </div>
+            <button type="button" onClick={() => openProject(project)} className="mt-3 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" aria-label={`Ouvrir le projet ${project.reference}`}>Ouvrir</button>
             <p className="mt-2 truncate text-sm text-slate-500">{formatCustomerNames(project)}</p>
             <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 pt-3">
               <CountStat label="devis" value={project._count?.quotes ?? 0} />
@@ -302,50 +346,51 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
-                    void onDelete(project.id);
+                    setProjectToDelete(project);
                   }}
-                  className="font-medium text-red-600 hover:text-red-800"
+                  className="rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                  aria-label={`Supprimer le projet ${project.reference}`}
                 >
                   Supprimer
                 </button>
               )}
             </div>
-          </div>
+          </article>
         ))}
       </section>
 
       {filteredAndSortedProjects.length === 0 && (
-        <p className="mt-4 text-sm text-slate-500">Aucun projet à afficher.</p>
+        <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+          <p className="font-semibold text-slate-800">{projects.length === 0 ? 'Aucun projet' : 'Aucun résultat'}</p>
+          <p className="mt-1 text-sm text-slate-500">{projects.length === 0 ? 'Créez votre premier projet pour commencer.' : 'Modifiez votre recherche ou réinitialisez les filtres.'}</p>
+          {projects.length > 0 && (searchTerm || statusFilter !== 'ALL') && (
+            <button type="button" className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setCurrentPage(1); }}>Réinitialiser les filtres</button>
+          )}
+        </div>
       )}
 
       {filteredAndSortedProjects.length > 0 && (
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            disabled={effectiveCurrentPage === 1}
-          >
-            Précédent
-          </button>
+        <>
+          <p className="mt-5 text-center text-xs text-slate-500">{firstItemIndex + 1}–{firstItemIndex + currentProjects.length} sur {filteredAndSortedProjects.length} projet{filteredAndSortedProjects.length > 1 ? 's' : ''}</p>
+          <Pagination currentPage={effectiveCurrentPage} totalPages={totalPages} onChange={setCurrentPage} />
+        </>
+      )}
 
-          {pageNumbers.map((pageNumber) => (
-            <button
-              key={pageNumber}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${pageNumber === effectiveCurrentPage ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
-              onClick={() => setCurrentPage(pageNumber)}
-              aria-current={pageNumber === effectiveCurrentPage ? 'page' : undefined}
-            >
-              {pageNumber}
-            </button>
-          ))}
-
-          <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            disabled={effectiveCurrentPage === totalPages}
-          >
-            Suivant
-          </button>
+      {projectToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setProjectToDelete(null); }}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="delete-project-title" aria-describedby="delete-project-description">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-project-title" className="text-lg font-bold text-slate-900">Supprimer ce projet ?</h2>
+                <p id="delete-project-description" className="mt-2 text-sm text-slate-600">Le projet <strong>{projectToDelete.reference}</strong> et ses associations seront supprimés. Cette action est irréversible.</p>
+              </div>
+              <button type="button" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900" onClick={() => setProjectToDelete(null)} aria-label="Fermer la confirmation"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => setProjectToDelete(null)}>Annuler</button>
+              <button type="button" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700" onClick={() => void confirmDelete()}>Supprimer</button>
+            </div>
+          </div>
         </div>
       )}
     </>

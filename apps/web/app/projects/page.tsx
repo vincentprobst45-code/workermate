@@ -51,11 +51,25 @@ export default function ProjectsPage() {
     };
   }, [api]);
 
-  async function handleDelete(id: string) {
-    if (!confirm('Confirmer la suppression?')) {
-      return;
+  useEffect(() => {
+    function syncSelectedProjectFromUrl() {
+      const projectId = new URLSearchParams(window.location.search).get('project');
+      setSelectedProject(projectId ? projects.find((project) => project.id === projectId) ?? null : null);
     }
 
+    syncSelectedProjectFromUrl();
+    window.addEventListener('popstate', syncSelectedProjectFromUrl);
+    return () => window.removeEventListener('popstate', syncSelectedProjectFromUrl);
+  }, [projects]);
+
+  function closeSelectedProject() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('project');
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    setSelectedProject(null);
+  }
+
+  async function handleDelete(id: string) {
     try {
       const response = await api.delete(`/projects/${id}`);
       if (!response.ok) {
@@ -64,7 +78,7 @@ export default function ProjectsPage() {
 
       setProjects((currentProjects) => currentProjects.filter((project) => project.id !== id));
       if (selectedProject?.id === id) {
-        setSelectedProject(null);
+        closeSelectedProject();
       }
       setError('');
       setSuccess('Projet supprimé avec succès');
@@ -92,7 +106,7 @@ export default function ProjectsPage() {
               <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
               <button
                 type="button"
-                onClick={() => setSelectedProject(null)}
+                onClick={closeSelectedProject}
                 className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
               >
                 Projets
@@ -116,7 +130,7 @@ export default function ProjectsPage() {
 
           <ProjectDetailsContainer
             project={activeSelectedProject}
-            onClose={() => setSelectedProject(null)}
+              onClose={closeSelectedProject}
           />
         </main>
       </ProtectedRoute>
