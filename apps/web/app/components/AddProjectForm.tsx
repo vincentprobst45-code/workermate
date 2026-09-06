@@ -6,6 +6,10 @@ import { useApiClient } from '../api-client';
 import AddCustomerForm, { type Customer } from './AddCustomerForm';
 import AddQuoteForm, { type Quote } from './AddQuoteForm';
 import AddWorkOrderForm from './AddWorkOrderForm';
+import CustomersList, { type Customer as CustomerListItem } from './CustomersList';
+import QuotesList, { type Quote as QuoteListItem } from './QuotesList';
+import WorkOrdersList, { type WorkOrder as WorkOrderListItem } from './WorkOrdersList';
+import NewProjectSummary from './NewProject';
 
 interface CustomerOption {
   id: string;
@@ -62,7 +66,6 @@ export interface Project {
 interface AddProjectFormData {
   title: string;
   description: string;
-  status: ProjectStatus;
   notes: string;
 }
 
@@ -100,7 +103,6 @@ function createEmptyProject(): AddProjectFormData {
   return {
     title: '',
     description: '',
-    status: 'OPEN',
     notes: '',
   };
 }
@@ -141,13 +143,6 @@ function formatWorkOrderLabel(workOrder: WorkOrderOption): string {
   return `${workOrder.reference} - ${workOrder.title}`;
 }
 
-const projectStatusOptions: Array<{ value: ProjectStatus; label: string }> = [
-  { value: 'OPEN', label: 'Ouvert' },
-  { value: 'IN_PROGRESS', label: 'En cours' },
-  { value: 'COMPLETED', label: 'Terminé' },
-  { value: 'CANCELLED', label: 'Annulé' },
-];
-
 // Clean, modern "project workspace" look — distinct from other forms in the app.
 const sectionClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6';
 const sectionTitleClass = 'mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900';
@@ -163,19 +158,22 @@ const btnDanger =
 const alertError = 'rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700';
 const alertSuccess = 'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700';
 
-function modeButtonClass(active: boolean): string {
-  return `rounded-md px-3 py-1.5 text-xs font-semibold transition ${active ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
-}
-
 type AddProjectFormProps = {
   onCreated: (project: Project) => void;
   show: boolean;
 };
 
+type FeedbackSection = 'general' | 'customer' | 'quote' | 'workOrder';
+
+type SectionFeedback = {
+  error: string;
+  success: string;
+};
+
 export default function AddProjectForm({ onCreated, show }: AddProjectFormProps) {
   const api = useApiClient();
   const [form, setForm] = useState<AddProjectFormData>(createEmptyProject());
-  const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<CustomerListItem[]>([]);
   const [quoteOptions, setQuoteOptions] = useState<QuoteOption[]>([]);
   const [workOrderOptions, setWorkOrderOptions] = useState<WorkOrderOption[]>([]);
   const [customerAssociations, setCustomerAssociations] = useState<CustomerAssociation[]>([
@@ -190,11 +188,33 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
   const [activeNewCustomerSlot, setActiveNewCustomerSlot] = useState<number | null>(null);
   const [activeNewQuoteSlot, setActiveNewQuoteSlot] = useState<number | null>(null);
   const [activeNewWorkOrderSlot, setActiveNewWorkOrderSlot] = useState<number | null>(null);
+  const [activeAssociationPicker, setActiveAssociationPicker] = useState<'customer' | 'quote' | 'workOrder' | null>(null);
+  const [primaryCustomerId, setPrimaryCustomerId] = useState('');
   const [customersLoading, setCustomersLoading] = useState(false);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [feedback, setFeedback] = useState<Record<FeedbackSection, SectionFeedback>>({
+    general: { error: '', success: '' },
+    customer: { error: '', success: '' },
+    quote: { error: '', success: '' },
+    workOrder: { error: '', success: '' },
+  });
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function setSectionFeedback(section: FeedbackSection, messageType: keyof SectionFeedback, message: string) {
+    setFeedback((current) => ({
+      ...current,
+      [section]: { ...current[section], [messageType]: message },
+    }));
+  }
+
+  function clearSectionFeedback(section: FeedbackSection) {
+    setFeedback((current) => ({
+      ...current,
+      [section]: { error: '', success: '' },
+    }));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +228,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           throw new Error('Erreur');
         }
 
-        const data: CustomerOption[] = await response.json();
+        const data: CustomerListItem[] = await response.json();
         if (!cancelled) {
           setCustomerOptions(data);
         }
@@ -231,6 +251,24 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
   }, [api]);
 
   useEffect(() => {
+    if (!activeAssociationPicker && activeNewCustomerSlot === null && activeNewQuoteSlot === null && activeNewWorkOrderSlot === null) {
+      return undefined;
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveAssociationPicker(null);
+        setActiveNewCustomerSlot(null);
+        setActiveNewQuoteSlot(null);
+        setActiveNewWorkOrderSlot(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [activeAssociationPicker, activeNewCustomerSlot, activeNewQuoteSlot, activeNewWorkOrderSlot]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadQuotes() {
@@ -244,13 +282,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
         const data: Quote[] = await response.json();
         if (!cancelled) {
-          setQuoteOptions(
-            data.map((quote) => ({
-              id: quote.id,
-              number: quote.number,
-              title: quote.title,
-            })),
-          );
+          setQuoteOptions(data as unknown as QuoteListItem[]);
         }
       } catch {
         if (!cancelled) {
@@ -284,13 +316,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
         const data: Array<{ id: string; reference: string; title: string }> = await response.json();
         if (!cancelled) {
-          setWorkOrderOptions(
-            data.map((workOrder) => ({
-              id: workOrder.id,
-              reference: workOrder.reference,
-              title: workOrder.title,
-            })),
-          );
+          setWorkOrderOptions(data as WorkOrderListItem[]);
         }
       } catch {
         if (!cancelled) {
@@ -318,20 +344,12 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     );
   }
 
-  function addAnotherCustomerAssociation() {
-    setCustomerAssociations((current) => [...current, createEmptyCustomerAssociation()]);
-  }
-
   function updateQuoteAssociation(index: number, updater: (entry: QuoteAssociation) => QuoteAssociation) {
     setQuoteAssociations((current) =>
       current.map((entry, entryIndex) =>
         entryIndex === index ? updater(entry) : entry,
       ),
     );
-  }
-
-  function addAnotherQuoteAssociation() {
-    setQuoteAssociations((current) => [...current, createEmptyQuoteAssociation()]);
   }
 
   function removeQuoteAssociation(index: number) {
@@ -361,10 +379,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     );
   }
 
-  function addAnotherWorkOrderAssociation() {
-    setWorkOrderAssociations((current) => [...current, createEmptyWorkOrderAssociation()]);
-  }
-
   function removeWorkOrderAssociation(index: number) {
     setWorkOrderAssociations((current) => {
       const next = current.filter((_, entryIndex) => entryIndex !== index);
@@ -385,10 +399,12 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
   }
 
   function removeCustomerAssociation(index: number) {
+    const removedCustomerId = customerAssociations[index]?.customerId;
     setCustomerAssociations((current) => {
       const next = current.filter((_, entryIndex) => entryIndex !== index);
       return next.length ? next : [createEmptyCustomerAssociation()];
     });
+    setPrimaryCustomerId((currentId) => currentId === removedCustomerId ? '' : currentId);
 
     setActiveNewCustomerSlot((currentSlot) => {
       if (currentSlot === null) {
@@ -430,18 +446,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     return [...new Set(ids)];
   }
 
-  function hasAtLeastOneActiveAssociation(): boolean {
-    return customerAssociations.some((entry) => entry.mode !== 'none');
-  }
-
-  function hasAtLeastOneActiveQuoteAssociation(): boolean {
-    return quoteAssociations.some((entry) => entry.mode !== 'none');
-  }
-
-  function hasAtLeastOneActiveWorkOrderAssociation(): boolean {
-    return workOrderAssociations.some((entry) => entry.mode !== 'none');
-  }
-
   function handleCreatedCustomer(customer: Customer) {
     setCustomerOptions((currentOptions) => {
       if (currentOptions.some((option) => option.id === customer.id)) {
@@ -451,6 +455,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       return [
         {
           id: customer.id,
+          ...customer,
           firstName: customer.firstName,
           lastName: customer.lastName,
           company: customer.company,
@@ -465,10 +470,65 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         mode: 'new',
         customerId: customer.id,
       }));
+      setPrimaryCustomerId((currentId) => currentId || customer.id);
     }
 
     setActiveNewCustomerSlot(null);
-    setSuccess('Nouveau client créé et associé au projet.');
+    setSectionFeedback('customer', 'success', 'Nouveau client créé et associé au projet.');
+  }
+
+  function handleSelectedCustomer(customer: CustomerListItem) {
+    const existingIndex = customerAssociations.findIndex((entry) => entry.customerId === customer.id);
+    if (existingIndex !== -1) {
+      setSectionFeedback('customer', 'error', 'Ce client est déjà associé au projet.');
+      setActiveAssociationPicker(null);
+      return;
+    }
+
+    const emptyIndex = customerAssociations.findIndex((entry) => entry.mode === 'none');
+    if (emptyIndex === -1) {
+      setCustomerAssociations((current) => [...current, { mode: 'existing', customerId: customer.id }]);
+    } else {
+      updateAssociation(emptyIndex, () => ({ mode: 'existing', customerId: customer.id }));
+    }
+    setPrimaryCustomerId((currentId) => currentId || customer.id);
+    setActiveAssociationPicker(null);
+    clearSectionFeedback('customer');
+    setValidationErrors([]);
+  }
+
+  function handleSelectedQuote(quote: QuoteListItem) {
+    if (quoteAssociations.some((entry) => entry.quoteId === quote.id)) {
+      setSectionFeedback('quote', 'error', 'Ce devis est déjà associé au projet.');
+      setActiveAssociationPicker(null);
+      return;
+    }
+
+    const emptyIndex = quoteAssociations.findIndex((entry) => entry.mode === 'none');
+    if (emptyIndex === -1) {
+      setQuoteAssociations((current) => [...current, { mode: 'existing', quoteId: quote.id }]);
+    } else {
+      updateQuoteAssociation(emptyIndex, () => ({ mode: 'existing', quoteId: quote.id }));
+    }
+    setActiveAssociationPicker(null);
+    clearSectionFeedback('quote');
+  }
+
+  function handleSelectedWorkOrder(workOrder: WorkOrderListItem) {
+    if (workOrderAssociations.some((entry) => entry.workOrderId === workOrder.id)) {
+      setSectionFeedback('workOrder', 'error', 'Ce chantier est déjà associé au projet.');
+      setActiveAssociationPicker(null);
+      return;
+    }
+
+    const emptyIndex = workOrderAssociations.findIndex((entry) => entry.mode === 'none');
+    if (emptyIndex === -1) {
+      setWorkOrderAssociations((current) => [...current, { mode: 'existing', workOrderId: workOrder.id }]);
+    } else {
+      updateWorkOrderAssociation(emptyIndex, () => ({ mode: 'existing', workOrderId: workOrder.id }));
+    }
+    setActiveAssociationPicker(null);
+    clearSectionFeedback('workOrder');
   }
 
   function handleCreatedQuote(quote: Quote) {
@@ -496,7 +556,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     }
 
     setActiveNewQuoteSlot(null);
-    setSuccess('Nouveau devis créé et associé au projet.');
+    setSectionFeedback('quote', 'success', 'Nouveau devis créé et associé au projet.');
   }
 
   function handleCreatedWorkOrder(workOrder: { id: string; reference: string; title: string }) {
@@ -524,17 +584,26 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     }
 
     setActiveNewWorkOrderSlot(null);
-    setSuccess('Nouveau chantier créé et associé au projet.');
+    setSectionFeedback('workOrder', 'success', 'Nouveau chantier créé et associé au projet.');
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
-    setSuccess('');
+    setFeedback({
+      general: { error: '', success: '' },
+      customer: { error: '', success: '' },
+      quote: { error: '', success: '' },
+      workOrder: { error: '', success: '' },
+    });
+    setValidationErrors([]);
+    if (isSubmitting) {
+      return;
+    }
+
+    const errors: string[] = [];
 
     if (!form.title.trim()) {
-      setError('Le titre est obligatoire.');
-      return;
+      errors.push('Le titre du projet est obligatoire.');
     }
 
     const incompleteAssociationIndex = customerAssociations.findIndex(
@@ -542,8 +611,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     );
 
     if (incompleteAssociationIndex !== -1) {
-      setError(`Le client #${incompleteAssociationIndex + 1} est incomplet.`);
-      return;
+      errors.push(`Le client #${incompleteAssociationIndex + 1} est incomplet.`);
     }
 
     const incompleteQuoteAssociationIndex = quoteAssociations.findIndex(
@@ -551,8 +619,7 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     );
 
     if (incompleteQuoteAssociationIndex !== -1) {
-      setError(`Le devis #${incompleteQuoteAssociationIndex + 1} est incomplet.`);
-      return;
+      errors.push(`Le devis #${incompleteQuoteAssociationIndex + 1} est incomplet.`);
     }
 
     const incompleteWorkOrderAssociationIndex = workOrderAssociations.findIndex(
@@ -560,7 +627,12 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     );
 
     if (incompleteWorkOrderAssociationIndex !== -1) {
-      setError(`Le chantier #${incompleteWorkOrderAssociationIndex + 1} est incomplet.`);
+      errors.push(`Le chantier #${incompleteWorkOrderAssociationIndex + 1} est incomplet.`);
+    }
+
+    if (errors.length) {
+      setValidationErrors(errors);
+      setSectionFeedback('general', 'error', 'Corrigez les informations signalées avant de continuer.');
       return;
     }
 
@@ -571,14 +643,15 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
     const payload: CreateProjectDto = {
       title: form.title.trim(),
       description: form.description.trim() || undefined,
-      status: form.status,
+      status: 'OPEN',
       notes: form.notes.trim() || undefined,
       customerIds: selectedCustomerIds.length ? selectedCustomerIds : undefined,
       quoteIds: selectedQuoteIds.length ? selectedQuoteIds : undefined,
       workOrderIds: selectedWorkOrderIds.length ? selectedWorkOrderIds : undefined,
-      primaryCustomerId: selectedCustomerIds[0] || undefined,
+      primaryCustomerId: primaryCustomerId || selectedCustomerIds[0] || undefined,
     };
 
+    setIsSubmitting(true);
     try {
       const response = await api.post('/projects', payload);
       if (!response.ok) {
@@ -594,9 +667,12 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
       setActiveNewCustomerSlot(null);
       setActiveNewQuoteSlot(null);
       setActiveNewWorkOrderSlot(null);
-      setSuccess('Projet ajouté avec succès');
+      setPrimaryCustomerId('');
+      setSectionFeedback('general', 'success', 'Projet ajouté avec succès');
     } catch {
-      setError('Erreur lors de la création du projet');
+      setSectionFeedback('general', 'error', 'Impossible de créer le projet. Vérifiez votre connexion puis réessayez.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -611,14 +687,21 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
           <h3 className="mt-1 text-xl font-bold text-slate-900">Créer un projet</h3>
         </div>
 
-        {error && <div className={alertError}>{error}</div>}
-        {success && <div className={alertSuccess}>{success}</div>}
-
+        {validationErrors.length > 0 && (
+          <div className={alertError} role="alert" aria-live="assertive">
+            <p className="font-semibold">Corrigez les erreurs suivantes :</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {validationErrors.map((validationError) => <li key={validationError}>{validationError}</li>)}
+            </ul>
+          </div>
+        )}
         <section className={sectionClass}>
           <h4 className={sectionTitleClass}>
             <span className={stepBadgeClass}>1</span>
             Informations générales
           </h4>
+          {feedback.general.error && <div className={`${alertError} mb-4`} role="alert">{feedback.general.error}</div>}
+          {feedback.general.success && <div className={`${alertSuccess} mb-4`} role="status">{feedback.general.success}</div>}
           <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
             La référence projet sera générée automatiquement à la création.
           </div>
@@ -632,22 +715,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
                 placeholder="Nom du projet"
                 required
               />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className={labelClass}>Statut</span>
-              <select
-                className={inputClass}
-                value={form.status}
-                onChange={(event) =>
-                  setForm({ ...form, status: event.target.value as ProjectStatus })
-                }
-              >
-                {projectStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
             </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className={labelClass}>Description</span>
@@ -675,75 +742,30 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <span className={stepBadgeClass}>2</span>
             Client(s) associé(s)
           </h4>
+          {feedback.customer.error && <div className={`${alertError} mb-4`} role="alert">{feedback.customer.error}</div>}
+          {feedback.customer.success && <div className={`${alertSuccess} mb-4`} role="status">{feedback.customer.success}</div>}
 
-          {customerAssociations.map((entry, index) => (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button type="button" className={btnGhost} onClick={() => setActiveAssociationPicker('customer')}>Associer un client</button>
+            <button type="button" className={btnGhost} onClick={() => { setActiveNewCustomerSlot(customerAssociations.length); setCustomerAssociations((current) => [...current, createEmptyCustomerAssociation()]); }}>Créer un client</button>
+          </div>
+
+          {customerAssociations.map((entry, index) => entry.mode === 'none' ? null : (
             <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-700">Client #{index + 1}</p>
-                {index > 0 && (
+                {(entry.mode === 'existing' || Boolean(entry.customerId)) && (
                   <button type="button" className={btnDanger} onClick={() => removeCustomerAssociation(index)}>
-                    Retirer
+                    Désassocier
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'none')}
-                  onClick={() =>
-                    updateAssociation(index, () => ({
-                      mode: 'none',
-                      customerId: '',
-                    }))
-                  }
-                >
-                  Aucun
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'existing')}
-                  onClick={() =>
-                    updateAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'existing',
-                    }))
-                  }
-                >
-                  Existant
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'new')}
-                  onClick={() =>
-                    updateAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'new',
-                    }))
-                  }
-                >
-                  Nouveau
-                </button>
-              </div>
-
               {entry.mode === 'existing' && (
-                <select
-                  className={inputClass}
-                  value={entry.customerId}
-                  onChange={(event) =>
-                    updateAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      customerId: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">-- Veuillez choisir un client --</option>
-                  {customerOptions.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {formatCustomerLabel(customer)}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-sm text-slate-700">
+                  <span>{formatCustomerLabel(customerOptions.find((customer) => customer.id === entry.customerId) || { id: entry.customerId })}</span>
+                  <label className="inline-flex items-center gap-2 text-xs font-medium"><input type="radio" name="primary-customer" checked={primaryCustomerId === entry.customerId} onChange={() => setPrimaryCustomerId(entry.customerId)} /> Client principal</label>
+                </div>
               )}
 
               {entry.mode === 'new' && (
@@ -765,11 +787,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
           {customersLoading && <p className="text-sm text-slate-500">Chargement des clients...</p>}
 
-          {hasAtLeastOneActiveAssociation() && (
-            <button type="button" className={btnGhost} onClick={addAnotherCustomerAssociation}>
-              + Associer un autre client
-            </button>
-          )}
         </section>
 
         <section className={sectionClass}>
@@ -777,75 +794,27 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <span className={stepBadgeClass}>3</span>
             Devis associé(s)
           </h4>
+          {feedback.quote.error && <div className={`${alertError} mb-4`} role="alert">{feedback.quote.error}</div>}
+          {feedback.quote.success && <div className={`${alertSuccess} mb-4`} role="status">{feedback.quote.success}</div>}
 
-          {quoteAssociations.map((entry, index) => (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button type="button" className={btnGhost} onClick={() => setActiveAssociationPicker('quote')}>Associer un devis</button>
+            <button type="button" className={btnGhost} onClick={() => { setActiveNewQuoteSlot(quoteAssociations.length); setQuoteAssociations((current) => [...current, createEmptyQuoteAssociation()]); }}>Créer un devis</button>
+          </div>
+
+          {quoteAssociations.map((entry, index) => entry.mode === 'none' ? null : (
             <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-700">Devis #{index + 1}</p>
-                {index > 0 && (
+                {(entry.mode === 'existing' || Boolean(entry.quoteId)) && (
                   <button type="button" className={btnDanger} onClick={() => removeQuoteAssociation(index)}>
-                    Retirer
+                    Désassocier
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'none')}
-                  onClick={() =>
-                    updateQuoteAssociation(index, () => ({
-                      mode: 'none',
-                      quoteId: '',
-                    }))
-                  }
-                >
-                  Aucun
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'existing')}
-                  onClick={() =>
-                    updateQuoteAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'existing',
-                    }))
-                  }
-                >
-                  Existant
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'new')}
-                  onClick={() =>
-                    updateQuoteAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'new',
-                    }))
-                  }
-                >
-                  Nouveau
-                </button>
-              </div>
-
               {entry.mode === 'existing' && (
-                <select
-                  className={inputClass}
-                  value={entry.quoteId}
-                  onChange={(event) =>
-                    updateQuoteAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      quoteId: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">-- Veuillez choisir un devis --</option>
-                  {quoteOptions.map((quote) => (
-                    <option key={quote.id} value={quote.id}>
-                      {formatQuoteLabel(quote)}
-                    </option>
-                  ))}
-                </select>
+                <p className="rounded-lg bg-white p-3 text-sm text-slate-700">{formatQuoteLabel(quoteOptions.find((quote) => quote.id === entry.quoteId) || { id: entry.quoteId, number: entry.quoteId, title: '' })}</p>
               )}
 
               {entry.mode === 'new' && (
@@ -867,11 +836,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
           {quotesLoading && <p className="text-sm text-slate-500">Chargement des devis...</p>}
 
-          {hasAtLeastOneActiveQuoteAssociation() && (
-            <button type="button" className={btnGhost} onClick={addAnotherQuoteAssociation}>
-              + Associer un autre devis
-            </button>
-          )}
         </section>
 
         <section className={sectionClass}>
@@ -879,75 +843,27 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
             <span className={stepBadgeClass}>4</span>
             Chantier(s) associé(s)
           </h4>
+          {feedback.workOrder.error && <div className={`${alertError} mb-4`} role="alert">{feedback.workOrder.error}</div>}
+          {feedback.workOrder.success && <div className={`${alertSuccess} mb-4`} role="status">{feedback.workOrder.success}</div>}
 
-          {workOrderAssociations.map((entry, index) => (
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button type="button" className={btnGhost} onClick={() => setActiveAssociationPicker('workOrder')}>Associer un chantier</button>
+            <button type="button" className={btnGhost} onClick={() => { setActiveNewWorkOrderSlot(workOrderAssociations.length); setWorkOrderAssociations((current) => [...current, createEmptyWorkOrderAssociation()]); }}>Créer un chantier</button>
+          </div>
+
+          {workOrderAssociations.map((entry, index) => entry.mode === 'none' ? null : (
             <div key={index} className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-700">Chantier #{index + 1}</p>
-                {index > 0 && (
+                {(entry.mode === 'existing' || Boolean(entry.workOrderId)) && (
                   <button type="button" className={btnDanger} onClick={() => removeWorkOrderAssociation(index)}>
-                    Retirer
+                    Désassocier
                   </button>
                 )}
               </div>
 
-              <div className="mb-3 inline-flex rounded-lg border border-slate-200 bg-white p-1">
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'none')}
-                  onClick={() =>
-                    updateWorkOrderAssociation(index, () => ({
-                      mode: 'none',
-                      workOrderId: '',
-                    }))
-                  }
-                >
-                  Aucun
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'existing')}
-                  onClick={() =>
-                    updateWorkOrderAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'existing',
-                    }))
-                  }
-                >
-                  Existant
-                </button>
-                <button
-                  type="button"
-                  className={modeButtonClass(entry.mode === 'new')}
-                  onClick={() =>
-                    updateWorkOrderAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      mode: 'new',
-                    }))
-                  }
-                >
-                  Nouveau
-                </button>
-              </div>
-
               {entry.mode === 'existing' && (
-                <select
-                  className={inputClass}
-                  value={entry.workOrderId}
-                  onChange={(event) =>
-                    updateWorkOrderAssociation(index, (currentEntry) => ({
-                      ...currentEntry,
-                      workOrderId: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">-- Veuillez choisir un chantier --</option>
-                  {workOrderOptions.map((workOrder) => (
-                    <option key={workOrder.id} value={workOrder.id}>
-                      {formatWorkOrderLabel(workOrder)}
-                    </option>
-                  ))}
-                </select>
+                <p className="rounded-lg bg-white p-3 text-sm text-slate-700">{formatWorkOrderLabel(workOrderOptions.find((workOrder) => workOrder.id === entry.workOrderId) || { id: entry.workOrderId, reference: entry.workOrderId, title: '' })}</p>
               )}
 
               {entry.mode === 'new' && (
@@ -969,17 +885,41 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
           {workOrdersLoading && <p className="text-sm text-slate-500">Chargement des chantiers...</p>}
 
-          {hasAtLeastOneActiveWorkOrderAssociation() && (
-            <button type="button" className={btnGhost} onClick={addAnotherWorkOrderAssociation}>
-              + Associer un autre chantier
-            </button>
-          )}
         </section>
 
-        <button type="submit" className={btnPrimary}>
-          Créer le projet
+        <NewProjectSummary
+          title={form.title}
+          customers={customerAssociations.filter((entry) => entry.mode !== 'none').map((entry) => formatCustomerLabel(customerOptions.find((customer) => customer.id === entry.customerId) || { id: entry.customerId }))}
+          quotes={quoteAssociations.filter((entry) => entry.mode !== 'none').map((entry) => formatQuoteLabel(quoteOptions.find((quote) => quote.id === entry.quoteId) || { id: entry.quoteId, number: entry.quoteId, title: '' }))}
+          workOrders={workOrderAssociations.filter((entry) => entry.mode !== 'none').map((entry) => formatWorkOrderLabel(workOrderOptions.find((workOrder) => workOrder.id === entry.workOrderId) || { id: entry.workOrderId, reference: entry.workOrderId, title: '' }))}
+        />
+
+        <button type="submit" className={btnPrimary} disabled={isSubmitting} aria-disabled={isSubmitting}>
+          {isSubmitting ? 'Création en cours...' : 'Créer le projet'}
         </button>
       </form>
+
+      {show && activeAssociationPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onClick={() => setActiveAssociationPicker(null)}>
+          <section className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-2xl sm:p-5" role="dialog" aria-modal="true" aria-labelledby="project-association-dialog-title" tabIndex={-1} onClick={(event) => event.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h4 id="project-association-dialog-title" className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+                {activeAssociationPicker === 'customer' ? 'Associer un client' : activeAssociationPicker === 'quote' ? 'Associer un devis' : 'Associer un chantier'}
+              </h4>
+              <button type="button" autoFocus className={btnGhost} onClick={() => setActiveAssociationPicker(null)}>Fermer</button>
+            </div>
+            {activeAssociationPicker === 'customer' && (
+              <CustomersList customers={customerOptions} onDelete={null} handleSelectedCustomer={handleSelectedCustomer} />
+            )}
+            {activeAssociationPicker === 'quote' && (
+              <QuotesList quotes={quoteOptions as QuoteListItem[]} onDelete={null} handleSelectedQuote={handleSelectedQuote} />
+            )}
+            {activeAssociationPicker === 'workOrder' && (
+              <WorkOrdersList workOrders={workOrderOptions as WorkOrderListItem[]} onDelete={null} handleSelectedWorkOrder={handleSelectedWorkOrder} />
+            )}
+          </section>
+        </div>
+      )}
 
       {show && activeNewCustomerSlot !== null && (
         <div
@@ -988,13 +928,17 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         >
           <section
             className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-customer-dialog"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+              <h4 id="new-project-customer-dialog" className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
                 Nouveau client — Client #{activeNewCustomerSlot + 1}
               </h4>
-              <button type="button" className={btnGhost} onClick={() => setActiveNewCustomerSlot(null)}>
+              <button type="button" autoFocus className={btnGhost} onClick={() => setActiveNewCustomerSlot(null)}>
                 Fermer
               </button>
             </div>
@@ -1014,13 +958,17 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         >
           <section
             className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-quote-dialog"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+              <h4 id="new-project-quote-dialog" className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
                 Nouveau devis — Devis #{activeNewQuoteSlot + 1}
               </h4>
-              <button type="button" className={btnGhost} onClick={() => setActiveNewQuoteSlot(null)}>
+              <button type="button" autoFocus className={btnGhost} onClick={() => setActiveNewQuoteSlot(null)}>
                 Fermer
               </button>
             </div>
@@ -1040,13 +988,17 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
         >
           <section
             className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-2xl sm:p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-work-order-dialog"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
+              <h4 id="new-project-work-order-dialog" className="text-sm font-semibold uppercase tracking-wide text-indigo-900">
                 Nouveau chantier — Chantier #{activeNewWorkOrderSlot + 1}
               </h4>
-              <button type="button" className={btnGhost} onClick={() => setActiveNewWorkOrderSlot(null)}>
+              <button type="button" autoFocus className={btnGhost} onClick={() => setActiveNewWorkOrderSlot(null)}>
                 Fermer
               </button>
             </div>
