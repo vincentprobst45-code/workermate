@@ -22,7 +22,7 @@ export interface QuoteItem {
     vatCategory?: string;
 }
 
-export interface Quote {
+export interface QuotePreviewData {
   id: string;
   tenantId: string;
   customerId: string;
@@ -94,10 +94,11 @@ export interface Quote {
     taxExclusiveAmount?: number;
     taxInclusiveAmount?: number;
     allowanceTotal?: number;
+    isDraft?: boolean;
 }
 
 interface NewQuoteProps {
-    quote: Quote;
+    quote: QuotePreviewData;
 }
 
 function formatDate(value?: string, locale = 'fr-FR'): string {
@@ -120,7 +121,7 @@ function formatAddress(street1?: string, street2?: string, postalCode?: string, 
     return [line1, line2].filter(Boolean).join(' | ') || '-';
 }
 
-export default function NewInvoice({
+export default function NewQuote({
     quote,
 }: NewQuoteProps) {
     const locale = 'fr-FR';
@@ -142,18 +143,19 @@ export default function NewInvoice({
         .filter(Boolean)
         .join(' ')
         .trim();
+    const quoteNumber = quote.number || 'Brouillon';
 
     return (
         <section className={styles.invoicePage}>
         <article className={styles.invoiceDocument}>
+            {quote.isDraft && <div className={styles.draftWatermark}>BROUILLON</div>}
             <header className={`${styles.invoiceHeader} ${styles.keepTogether}`}>
                 <div>
                     <h1 className={styles.invoiceTitle}>DEVIS</h1>
-                    <p className={styles.invoiceMuted}>Numero: {quote.number}</p>
+                    <p className={styles.invoiceMuted}>Numero: {quoteNumber}</p>
                     <p className={styles.invoiceMuted}>Date d&apos;emission: {formatDate(quote.issueDate, locale)}</p>
-                    {/* <p className={styles.invoiceMuted}>Date d&apos;echeance: {formatDate(quote.dueDate, locale)}</p> */}
                     <p className={styles.invoiceMuted}>Reference chantier: {quote.workOrderReference || '-'}</p>
-                    <p className={styles.invoiceMuted}>Chantier: {quote.workOrderTitle}</p>
+                    <p className={styles.invoiceMuted}>Chantier: {quote.workOrderTitle || '-'}</p>
                 </div>
 
                 <div className={styles.rightBlock}>
@@ -169,7 +171,6 @@ export default function NewInvoice({
             <section className={`${styles.invoiceParty} ${styles.keepTogether}`}>
                 <div>
                     <h3 className={styles.invoiceSectionTitle}>Client</h3>
-                    <p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
                     <p className={styles.invoiceMuted}>{customerFullName || '-'}</p>
                     <p className={styles.invoiceMuted}>{formatAddress(quote.customerStreet1, quote.customerStreet2, quote.customerPostalCode, quote.customerCity)}</p>
                     <p className={styles.invoiceMuted}>Email: {quote.customerEmail || '-'}</p>

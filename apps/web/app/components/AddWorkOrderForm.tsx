@@ -609,7 +609,7 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           ...currentWorkOrder,
           title: selectedQuote.workOrderTitle || selectedQuote.title || '',
           description: selectedQuote.notes || '',
-          reference: selectedQuote.workOrderReference || selectedQuote.number || '',
+          reference: '',
           startDate: toDatetimeLocal(selectedQuote.workOrderStartDate),
           endDate: toDatetimeLocal(selectedQuote.workOrderEndDate),
           customerMode: selectedQuote.customerId ? 'existing' : currentWorkOrder.customerMode,

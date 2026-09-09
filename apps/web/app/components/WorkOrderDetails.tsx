@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useId, useRef } from 'react';
 import type { WorkOrder } from './WorkOrdersList';
 
 type WorkOrderDetailsProps = {
@@ -14,21 +15,66 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+const statusLabels: Record<WorkOrder['status'], string> = {
+  DRAFT: 'Brouillon',
+  PLANNED: 'Planifié',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Terminé',
+  CANCELLED: 'Annulé',
+};
+
+const itemTypeLabels: Record<WorkOrder['items'][number]['type'], string> = {
+  LABOR: 'Travaux',
+  MATERIAL: 'Matériel',
+  EQUIPMENT: 'Équipement',
+  TRAVEL: 'Déplacement',
+  SERVICE: 'Service',
+  OTHER: 'Autre',
+};
+
+function formatCurrency(value: number): string {
+  return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+}
+
+function formatCustomer(customer: WorkOrder['customer']): string {
+  if (!customer) return 'Client non renseigné';
+  const person = [customer.firstName, customer.lastName]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(' ');
+  return person || customer.company?.trim() || 'Client non renseigné';
+}
+
+function formatAddress(address: WorkOrder['address']): string {
+  if (!address) return 'Adresse non renseignée';
+  return [address.street1, address.street2, `${address.postalCode} ${address.city}`]
+    .filter(Boolean)
+    .join(', ');
+}
+
 export default function WorkOrderDetails({ workOrder, onClose, onEdit, onSelect }: WorkOrderDetailsProps) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const statusLabel = statusLabels[workOrder.status] ?? workOrder.status;
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
   const totalPrice = workOrder.items.reduce(
     (total, item) => total + toNumber(item.unitPrice) * toNumber(item.quantity),
     0,
   );
   const plannedStart = workOrder.plannedStartDate ?? workOrder.startDate;
   const plannedEnd = workOrder.plannedEndDate ?? workOrder.endDate;
-  const statusLabels: Record<WorkOrder['status'], string> = {
-    DRAFT: 'Brouillon',
-    PLANNED: 'Planifié',
-    IN_PROGRESS: 'En cours',
-    COMPLETED: 'Terminé',
-    CANCELLED: 'Annulé',
-  };
-  const statusLabel = statusLabels[workOrder.status] ?? workOrder.status;
   const totalQuantity = workOrder.items.reduce((total, item) => total + toNumber(item.quantity), 0);
   const totalCost = workOrder.items.reduce(
     (total, item) => total + toNumber(item.unitCost) * toNumber(item.quantity),
@@ -45,107 +91,73 @@ export default function WorkOrderDetails({ workOrder, onClose, onEdit, onSelect 
   };
 
   return (
-    <div className="w-full max-w-5xl overflow-hidden rounded-[1.75rem] bg-[#f4f1ea] text-slate-900 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-      <div className="grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <aside className="flex flex-col justify-between bg-[#e2603e] p-6 text-white sm:p-8">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white text-slate-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
+      <header className="border-b border-slate-200 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
+              <span>Chantier</span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="normal-case tracking-normal text-slate-500">{workOrder.reference || 'Sans référence'}</span>
+            </div>
+            <h2 id={titleId} className="mt-2 truncate text-2xl font-black tracking-tight text-slate-950">{workOrder.title}</h2>
+            <p className="mt-2 max-w-xl whitespace-pre-wrap text-sm leading-5 text-slate-600">{workOrder.description || 'Aucune description renseignée.'}</p>
+          </div>
+          <button type="button" aria-label="Fermer les détails du chantier" className="shrink-0 rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" onClick={onClose}>
+            <span aria-hidden="true" className="text-xl leading-none">×</span>
+          </button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700">{statusLabel}</span>
+          <span><strong className="font-bold text-slate-900">{formatCurrency(totalPrice)}</strong> <span className="text-slate-500">estimé</span></span>
+          <span className="text-slate-500">{workOrder.items.length} prestation{workOrder.items.length !== 1 ? 's' : ''}</span>
+        </div>
+      </header>
+
+      <div className="space-y-5 p-5 sm:p-6">
+        <section className="grid gap-4 rounded-lg bg-slate-50 p-4 sm:grid-cols-2" aria-label="Informations du chantier">
           <div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange-100">Chantier</span>
-              <span className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-semibold">{workOrder.status}</span>
-            </div>
-            <div className="mt-12 lg:mt-24">
-              <p className="text-7xl font-black leading-none tracking-[-0.08em]">{String(workOrder.items.length).padStart(2, '0')}</p>
-              <p className="mt-3 max-w-[9rem] text-sm font-medium leading-5 text-orange-100">étape{workOrder.items.length > 1 ? 's' : ''} planifiée{workOrder.items.length > 1 ? 's' : ''}</p>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Planning</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{formatDate(plannedStart)} <span className="font-normal text-slate-400">→</span> {formatDate(plannedEnd)}</p>
           </div>
-          <div className="mt-10 border-t border-white/25 pt-4 text-xs text-orange-100">
-            <p className="font-semibold text-white">Référence</p>
-            <p className="mt-1 break-words">{workOrder.reference || 'Sans référence'}</p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Client</p>
+            <p className="mt-1 truncate text-sm font-semibold text-slate-900">{formatCustomer(workOrder.customer)}</p>
           </div>
-        </aside>
+          <div className="sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Adresse d’intervention</p>
+            <p className="mt-1 text-sm text-slate-700">{formatAddress(workOrder.address)}</p>
+          </div>
+        </section>
 
-        <main className="min-w-0">
-          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-[#fbfaf7] p-6 sm:p-8">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e2603e]">Fiche opérationnelle</p>
-              <h3 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{workOrder.title}</h3>
-              <p className="mt-3 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-slate-600">{workOrder.description || 'Aucune description renseignée pour ce chantier.'}</p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button type="button" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:bg-white" onClick={onEdit}>
-                Modifier
-              </button>
-              <button type="button" aria-label="Fermer les détails du chantier" className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700" onClick={onClose}>
-                Fermer
-              </button>
-            </div>
-          </header>
-
-          <div className="space-y-7 p-6 sm:p-8">
-            <section className="grid gap-3 sm:grid-cols-3">
-              <div className="border-l-4 border-[#e2603e] bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Avancement</p>
-                <p className="mt-2 text-xl font-bold text-slate-950">{statusLabel}</p>
-              </div>
-              <div className="border-l-4 border-slate-900 bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Vente estimée</p>
-                <p className="mt-2 text-xl font-bold text-slate-950">{totalPrice.toFixed(2)} €</p>
-              </div>
-              <div className="border-l-4 border-[#e9b949] bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Coût estimé</p>
-                <p className="mt-2 text-xl font-bold text-slate-950">{totalCost.toFixed(2)} €</p>
-              </div>
-            </section>
-
-            <section className="grid gap-6 md:grid-cols-[0.8fr_1.2fr]">
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Planning</h4>
-                <div className="mt-4 border-l-2 border-[#e2603e] pl-5">
-                  <div className="relative pb-6">
-                    <span className="absolute -left-[1.9rem] top-0 h-3 w-3 rounded-full bg-[#e2603e] ring-4 ring-[#f4f1ea]" />
-                    <p className="text-xs font-semibold uppercase text-slate-500">Début prévu</p>
-                    <p className="mt-1 font-semibold text-slate-950">{formatDate(plannedStart)}</p>
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-slate-900">Prestations</h3>
+            <span className="text-xs text-slate-500">{totalQuantity} unité{totalQuantity !== 1 ? 's' : ''}</span>
+          </div>
+          {workOrder.items.length > 0 ? (
+            <ol className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+              {workOrder.items.map((item) => (
+                <li key={item.id} className="grid gap-2 px-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{item.title}</p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{itemTypeLabels[item.type]} · {item.quantity} {item.unitLabel || item.unitCode || item.unit || 'unité'}</p>
+                    {item.description && <p className="mt-1 text-xs leading-4 text-slate-600">{item.description}</p>}
                   </div>
-                  <div className="relative">
-                    <span className="absolute -left-[1.9rem] top-0 h-3 w-3 rounded-full bg-slate-950 ring-4 ring-[#f4f1ea]" />
-                    <p className="text-xs font-semibold uppercase text-slate-500">Fin prévue</p>
-                    <p className="mt-1 font-semibold text-slate-950">{formatDate(plannedEnd)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-3 md:border-t-0 md:border-l md:pl-6 md:pt-0">
-                <div><p className="text-xs font-semibold uppercase text-slate-500">Quantité totale</p><p className="mt-2 text-lg font-bold">{totalQuantity}</p></div>
-                <div><p className="text-xs font-semibold uppercase text-slate-500">Client</p><p className="mt-2 break-all text-sm font-medium">{workOrder.customerId || '-'}</p></div>
-                <div><p className="text-xs font-semibold uppercase text-slate-500">Adresse</p><p className="mt-2 break-all text-sm font-medium">{workOrder.addressId || '-'}</p></div>
-              </div>
-            </section>
+                  <p className="text-sm font-bold text-slate-900 sm:text-right">{formatCurrency(toNumber(item.subtotal ?? toNumber(item.unitPrice) * toNumber(item.quantity)))}</p>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">Aucune prestation enregistrée.</p>}
+        </section>
 
-            <section>
-              <div className="mb-4 flex items-end justify-between gap-3">
-                <div><h4 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Feuille de route</h4><p className="mt-1 text-sm text-slate-600">Détail des prestations prévues</p></div>
-                <span className="text-xs font-semibold text-slate-500">{workOrder.items.length} ligne{workOrder.items.length > 1 ? 's' : ''}</span>
-              </div>
-              {workOrder.items.length > 0 ? (
-                <ol className="divide-y divide-slate-200 border-y border-slate-200">
-                  {workOrder.items.map((item) => (
-                    <li key={item.id} className="grid gap-3 py-4 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:items-center">
-                      <span className="text-2xl font-black text-[#e2603e]">{String(item.position + 1).padStart(2, '0')}</span>
-                      <div className="min-w-0"><p className="font-bold text-slate-950">{item.title}</p><p className="mt-1 truncate text-xs text-slate-500">{item.type} · {item.quantity} {item.unitLabel || item.unitCode || item.unit || 'unité'}</p>{item.description && <p className="mt-2 text-sm leading-5 text-slate-600">{item.description}</p>}</div>
-                      <div className="text-left sm:text-right"><p className="font-bold text-slate-950">{toNumber(item.subtotal ?? toNumber(item.unitPrice) * toNumber(item.quantity)).toFixed(2)} €</p><p className="mt-1 text-xs text-slate-500">{toNumber(item.unitPrice).toFixed(2)} € / unité</p></div>
-                    </li>
-                  ))}
-                </ol>
-              ) : <p className="border-y border-slate-200 py-5 text-sm text-slate-500">Aucune étape enregistrée.</p>}
-            </section>
-
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500">
-              <span>Créé le {formatDate(workOrder.createdAt)}</span>
-              <span className="break-all">ID: {workOrder.id}</span>
-            </footer>
-
-            {onSelect && <button type="button" onClick={onSelect} className="w-full rounded-xl bg-[#e2603e] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#c84e31] active:bg-[#a83e26]">Sélectionner ce chantier</button>}
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+          <span className="text-xs text-slate-500">Créé le {formatDate(workOrder.createdAt)} · Coût estimé : {formatCurrency(totalCost)}</span>
+          <div className="flex gap-2">
+            <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" onClick={onEdit}>Modifier</button>
+            {onSelect && <button type="button" onClick={onSelect} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">Sélectionner</button>}
           </div>
-        </main>
+        </footer>
       </div>
     </div>
   );

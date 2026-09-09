@@ -41,8 +41,8 @@ export default function WorkOrdersPage() {
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAddWorkOrderForm, setShowAddWorkOrderForm] = useState(false)
-  const [workOrderFormWasOpened, setWorkOrderFormWasOpened] = useState(false)
+  const [showAddWorkOrderForm, setShowAddWorkOrderForm] = useState(false);
+  const [workOrderFormWasOpened, setWorkOrderFormWasOpened] = useState(false);
   // const [newWorkOrder, setNewWorkOrder] = useState<WorkOrder>(createEmptyWorkOrder());
   // const [addressMode, setAddressMode] = useState<AddressMode>('new');
   // const [selectedAddressId, setSelectedAddressId] = useState('');
@@ -106,8 +106,6 @@ export default function WorkOrdersPage() {
     };
   }, [api]);
   
-  console.log(workOrders)
-
   // async function handleAddWorkOrder(e: React.FormEvent) {
   //   e.preventDefault();
   //   try {
@@ -129,37 +127,43 @@ export default function WorkOrdersPage() {
   // }
 
   async function handleDelete(id: string) {
-    if (!confirm('Confirmer la suppression?')) return;
     try {
       const res = await api.delete(`/workOrders/${id}`);
       if (!res.ok) throw new Error('Erreur');
-      setWorkOrders(workOrders.filter((p) => p.id !== id));
+      setWorkOrders((currentWorkOrders) => currentWorkOrders.filter((workOrder) => workOrder.id !== id));
+      setError('');
     } catch {
-      setError('Erreur lors de la suppression');
+      setError('La suppression du chantier a échoué. Vérifiez votre connexion et réessayez.');
+      throw new Error('Work order deletion failed');
     }
   }
 
   return (
     <ProtectedRoute>
-      <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
-        <h2 className="text-2xl font-semibold mb-6">Gestion des Chantiers</h2>
+      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Opérations</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">Gestion des chantiers</h2>
+            <p className="mt-1 text-sm text-slate-500">{workOrders.length} chantier{workOrders.length !== 1 ? 's' : ''} au total</p>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+            onClick={() => { setShowAddWorkOrderForm(!showAddWorkOrderForm); setWorkOrderFormWasOpened(true); }}
+          >
+            {showAddWorkOrderForm ? 'Fermer le formulaire' : workOrderFormWasOpened ? 'Reprendre le formulaire' : 'Nouveau chantier'}
+          </button>
+        </div>
 
-        {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+        {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
-        <button
-          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
-                    rounded-sm mx-4 my-2 py-2 px-3 bg-blue-400 
-                    hover:bg-blue-600 active:bg-blue-900' 
-          onClick={() => {setShowAddWorkOrderForm(!showAddWorkOrderForm);setWorkOrderFormWasOpened(true);}}>
-            {showAddWorkOrderForm ? ("Fermer") : workOrderFormWasOpened ? ("Ouvrir") : ("Ajouter un chantier")}
-        </button>
         {workOrderFormWasOpened &&
         <button
-          className='border-double border-gray-700 border-2 shadow-md text-xl text-white 
-                    rounded-sm mx-4 my-2 py-2 px-3 float-right bg-red-400
-                    hover:bg-red-600 active:bg-red-900' 
+          type="button"
+          className="mb-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           onClick={() => {setShowAddWorkOrderForm(false);setWorkOrderFormWasOpened(false);}}>
-            Effacer le formulaire
+            Réinitialiser le formulaire
         </button>
         }
         {workOrderFormWasOpened &&
@@ -373,7 +377,11 @@ export default function WorkOrdersPage() {
         </form> */}
 
         {loading ? (
-          <p>Chargement...</p>
+          <div className="space-y-3" aria-label="Chargement des chantiers" role="status">
+            <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-56 animate-pulse rounded-xl bg-slate-100" />
+            <p className="text-sm text-slate-500">Chargement des chantiers...</p>
+          </div>
         ) : (
           <WorkOrdersList workOrders={workOrders} onDelete={handleDelete} />
         )}

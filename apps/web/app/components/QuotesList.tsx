@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QuoteStatus } from '@prisma/client';
+import { Search, X } from 'lucide-react';
 import NewQuote from './NewQuote';
 import UpdateQuoteForm from './UpdateQuoteForm';
 
@@ -157,8 +158,18 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
   const [quotesPerPage, setQuotesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
+  const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null);
+  const [deletionError, setDeletionError] = useState('');
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
 
-  const sortedQuotes = [...quotes].sort((a, b) => {
+  const sortedQuotes = useMemo(() => [...quotes].filter((quote) => {
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('fr');
+    return !normalizedSearch || [quote.number, quote.title, getClientName(quote), quote.workOrderReference]
+      .filter(Boolean)
+      .some((value) => value!.toLocaleLowerCase('fr').includes(normalizedSearch));
+  }).sort((a, b) => {
     if (sortBy === 'createdAtDesc') {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
@@ -169,7 +180,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
       return a.number.localeCompare(b.number, 'fr', { sensitivity: 'base' });
     }
     return b.number.localeCompare(a.number, 'fr', { sensitivity: 'base' });
-  });
+  }), [quotes, searchTerm, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(sortedQuotes.length / quotesPerPage));
   const effectiveCurrentPage = Math.min(currentPage, totalPages);
@@ -188,15 +199,43 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
 
   const hasRowActions = Boolean(onDelete || onDisassociate);
 
+  useEffect(() => {
+    if (!quoteToDelete) return;
+    deleteCancelRef.current?.focus();
+    function closeWithEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !deletingQuoteId) setQuoteToDelete(null);
+    }
+    document.addEventListener('keydown', closeWithEscape);
+    return () => document.removeEventListener('keydown', closeWithEscape);
+  }, [quoteToDelete, deletingQuoteId]);
+
+  async function confirmDelete() {
+    if (!quoteToDelete || !onDelete) return;
+    setDeletingQuoteId(quoteToDelete.id);
+    setDeletionError('');
+    try {
+      await onDelete(quoteToDelete.id);
+      setQuoteToDelete(null);
+    } catch {
+      setDeletionError('La suppression a échoué. Le devis est toujours présent.');
+    } finally {
+      setDeletingQuoteId(null);
+    }
+  }
+
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
-        <label htmlFor="quotes-sort" className="text-sm text-slate-600">
-          Trier
-        </label>
+      <div className="mb-5 space-y-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+          <label className="relative block">
+            <span className="sr-only">Rechercher un devis</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input type="search" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} placeholder="Rechercher par numéro, titre ou client" className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus-visible:outline-none" />
+          </label>
+        <label htmlFor="quotes-sort" className="flex flex-col gap-1 text-sm text-slate-500"><span>Trier par</span>
         <select
           id="quotes-sort"
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus-visible:outline-none"
           value={sortBy}
           onChange={(e) => {
             setSortBy(e.target.value as SortBy);
@@ -207,14 +246,12 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           <option value="createdAtAsc">Date d&apos;ajout: plus ancien</option>
           <option value="numberAsc">Numero: A - Z</option>
           <option value="numberDesc">Numero: Z - A</option>
-        </select>
+        </select></label>
 
-        <label htmlFor="quotes-per-page" className="text-sm text-slate-600">
-          Devis par page
-        </label>
+        <label htmlFor="quotes-per-page" className="flex flex-col gap-1 text-sm text-slate-500"><span>Devis par page</span>
         <select
           id="quotes-per-page"
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus-visible:outline-none"
           value={quotesPerPage}
           onChange={(e) => {
             setQuotesPerPage(Number(e.target.value));
@@ -225,11 +262,16 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           <option value={10}>10</option>
           <option value={20}>20</option>
           <option value={50}>50</option>
-        </select>
+        </select></label>
+          </div>
+          <div className="flex flex-wrap gap-2" role="status" aria-label="Statistiques des devis">
+            <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">{quotes.length} devis</span>
+            {searchTerm && <button type="button" onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">Effacer la recherche</button>}
+          </div>
       </div>
 
       {sortedQuotes.length > 0 && (
-        <p className="mb-3 text-sm text-slate-500">Cliquez sur un devis pour en voir le détail.</p>
+          <p className="mb-3 text-sm text-slate-500">Ouvrez un devis pour consulter ou modifier son détail.</p>
       )}
 
       {/* Desktop / tablet: full table */}
@@ -238,6 +280,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th scope="col" className="w-24 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"><span className="sr-only">Ouvrir</span></th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">N° devis</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Titre</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Client</th>
@@ -251,16 +294,9 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
               {currentQuotes.map((quote) => (
                 <tr
                   key={quote.id}
-                  tabIndex={0}
-                  className="cursor-pointer transition hover:bg-teal-50/60 focus-visible:bg-teal-50/60 focus-visible:outline-none"
-                  onClick={() => openQuote(quote)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openQuote(quote);
-                    }
-                  }}
+                  className="transition hover:bg-slate-50"
                 >
+                  <td className="px-4 py-3"><button type="button" onClick={() => openQuote(quote)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le devis ${quote.number}`}>Ouvrir</button></td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{quote.number}</td>
                   <td className="max-w-[16rem] truncate px-4 py-3 text-slate-700">{quote.title}</td>
                   <td className="max-w-[12rem] truncate px-4 py-3 text-slate-700">{getClientName(quote)}</td>
@@ -275,11 +311,8 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                         {onDisassociate && (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void onDisassociate(quote.id);
-                            }}
-                            className="text-amber-600 hover:text-amber-800"
+                            onClick={() => void onDisassociate(quote.id)}
+                            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                           >
                             Désassocier
                           </button>
@@ -287,11 +320,8 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                         {onDelete && (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void onDelete(quote.id);
-                            }}
-                            className="text-red-600 hover:text-red-800"
+                            onClick={() => setQuoteToDelete(quote)}
+                            className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                           >
                             Supprimer
                           </button>
@@ -309,18 +339,9 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
       {/* Mobile: stacked cards */}
       <section className="grid gap-3 sm:hidden">
         {currentQuotes.map((quote) => (
-          <div
+          <article
             key={quote.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => openQuote(quote)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                openQuote(quote);
-              }
-            }}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition active:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500"
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -338,16 +359,15 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                 {formatMoney(quote.taxInclusiveAmount ?? quote.total, quote.currency)}
               </p>
             </div>
-            {hasRowActions && (
-              <div className="mt-3 flex justify-end gap-4 border-t border-slate-100 pt-3 text-xs font-medium">
+            <div className="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <button type="button" onClick={() => openQuote(quote)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le devis ${quote.number}`}>Ouvrir</button>
+              {hasRowActions && (
+              <div className="flex gap-2">
                 {onDisassociate && (
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void onDisassociate(quote.id);
-                    }}
-                    className="text-amber-600 hover:text-amber-800"
+                    onClick={() => void onDisassociate(quote.id)}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                   >
                     Désassocier du projet
                   </button>
@@ -355,29 +375,31 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                 {onDelete && (
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void onDelete(quote.id);
-                    }}
-                    className="text-red-600 hover:text-red-800"
+                    onClick={() => setQuoteToDelete(quote)}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700"
                   >
                     Supprimer
                   </button>
                 )}
               </div>
             )}
-          </div>
+            </div>
+          </article>
         ))}
       </section>
 
       {sortedQuotes.length === 0 && (
-        <p className="mt-4 text-sm text-slate-600">Aucun devis a afficher.</p>
+        <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+          <p className="font-semibold text-slate-800">{quotes.length === 0 ? 'Aucun devis' : 'Aucun résultat'}</p>
+          <p className="mt-1 text-sm text-slate-500">{quotes.length === 0 ? 'Créez votre premier devis pour commencer.' : 'Modifiez votre recherche.'}</p>
+        </div>
       )}
 
       {sortedQuotes.length > 0 && (
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2" aria-label="Pagination des devis">
           <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+            aria-label="Page précédente"
             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
             disabled={effectiveCurrentPage === 1}
           >
@@ -387,7 +409,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           {pageNumbers.map((pageNumber) => (
             <button
               key={pageNumber}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${pageNumber === effectiveCurrentPage ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+              className={`rounded-lg border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${pageNumber === effectiveCurrentPage ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
               onClick={() => setCurrentPage(pageNumber)}
               aria-current={pageNumber === effectiveCurrentPage ? 'page' : undefined}
             >
@@ -396,12 +418,26 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           ))}
 
           <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+            aria-label="Page suivante"
             onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             disabled={effectiveCurrentPage === totalPages}
           >
             Suivant
           </button>
+        </div>
+      )}
+
+      {quoteToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="delete-quote-title" aria-describedby="delete-quote-description">
+            <div className="flex items-start justify-between gap-4">
+              <div><h2 id="delete-quote-title" className="text-lg font-bold text-slate-900">Supprimer ce devis ?</h2><p id="delete-quote-description" className="mt-2 text-sm text-slate-600">Le devis <strong>{quoteToDelete.number}</strong> sera supprimé. Cette action est irréversible.</p></div>
+              <button type="button" onClick={() => setQuoteToDelete(null)} aria-label="Fermer la confirmation" disabled={Boolean(deletingQuoteId)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"><X className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
+            {deletionError && <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{deletionError}</p>}
+            <div className="mt-6 flex justify-end gap-3"><button ref={deleteCancelRef} type="button" onClick={() => setQuoteToDelete(null)} disabled={Boolean(deletingQuoteId)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">Annuler</button><button type="button" onClick={() => void confirmDelete()} disabled={Boolean(deletingQuoteId)} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60">{deletingQuoteId ? 'Suppression...' : 'Supprimer définitivement'}</button></div>
+          </div>
         </div>
       )}
 

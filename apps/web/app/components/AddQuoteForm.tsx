@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
+import { ArrowDown, ArrowUp, Building2, ChevronRight, GripVertical, Link2, MapPin, Pencil, Plus, Save, Send, Trash2, UserPlus, X } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useApiClient } from '../api-client';
 import AddressForm, {
@@ -27,12 +28,16 @@ import {
   type AddCustomerFormData,
   type CreateCustomerDto,
 } from './AddCustomerForm';
+import AddCustomerForm from './AddCustomerForm';
 import CatalogItemList, { type CatalogItem } from './CatalogItemList';
+import AddWorkOrderForm from './AddWorkOrderForm';
+import AddressesList, { type AddressOption } from './AddressesList';
+import CustomersList, { type Customer } from './CustomersList';
+import NewQuote, { type QuotePreviewData } from './NewQuote';
 import WorkOrdersList, { type WorkOrder } from './WorkOrdersList';
-import SelectExistingAddress from './SelectExistingAddress';
 
 type AddressMode = 'new' | 'existing' | 'none';
-type CustomerMode = 'new' | 'existing';
+type CustomerMode = 'none' | 'new' | 'existing' | 'manual';
 
 interface AddressSummary {
   id?: string;
@@ -262,14 +267,6 @@ type AddQuoteFormProps = {
 
 type WorkOrderSelectionMode = 'fillForm' | 'addLines';
 
-const quoteStatusOptions: Array<{ value: QuoteStatus; label: string }> = [
-  { value: 'DRAFT', label: 'Brouillon' },
-  { value: 'SENT', label: 'Envoye' },
-  { value: 'ACCEPTED', label: 'Accepte' },
-  { value: 'REJECTED', label: 'Refuse' },
-  { value: 'EXPIRED', label: 'Expire' },
-];
-
 const quoteItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> = [
   { value: 'LABOR', label: 'Travaux' },
   { value: 'MATERIAL', label: 'Materiel' },
@@ -419,7 +416,7 @@ function SortableQuoteLine({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-lg border p-3 transition sm:p-4 ${isDragging ? 'border-teal-300 bg-teal-50/40 opacity-80 shadow-lg' : 'border-slate-200 bg-slate-50/60 hover:border-slate-300'}`}
+      className={`rounded-lg border p-2.5 transition sm:p-3 ${isDragging ? 'border-teal-300 bg-teal-50/40 opacity-80 shadow-lg' : 'border-slate-200 bg-slate-50/60 hover:border-slate-300'}`}
     >
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center gap-2">
@@ -428,36 +425,36 @@ function SortableQuoteLine({
           </span>
           <button
             type="button"
-            className="flex h-8 w-8 cursor-grab items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 active:cursor-grabbing"
+            className="flex h-7 w-7 cursor-grab items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 active:cursor-grabbing"
             aria-label="Glisser la ligne"
             title="Glisser la ligne"
             {...attributes}
             {...listeners}
           >
-            ≡
+            <GripVertical className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onMoveUp}
             disabled={index === 0}
             aria-label="Monter la ligne"
             title="Monter la ligne"
           >
-            ↑
+            <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
             onClick={onMoveDown}
             disabled={index === totalItems - 1}
             aria-label="Descendre la ligne"
             title="Descendre la ligne"
           >
-            ↓
+            <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
-        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1">
             <span className={lineLabelClass}>Type</span>
             <select
@@ -508,7 +505,7 @@ function SortableQuoteLine({
           <label className="flex flex-col gap-1 sm:col-span-2 lg:col-span-4">
             <span className={lineLabelClass}>Description</span>
             <textarea
-              className={`${inputClass} min-h-20`}
+              className={`${inputClass} min-h-14`}
               placeholder="Description"
               value={item.description}
               onChange={(event) => onDescriptionChange(event.target.value)}
@@ -549,10 +546,11 @@ function SortableQuoteLine({
           <div className="flex items-stretch">
             <button
               type="button"
-              className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+              className="flex w-full items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
               onClick={onDelete}
             >
-              Supprimer la ligne
+              <Trash2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Supprimer
             </button>
           </div>
         </div>
@@ -618,7 +616,7 @@ export function createEmptyQuote(
     workOrderStartDate: '',
     workOrderEndDate: '',
     workOrderId: '',
-    customerMode: 'new',
+    customerMode: 'none',
     customerId: '',
     customer: createEmptyCustomer(),
     workOrderAddressMode: 'none',
@@ -661,9 +659,109 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [catalogItemsError, setCatalogItemsError] = useState('');
   const [showCatalogItemsList, setShowCatalogItemsList] = useState(false);
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null);
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false);
+  const [showCustomerCreator, setShowCustomerCreator] = useState(false);
+  const [showWorkOrderCreator, setShowWorkOrderCreator] = useState(false);
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [showAddressSelector, setShowAddressSelector] = useState(false);
+  const [newAddress, setNewAddress] = useState<AddAddressFormData>(createEmptyAddress());
+  const [newAddressError, setNewAddressError] = useState('');
+  const [submitIntent, setSubmitIntent] = useState<'draft' | 'issue'>('issue');
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
+  const [isDesktopPreviewExpanded, setIsDesktopPreviewExpanded] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor));
 
   const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
+
+  function buildQuotePreview(): QuotePreviewData {
+    const customer = form.customerMode === 'existing' && selectedCustomer
+      ? {
+          firstName: selectedCustomer.firstName || '',
+          lastName: selectedCustomer.lastName || selectedCustomer.company || '',
+          company: selectedCustomer.company || '',
+          email: selectedCustomer.email || '',
+          phone: selectedCustomer.phone || selectedCustomer.mobile || '',
+          address: selectedCustomer.address,
+          vatNumber: selectedCustomer.vatNumber || '',
+        }
+      : {
+          firstName: form.customer.firstName,
+          lastName: form.customer.lastName || form.customer.company,
+          company: form.customer.company,
+          email: form.customer.email,
+          phone: form.customer.phone || form.customer.mobile,
+          address: form.customer.address,
+          vatNumber: form.customer.vatNumber,
+        };
+    const tenantAddress = tenantDefaults?.address;
+    const workOrderAddress = form.workOrderAddressMode === 'new'
+      ? form.workOrderAddress
+      : selectedWorkOrder?.address;
+
+    return {
+      id: 'draft-quote',
+      tenantId: '',
+      customerId: form.customerId,
+      workOrderId: form.workOrderId || undefined,
+      title: form.title,
+      number: '',
+      issueDate: form.issueDate,
+      validUntil: form.validUntil,
+      workOrderReference: form.workOrderReference,
+      workOrderTitle: form.workOrderTitle,
+      tenantName: tenantDefaults?.name || 'Entreprise non configurée',
+      tenantStreet1: tenantAddress?.street1 || '',
+      tenantStreet2: tenantAddress?.street2,
+      tenantPostalCode: tenantAddress?.postalCode || '',
+      tenantCity: tenantAddress?.city || '',
+      tenantSiretNumber: tenantDefaults?.siretNumber || '',
+      tenantVatNumber: tenantDefaults?.vatNumber || '',
+      tenantEmail: tenantDefaults?.email || '',
+      tenantPhoneNumber: tenantDefaults?.phoneNumber || '',
+      tenantIban: tenantDefaults?.iban || undefined,
+      tenantBic: tenantDefaults?.bic || undefined,
+      customerFirstName: customer.firstName,
+      customerLastName: customer.lastName,
+      customerStreet1: customer.address?.street1 || '',
+      customerStreet2: customer.address?.street2,
+      customerPostalCode: customer.address?.postalCode || '',
+      customerCity: customer.address?.city || '',
+      customerEmail: customer.email || undefined,
+      customerPhoneNumber: customer.phone || undefined,
+      customerVatNumber: customer.vatNumber || undefined,
+      workOrderStartDate: form.workOrderStartDate,
+      workOrderEndDate: form.workOrderEndDate,
+      workOrderAddress: workOrderAddress?.street1,
+      workOrderPostalCode: workOrderAddress?.postalCode,
+      workOrderCity: workOrderAddress?.city,
+      status: form.status,
+      currency: form.currency,
+      subtotal: form.subtotal,
+      vatAmount: form.vatAmount,
+      total: form.total,
+      paymentTerms: form.paymentTerms,
+      legalMentions: form.legalMentions,
+      notes: form.notes,
+      depositAmount: form.depositAmount,
+      items: form.quoteItems.map((item) => ({
+        id: item.rowId,
+        quoteId: 'draft-quote',
+        position: item.position,
+        title: item.title,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        vatRate: item.vatRate,
+        total: item.total,
+        subtotal: roundMoney(item.quantity * item.unitPrice),
+        unitLabel: item.unit,
+      })),
+      isDraft: true,
+      taxExclusiveAmount: form.subtotal,
+      taxInclusiveAmount: form.total,
+    };
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -791,6 +889,106 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     } else {
       setAddressError('');
       setAddressSuccess('Adresse du client selectionnee');
+    }
+  }
+
+  function handleUseWorkOrderAddress() {
+    const workOrder = selectedWorkOrder || workOrders.find((candidate) => candidate.id === form.workOrderId);
+    if (!workOrder?.addressId) {
+      setAddressError('Le chantier sélectionné n\'a pas d\'adresse enregistrée');
+      setAddressSuccess('');
+      return;
+    }
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      workOrderAddressMode: 'existing',
+      workOrderAddressId: selectedWorkOrder.addressId || '',
+    }));
+    setAddressError('');
+    setAddressSuccess('Adresse du chantier sélectionnée');
+  }
+
+  function handleSelectedCustomer(customer: Customer) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      customerMode: 'existing',
+      customerId: customer.id,
+      workOrderAddressMode: 'none',
+      workOrderAddressId: '',
+    }));
+    setShowCustomerSelector(false);
+    setAddressError('');
+    setAddressSuccess('');
+  }
+
+  function handleEditCustomerManually() {
+    if (!selectedCustomer) {
+      setForm((currentForm) => ({ ...currentForm, customerMode: 'manual', customerId: '' }));
+      return;
+    }
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      customerMode: 'manual',
+      customerId: '',
+      customer: {
+        firstName: selectedCustomer.firstName || '',
+        lastName: selectedCustomer.lastName || '',
+        company: selectedCustomer.company || '',
+        email: selectedCustomer.email || '',
+        phone: selectedCustomer.phone || '',
+        mobile: selectedCustomer.mobile || '',
+        siret: selectedCustomer.siret || '',
+        vatNumber: selectedCustomer.vatNumber || '',
+        notes: selectedCustomer.notes || '',
+        addressId: selectedCustomer.addressId || '',
+        address: {
+          ...createEmptyAddress(),
+          street1: selectedCustomer.address?.street1 || '',
+          postalCode: selectedCustomer.address?.postalCode || '',
+          city: selectedCustomer.address?.city || '',
+        },
+      },
+    }));
+    setAddressError('');
+    setAddressSuccess('');
+  }
+
+  function handleSelectedAddress(address: AddressOption) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      workOrderAddressMode: 'existing',
+      workOrderAddressId: address.id,
+    }));
+    setShowAddressSelector(false);
+    setAddressError('');
+    setAddressSuccess('Adresse sélectionnée');
+  }
+
+  async function saveNewAddress() {
+    const address = sanitizeAddress(newAddress);
+    if (!address.street1 || !address.postalCode || !address.city) {
+      setNewAddressError('La rue, le code postal et la ville sont obligatoires.');
+      return;
+    }
+
+    try {
+      const response = await api.post('/addresses', address);
+      if (!response.ok) throw new Error('Erreur');
+      const createdAddress: AddressOption = await response.json();
+      setForm((currentForm) => ({
+        ...currentForm,
+        workOrderAddressMode: 'existing',
+        workOrderAddressId: createdAddress.id,
+        workOrderAddress: address,
+      }));
+      setNewAddress(createEmptyAddress());
+      setNewAddressError('');
+      setShowNewAddressForm(false);
+      setAddressSuccess('Nouvelle adresse enregistrée et sélectionnée');
+    } catch {
+      setNewAddressError('Impossible d’enregistrer cette adresse.');
     }
   }
 
@@ -983,6 +1181,10 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         customerVatNumber?: string;
       }
     | { error: string } {
+    if (form.customerMode === 'none') {
+      return { error: 'Associe un client ou renseigne ses informations manuellement.' };
+    }
+
     if (form.customerMode === 'existing') {
       if (!selectedCustomer) {
         return { error: 'Veuillez selectionner un client existant.' };
@@ -1059,6 +1261,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const intent = submitter?.dataset.submitIntent === 'draft' ? 'draft' : submitIntent;
     setError('');
     setSuccess('');
     setAddressError('');
@@ -1141,7 +1345,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         form.workOrderAddressMode === 'new'
           ? sanitizeAddress(form.workOrderAddress)
           : undefined,
-      status: form.status,
+      status: intent === 'draft' ? 'DRAFT' : 'SENT',
       currency: form.currency.trim() || 'EUR',
       paymentTerms: trimToUndefined(form.paymentTerms),
       legalMentions: trimToUndefined(form.legalMentions),
@@ -1173,20 +1377,33 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       const data: Quote = await response.json();
       onCreated(data);
       setForm(createEmptyQuote(tenantDefaults || undefined));
-      setSuccess('Devis ajoute avec succes');
+      setSuccess(intent === 'draft' ? 'Brouillon enregistré avec succès' : 'Devis émis avec succès');
     } catch {
       setError('Erreur lors de la creation du devis');
     }
   }
 
   return (
+    <>
     <form
       onSubmit={handleSubmit}
-      className={`space-y-4 rounded-2xl border border-slate-600 bg-slate-200 p-4 shadow-sm sm:p-5 ${!show ? 'hidden' : ''}`}
+      className={`space-y-4 rounded-2xl border border-slate-600 bg-slate-200 p-4 pb-24 shadow-sm sm:p-5 sm:pb-24 ${!show ? 'hidden' : ''}`}
     >
+      <div className={`grid items-start gap-6 ${isDesktopPreviewExpanded ? 'xl:grid-cols-[minmax(0,1fr)_minmax(52rem,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_auto]'}`}>
+      <div className="min-w-0 space-y-4">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Nouveau document</p>
-        <h3 className="mt-1 text-xl font-semibold text-slate-900">Ajouter un devis</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="mt-1 text-xl font-semibold text-slate-900">Ajouter un devis</h3>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 xl:hidden"
+            aria-expanded={showMobilePreview}
+            onClick={() => setShowMobilePreview((current) => !current)}
+          >
+            {showMobilePreview ? "Masquer l'aperçu" : "Afficher l'aperçu"}
+          </button>
+        </div>
       </div>
 
       {error && <div className={alertError}>{error}</div>}
@@ -1194,7 +1411,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
 
       <button
         type="button"
-        className={btnSecondary}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         onClick={() => {
           void openWorkOrderSelector('fillForm');
         }}
@@ -1277,22 +1494,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               onChange={(event) => setForm({ ...form, title: event.target.value })}
               required
             />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Statut</span>
-            <select
-              className={inputClass}
-              value={form.status}
-              onChange={(event) =>
-                setForm({ ...form, status: event.target.value as QuoteStatus })
-              }
-            >
-              {quoteStatusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={labelClass}>Date d&apos;émission</span>
@@ -1390,14 +1591,17 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           <span className={stepBadgeClass}>2</span>
           Chantier associé
         </h4>
-        <p className="mb-3 text-sm text-slate-500">Associez ce devis à un chantier existant.</p>
-        <button
-          type="button"
-          className={btnSecondary}
-          onClick={() => void openWorkOrderAssociationSelector()}
-        >
-          {form.workOrderId ? 'Modifier le chantier associé' : 'Associer à un chantier existant'}
-        </button>
+        <p className="mb-3 text-sm text-slate-500">Liez le devis à un chantier existant ou préparez un nouveau chantier.</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={`${btnSecondary} inline-flex items-center gap-1.5`} onClick={() => void openWorkOrderAssociationSelector()}>
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+            {form.workOrderId ? 'Modifier l’association' : 'Associer un chantier'}
+          </button>
+          <button type="button" className={`${btnSecondary} inline-flex items-center gap-1.5`} onClick={() => setShowWorkOrderCreator(true)}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Créer un chantier
+          </button>
+        </div>
         {form.workOrderId && (
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
             <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-800">
@@ -1437,17 +1641,18 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           <span className={stepBadgeClass}>3</span>
           Entreprise
         </h4>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <strong className="block text-slate-900">{tenantDefaults?.name || 'Entreprise non configuree'}</strong>
-            <span>{formatAddressLabel(tenantDefaults?.address || undefined)}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex min-w-0 items-start gap-3 text-sm text-slate-700">
+            <Building2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-600" aria-hidden="true" />
+            <div className="min-w-0">
+              <strong className="block truncate text-slate-900">{tenantDefaults?.name || 'Entreprise non configurée'}</strong>
+              <span className="block truncate">{formatAddressLabel(tenantDefaults?.address || undefined)} · {tenantDefaults?.email || 'Email non renseigné'}</span>
+            </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <strong className="block text-slate-900">Contact</strong>
-            <span>
-              {tenantDefaults?.email || '-'} / {tenantDefaults?.phoneNumber || '-'}
-            </span>
-          </div>
+          <a href="/tenant" className={`${btnSecondary} inline-flex shrink-0 items-center gap-1.5`}>
+            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+            Modifier
+          </a>
         </div>
       </section>
 
@@ -1456,64 +1661,40 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           <span className={stepBadgeClass}>4</span>
           Client
         </h4>
-        <div className="mb-4 inline-flex rounded-lg border border-slate-300 bg-slate-50 p-1">
-          <button
-            type="button"
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${form.customerMode === 'existing' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
-            onClick={() => {
-              setForm({ ...form, customerMode: 'existing' });
-              setAddressError('');
-            }}
-          >
-            Client existant
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button type="button" className={`${btnSecondary} inline-flex items-center gap-1.5`} onClick={() => setShowCustomerSelector(true)}>
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+            Associer un client
+          </button>
+          <button type="button" className={`${btnSecondary} inline-flex items-center gap-1.5`} onClick={() => { setForm({ ...form, customerMode: 'none', customerId: '' }); setAddressError(''); setShowCustomerCreator(true); }}>
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            Créer un client
           </button>
           <button
             type="button"
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${form.customerMode === 'new' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
-            onClick={() => {
-              setForm({ ...form, customerMode: 'new', customerId: '' });
-              setAddressError('');
-            }}
+            className={`${btnSecondary} inline-flex items-center gap-1.5`}
+            onClick={handleEditCustomerManually}
           >
-            Nouveau client
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            Modifier manuellement
           </button>
         </div>
 
         {form.customerMode === 'existing' ? (
           <div className="space-y-3">
-            <select
-              className={inputClass}
-              value={form.customerId}
-              onChange={(event) => {
-                setForm({
-                  ...form,
-                  customerId: event.target.value,
-                  workOrderAddressMode: 'none',
-                  workOrderAddressId: '',
-                });
-                setAddressError('');
-                setAddressSuccess('');
-              }}
-            >
-              <option value="">-- Veuillez choisir un client --</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {formatCustomerLabel(customer)}
-                </option>
-              ))}
-            </select>
-
             {customersLoading ? (
               <p className="text-sm text-slate-500">Chargement des clients...</p>
             ) : selectedCustomer ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                <p className="font-medium text-slate-900">{formatCustomerLabel(selectedCustomer)}</p>
-                <p>{selectedCustomer.email || '-'}</p>
-                <p>{formatAddressLabel(selectedCustomer.address)}</p>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <p className="font-medium text-slate-900">{formatCustomerLabel(selectedCustomer)}</p>
+                  <p>{selectedCustomer.email || '-'}</p>
+                  <p>{formatAddressLabel(selectedCustomer.address)}</p>
+                </div>
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : form.customerMode === 'manual' ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <label className="flex flex-col gap-1.5">
@@ -1658,6 +1839,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               />
             </div>
           </div>
+        ) : (
+          <p className="text-sm text-slate-500">Associez un client ou utilisez la saisie manuelle.</p>
         )}
       </section>
 
@@ -1677,29 +1860,14 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           <button
             type="button"
             className={form.workOrderAddressMode === 'new' ? btnSecondaryActive : btnSecondary}
-            onClick={() => {
-              setForm({
-                ...form,
-                workOrderAddressMode: 'new',
-                workOrderAddressId: '',
-              });
-              setAddressError('');
-              setAddressSuccess('');
-            }}
+            onClick={() => { setNewAddress(form.workOrderAddress); setNewAddressError(''); setShowNewAddressForm(true); }}
           >
             Nouvelle adresse
           </button>
           <button
             type="button"
             className={form.workOrderAddressMode === 'existing' ? btnSecondaryActive : btnSecondary}
-            onClick={() => {
-              setForm({
-                ...form,
-                workOrderAddressMode: 'existing',
-              });
-              setAddressError('');
-              setAddressSuccess('');
-            }}
+            onClick={() => setShowAddressSelector(true)}
           >
             Adresse existante
           </button>
@@ -1710,6 +1878,15 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             disabled={form.customerMode !== 'existing' || !form.customerId}
           >
             Utiliser l&apos;adresse du client
+          </button>
+          <button
+            type="button"
+            className={`${btnAccent} inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+            onClick={handleUseWorkOrderAddress}
+            disabled={!((selectedWorkOrder || workOrders.find((candidate) => candidate.id === form.workOrderId))?.addressId)}
+          >
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+            Utiliser l&apos;adresse du chantier
           </button>
           <button
             type="button"
@@ -1728,27 +1905,15 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </button>
         </div>
 
-        {form.workOrderAddressMode === 'new' ? (
-          <AddressForm
-            address={form.workOrderAddress}
-            onChange={(workOrderAddress) => setForm({ ...form, workOrderAddress })}
-          />
-        ) : form.workOrderAddressMode === 'existing' ? (
-          <SelectExistingAddress
-            selectedAddressId={form.workOrderAddressId}
-            onAddressChange={(workOrderAddressId) => {
-              setForm({ ...form, workOrderAddressId });
-              setAddressSuccess(workOrderAddressId ? 'Adresse selectionnee' : '');
-            }}
-            required={false}
-          />
+        {form.workOrderAddressMode === 'existing' ? (
+          <p className="text-sm text-slate-600">Une adresse de chantier est sélectionnée.</p>
         ) : (
           <p className="text-sm text-slate-500">Le devis sera cree sans adresse de chantier.</p>
         )}
       </section>
 
       <section className={sectionClass}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h4 className={`${sectionTitleClass} mb-0 border-b-0 pb-0`}>
             <span className={stepBadgeClass}>6</span>
             Lignes du devis
@@ -1756,11 +1921,12 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className={btnAccent}
+              className={`${btnAccent} inline-flex items-center gap-1.5`}
               onClick={() =>
                 updateQuoteItems((items) => [...items, createEmptyQuoteItem(items.length)])
               }
             >
+              <Plus className="h-4 w-4" aria-hidden="true" />
               Ajouter une ligne
             </button>
             <button
@@ -2052,7 +2218,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
           </label>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Sous-total HT</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">{form.subtotal.toFixed(2)} {form.currency || 'EUR'}</p>
@@ -2065,12 +2231,166 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-300">Total TTC</p>
             <p className="mt-1 text-lg font-semibold">{form.total.toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Acompte</p>
+            <p className="mt-1 text-lg font-semibold text-amber-950">{form.depositAmount.toFixed(2)} {form.currency || 'EUR'}</p>
+          </div>
         </div>
       </section>
 
-      <button type="submit" className={`${btnPrimary} w-full sm:w-auto`}>
-        Créer le devis
-      </button>
+      <div className="hidden md:sticky md:bottom-4 md:z-20 md:flex md:items-center md:justify-between md:gap-5 md:rounded-xl md:border md:border-slate-300 md:bg-white/95 md:px-4 md:py-3 md:shadow-lg md:backdrop-blur">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+          <span>{form.quoteItems.length} ligne{form.quoteItems.length !== 1 ? 's' : ''}</span>
+          <span>HT <strong className="text-slate-900">{form.subtotal.toFixed(2)} {form.currency || 'EUR'}</strong></span>
+          <span>TVA <strong className="text-slate-900">{form.vatAmount.toFixed(2)} {form.currency || 'EUR'}</strong></span>
+          <span>Acompte <strong className="text-amber-700">{form.depositAmount.toFixed(2)} {form.currency || 'EUR'}</strong></span>
+          <span>TTC <strong className="text-slate-900">{form.total.toFixed(2)} {form.currency || 'EUR'}</strong></span>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button type="submit" data-submit-intent="draft" onClick={() => setSubmitIntent('draft')} className={`${btnSecondary} inline-flex items-center gap-1.5`}>
+            <Save className="h-4 w-4" aria-hidden="true" />
+            Enregistrer comme brouillon
+          </button>
+          <button type="submit" data-submit-intent="issue" onClick={() => setSubmitIntent('issue')} className={`${btnPrimary} inline-flex items-center gap-1.5`}>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            Émettre le devis
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 md:hidden">
+        <button type="submit" data-submit-intent="draft" onClick={() => setSubmitIntent('draft')} className={`${btnSecondary} inline-flex flex-1 items-center justify-center gap-1.5`}>
+          <Save className="h-4 w-4" aria-hidden="true" />
+          Brouillon
+        </button>
+        <button type="submit" data-submit-intent="issue" onClick={() => setSubmitIntent('issue')} className={`${btnPrimary} inline-flex flex-1 items-center justify-center gap-1.5`}>
+          <Send className="h-4 w-4" aria-hidden="true" />
+          Émettre
+        </button>
+      </div>
+      </div>
+
+      <aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block`} aria-label="Aperçu du devis">
+        <div className="flex items-start gap-2">
+          <div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
+            <NewQuote quote={buildQuotePreview()} />
+          </div>
+          <div className="hidden shrink-0 flex-col gap-2 xl:flex">
+            {!isDesktopPreviewExpanded ? (
+              <button
+                type="button"
+                aria-label="Voir l'aperçu du devis"
+                title="Voir l'aperçu"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                onClick={() => setIsDesktopPreviewExpanded(true)}
+              >
+                Voir l&apos;aperçu
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Réduire l'aperçu du devis"
+                title="Réduire l'aperçu"
+                className="rounded-lg border border-slate-300 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                onClick={() => setIsDesktopPreviewExpanded(false)}
+              >
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
+      </aside>
+      </div>
     </form>
+
+    {show && showCustomerCreator && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onClick={() => setShowCustomerCreator(false)}>
+        <section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-4 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="quote-customer-creator-title" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h4 id="quote-customer-creator-title" className="text-lg font-semibold text-slate-900">Créer un client</h4>
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" aria-label="Fermer" onClick={() => setShowCustomerCreator(false)}><X className="h-5 w-5" aria-hidden="true" /></button>
+          </div>
+          <AddCustomerForm
+            show={true}
+            onCreated={(customer) => {
+              setCustomers((currentCustomers) => [customer, ...currentCustomers]);
+              setForm((currentForm) => ({ ...currentForm, customerMode: 'existing', customerId: customer.id }));
+              setShowCustomerCreator(false);
+              setSuccess('Client créé et associé au devis.');
+            }}
+          />
+        </section>
+      </div>
+    )}
+
+    {show && showNewAddressForm && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onClick={() => setShowNewAddressForm(false)}>
+        <section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white p-4 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="quote-address-creator-title" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h4 id="quote-address-creator-title" className="text-lg font-semibold text-slate-900">Nouvelle adresse</h4>
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" aria-label="Fermer" onClick={() => setShowNewAddressForm(false)}><X className="h-5 w-5" aria-hidden="true" /></button>
+          </div>
+          {newAddressError && <p role="alert" className={`${alertError} mb-4`}>{newAddressError}</p>}
+          <AddressForm address={newAddress} onChange={setNewAddress} />
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" className={btnSecondary} onClick={() => setShowNewAddressForm(false)}>Annuler</button>
+            <button type="button" className={btnAccent} onClick={() => void saveNewAddress()}>Enregistrer l&apos;adresse</button>
+          </div>
+        </section>
+      </div>
+    )}
+
+    {show && showAddressSelector && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onClick={() => setShowAddressSelector(false)}>
+        <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-4 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="quote-address-selector-title" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h4 id="quote-address-selector-title" className="text-lg font-semibold text-slate-900">Adresse existante</h4>
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" aria-label="Fermer" onClick={() => setShowAddressSelector(false)}><X className="h-5 w-5" aria-hidden="true" /></button>
+          </div>
+          <AddressesList onSelect={handleSelectedAddress} />
+        </section>
+      </div>
+    )}
+
+    {show && showWorkOrderCreator && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onClick={() => setShowWorkOrderCreator(false)}>
+        <section className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="quote-work-order-creator-title" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h4 id="quote-work-order-creator-title" className="text-lg font-semibold text-slate-900">Créer un chantier</h4>
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" aria-label="Fermer" onClick={() => setShowWorkOrderCreator(false)}>
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <AddWorkOrderForm
+            show={true}
+            onCreated={(workOrder) => {
+              setWorkOrders((currentWorkOrders) => [workOrder, ...currentWorkOrders]);
+              setForm((currentForm) => ({ ...currentForm, workOrderId: workOrder.id }));
+              setShowWorkOrderCreator(false);
+              setSuccess('Chantier créé et associé au devis.');
+            }}
+          />
+        </section>
+      </div>
+    )}
+
+    {show && showCustomerSelector && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onClick={() => setShowCustomerSelector(false)}>
+        <section className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="quote-customer-selector-title" onClick={(event) => event.stopPropagation()}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Client</p>
+              <h4 id="quote-customer-selector-title" className="text-lg font-semibold text-slate-900">Associer un client</h4>
+            </div>
+            <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" aria-label="Fermer" onClick={() => setShowCustomerSelector(false)}>
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          {customersLoading ? <p className="text-sm text-slate-500">Chargement des clients...</p> : (
+            <CustomersList customers={customers} onDelete={null} handleSelectedCustomer={handleSelectedCustomer} />
+          )}
+        </section>
+      </div>
+    )}
+    </>
   );
 }

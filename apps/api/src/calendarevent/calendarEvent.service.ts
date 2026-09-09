@@ -223,13 +223,21 @@ export class CalendarEventService {
     const result = await this.prisma.calendarEvent.create({
       data,
       include: {
+        customer: {
+          select: { firstName: true, lastName: true, company: true },
+        },
+        project: {
+          select: { title: true },
+        },
         address: {
           select: {
-            id: true,
             street1: true,
             postalCode: true,
             city: true,
           },
+        },
+        createdBy: {
+          select: { firstname: true, lastname: true, email: true },
         },
       },
     });
@@ -263,6 +271,20 @@ export class CalendarEventService {
     const results = await this.prisma.calendarEvent.findMany({
       where: { tenantId, ...(projectId ? { projectId } : {}), ...dateFilter },
       orderBy: { startDate: 'asc' },
+      include: {
+        customer: {
+          select: { firstName: true, lastName: true, company: true },
+        },
+        project: {
+          select: { title: true },
+        },
+        address: {
+          select: { street1: true, postalCode: true, city: true },
+        },
+        createdBy: {
+          select: { firstname: true, lastname: true, email: true },
+        },
+      },
     });
 
     return results;

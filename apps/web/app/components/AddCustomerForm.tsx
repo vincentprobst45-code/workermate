@@ -79,6 +79,8 @@ export function createEmptyCustomer(): AddCustomerFormData {
 
 type AddCustomerFormProps = {
   onCreated: (customer: Customer) => void;
+  onUpdated?: (customer: Customer) => void;
+  initialCustomer?: Customer | null;
   show: boolean;
 };
 
@@ -95,33 +97,50 @@ type FormFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   containerClassName?: string;
 };
 
-// Chunky bordered field used only by this form's "workshop ticket" styling.
 function FormField({ label, icon: Icon, required, containerClassName, ...inputProps }: FormFieldProps) {
   return (
     <label className={`flex flex-col gap-1.5 ${containerClassName || ''}`}>
-      <span className="text-xs font-bold uppercase tracking-wide text-zinc-600">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
-        {required && <span className="ml-1 text-amber-600">*</span>}
+        {required && <span className="ml-1 text-indigo-600">*</span>}
       </span>
       <div className="relative">
-        {Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />}
+        {Icon && <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />}
         <input
           {...inputProps}
           required={required}
-          className={`w-full rounded-xl border-2 border-zinc-900 bg-white py-2.5 text-sm font-medium text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${Icon ? 'pl-9 pr-3' : 'px-3'}`}
+          className={`w-full rounded-lg border border-slate-300 bg-white py-2.5 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus-visible:outline-none ${Icon ? 'pl-9 pr-3' : 'px-3'}`}
         />
       </div>
     </label>
   );
 }
 
-export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProps) {
+export default function AddCustomerForm({ onCreated, onUpdated, initialCustomer = null, show }: AddCustomerFormProps) {
   const api = useApiClient();
+  const isEditing = Boolean(initialCustomer);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [newCustomer, setNewCustomer] = useState<AddCustomerFormData>(createEmptyCustomer());
-  const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [addressMode, setAddressMode] = useState<AddressMode>('none');
+  const [newCustomer, setNewCustomer] = useState<AddCustomerFormData>(() => initialCustomer ? {
+    firstName: initialCustomer.firstName || '',
+    lastName: initialCustomer.lastName || '',
+    company: initialCustomer.company || '',
+    email: initialCustomer.email || '',
+    phone: initialCustomer.phone || '',
+    mobile: initialCustomer.mobile || '',
+    siret: initialCustomer.siret || '',
+    vatNumber: initialCustomer.vatNumber || '',
+    notes: initialCustomer.notes || '',
+    addressId: initialCustomer.addressId || '',
+    address: {
+      ...createEmptyAddress(),
+      street1: initialCustomer.address?.street1 || '',
+      postalCode: initialCustomer.address?.postalCode || '',
+      city: initialCustomer.address?.city || '',
+    },
+  } : createEmptyCustomer());
+  const [selectedAddressId, setSelectedAddressId] = useState(initialCustomer?.addressId || '');
+  const [addressMode, setAddressMode] = useState<AddressMode>(initialCustomer?.addressId ? 'existing' : initialCustomer?.address?.street1 ? 'new' : 'none');
   const [step, setStep] = useState(0);
 
   function validateStep(index: number): string {
@@ -163,26 +182,56 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
     }
 
     try {
-      const customerToAdd: CreateCustomerDto =
+      const customerToSave: CreateCustomerDto =
         addressMode === 'new'
           ? { ...newCustomer, address: newCustomer.address }
           : addressMode === 'existing'
             ? { ...newCustomer, addressId: selectedAddressId }
             : { ...newCustomer };
 
-      const res = await api.post('/customers', customerToAdd);
+      const res = isEditing
+        ? await api.put(`/customers/${initialCustomer.id}`, {
+            firstName: customerToSave.firstName,
+            lastName: customerToSave.lastName,
+            company: customerToSave.company,
+            email: customerToSave.email,
+            phone: customerToSave.phone,
+            mobile: customerToSave.mobile,
+            siret: customerToSave.siret,
+            vatNumber: customerToSave.vatNumber,
+            notes: customerToSave.notes,
+            addressId: addressMode === 'existing' ? selectedAddressId : undefined,
+          })
+        : await api.post('/customers', customerToSave);
       if (!res.ok) throw new Error('Erreur');
 
-      const data = await res.json();
-      onCreated(data);
+      const data = isEditing
+        ? {
+            ...initialCustomer,
+            ...customerToSave,
+            addressId: addressMode === 'existing' ? selectedAddressId : initialCustomer.addressId,
+          }
+        : await res.json();
+
+      if (isEditing && addressMode === 'new' && initialCustomer.addressId) {
+        const addressResponse = await api.put(`/addresses/${initialCustomer.addressId}`, newCustomer.address);
+        if (!addressResponse.ok) throw new Error('La mise à jour de l’adresse a échoué');
+        data.address = { ...initialCustomer.address, ...newCustomer.address };
+      }
+
+      if (isEditing) {
+        onUpdated?.(data as Customer);
+      } else {
+        onCreated(data as Customer);
+      }
       setNewCustomer(createEmptyCustomer());
       setAddressMode('none');
       setSelectedAddressId('');
       setStep(0);
       setError('');
-      setSuccess('Client ajouté avec succès');
+      setSuccess(isEditing ? 'Client modifié avec succès' : 'Client ajouté avec succès');
     } catch (err) {
-      setError(`Erreur lors de l'ajout: ${err}`);
+      setError(`Erreur lors de ${isEditing ? 'la modification' : "l'ajout"}: ${err}`);
     }
   }
 
@@ -194,17 +243,17 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
   return (
     <form
       onSubmit={handleAddCustomer}
-      className={`mb-8 overflow-hidden rounded-3xl border-2 border-zinc-900 bg-[#FBF4E8] shadow-[6px_6px_0_0_#18181b] ${!show ? 'hidden' : ''}`}
+      className={`mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${!show ? 'hidden' : ''}`}
     >
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
-        <div className="p-5 sm:p-8">
+        <div className="p-5 sm:p-7">
           <div className="mb-6 flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-zinc-900 bg-amber-400">
-              <Hammer className="h-5 w-5 text-zinc-900" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+              <Hammer className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Nouveau dossier</p>
-              <h3 className="text-xl font-black text-zinc-900">Ajouter un client</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">{isEditing ? 'Modifier la fiche' : 'Nouveau client'}</p>
+              <h3 className="text-xl font-bold text-slate-900">{isEditing ? 'Modifier le client' : 'Ajouter un client'}</h3>
             </div>
           </div>
 
@@ -217,33 +266,33 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
                   disabled={i > step}
                   aria-current={i === step ? 'step' : undefined}
                   aria-label={`Étape ${i + 1} : ${s.title}`}
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-zinc-900 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
                     i < step
-                      ? 'cursor-pointer bg-zinc-900 text-amber-300'
+                      ? 'cursor-pointer border-indigo-600 bg-indigo-600 text-white'
                       : i === step
-                        ? 'bg-amber-400 text-zinc-900'
-                        : 'cursor-not-allowed bg-white text-zinc-400'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'cursor-not-allowed border-slate-200 bg-white text-slate-400'
                   }`}
                 >
                   {i < step ? <Check className="h-4 w-4" /> : i + 1}
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className={`mx-2 h-1 flex-1 rounded-full ${i < step ? 'bg-zinc-900' : 'bg-zinc-900/15'}`} />
+                    <div className={`mx-2 h-1 flex-1 rounded-full ${i < step ? 'bg-indigo-600' : 'bg-slate-200'}`} />
                 )}
               </div>
             ))}
           </div>
-          <p className="mb-6 text-sm font-semibold text-zinc-500">
+          <p className="mb-6 text-sm text-slate-500">
             Étape {step + 1}/{STEPS.length} — {STEPS[step].hint}
           </p>
 
           {error && (
-            <div className="mb-5 rounded-xl border-2 border-red-900 bg-red-100 px-4 py-3 text-sm font-semibold text-red-900">
+            <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {error}
             </div>
           )}
           {success && (
-            <div className="mb-5 rounded-xl border-2 border-emerald-900 bg-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-900">
+            <div role="status" className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               {success}
             </div>
           )}
@@ -306,8 +355,8 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
                     key={mode}
                     type="button"
                     onClick={() => setAddressMode(mode)}
-                    className={`rounded-xl border-2 border-zinc-900 px-4 py-2 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 ${
-                      addressMode === mode ? 'bg-zinc-900 text-amber-300' : 'bg-white text-zinc-700 hover:bg-zinc-100'
+                    className={`rounded-lg border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 ${
+                      addressMode === mode ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     {mode === 'new' ? 'Nouvelle adresse' : mode === 'existing' ? 'Adresse existante' : "Pas d'adresse"}
@@ -316,7 +365,7 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
               </div>
 
               {addressMode === 'new' && (
-                <div className="overflow-hidden rounded-2xl border-2 border-zinc-900 bg-white">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                   <AddressForm
                     address={newCustomer.address}
                     onChange={(address) => setNewCustomer({ ...newCustomer, address })}
@@ -324,12 +373,12 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
                 </div>
               )}
               {addressMode === 'existing' && (
-                <div className="rounded-2xl border-2 border-zinc-900 bg-white p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <SelectExistingAddress selectedAddressId={selectedAddressId} onAddressChange={setSelectedAddressId} />
                 </div>
               )}
               {addressMode === 'none' && (
-                <p className="rounded-2xl border-2 border-dashed border-zinc-400 bg-white/60 p-6 text-center text-sm text-zinc-500">
+                <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
                   Ce client sera enregistré sans adresse pour le moment.
                 </p>
               )}
@@ -355,9 +404,9 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
                 />
               </div>
               <label className="mt-4 flex flex-col gap-1.5">
-                <span className="text-xs font-bold uppercase tracking-wide text-zinc-600">Notes</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</span>
                 <textarea
-                  className="min-h-28 w-full rounded-xl border-2 border-zinc-900 bg-white px-3 py-2.5 text-sm font-medium text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+                  className="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 focus-visible:outline-none"
                   placeholder="Notes additionnelles sur ce client..."
                   value={newCustomer.notes}
                   onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })}
@@ -371,52 +420,52 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
               <button
                 type="button"
                 onClick={handleBack}
-                className="rounded-xl border-2 border-zinc-900 bg-white px-4 py-2.5 text-sm font-bold text-zinc-900 transition hover:bg-zinc-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
               >
                 ← Retour
               </button>
             )}
             <button
               type="submit"
-              className="ml-auto rounded-xl border-2 border-zinc-900 bg-amber-400 px-6 py-2.5 text-sm font-bold text-zinc-900 shadow-[3px_3px_0_0_#18181b] transition hover:bg-amber-300 active:translate-x-[3px] active:translate-y-[3px] active:shadow-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+              className="ml-auto rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
             >
-              {step === STEPS.length - 1 ? 'Ajouter le client' : 'Continuer →'}
+              {step === STEPS.length - 1 ? (isEditing ? 'Enregistrer les modifications' : 'Ajouter le client') : 'Continuer →'}
             </button>
           </div>
         </div>
 
-        <aside className="hidden flex-col justify-between bg-zinc-900 p-8 text-white lg:flex lg:border-l-2 lg:border-zinc-900">
+        <aside className="hidden flex-col justify-between border-l border-slate-200 bg-slate-900 p-8 text-white lg:flex">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">Aperçu</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Aperçu</p>
             <div className="mt-6 flex items-center gap-4">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-amber-400 bg-zinc-800 text-xl font-black text-amber-300">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-xl font-bold text-indigo-200">
                 {previewInitial}
               </span>
               <div className="min-w-0">
                 <p className="truncate text-lg font-bold text-white">{previewName || 'Nouveau client'}</p>
-                {newCustomer.company && <p className="truncate text-sm text-zinc-400">{newCustomer.company}</p>}
+                {newCustomer.company && <p className="truncate text-sm text-slate-400">{newCustomer.company}</p>}
               </div>
             </div>
 
             <div className="mt-8 space-y-3 text-sm">
               {newCustomer.email && (
-                <p className="flex items-center gap-2 text-zinc-300">
-                  <Mail className="h-4 w-4 shrink-0 text-amber-400" /> <span className="truncate">{newCustomer.email}</span>
+                <p className="flex items-center gap-2 text-slate-300">
+                  <Mail className="h-4 w-4 shrink-0 text-indigo-300" /> <span className="truncate">{newCustomer.email}</span>
                 </p>
               )}
               {newCustomer.phone && (
-                <p className="flex items-center gap-2 text-zinc-300">
-                  <Phone className="h-4 w-4 shrink-0 text-amber-400" /> {newCustomer.phone}
+                <p className="flex items-center gap-2 text-slate-300">
+                  <Phone className="h-4 w-4 shrink-0 text-indigo-300" /> {newCustomer.phone}
                 </p>
               )}
               {newCustomer.mobile && (
-                <p className="flex items-center gap-2 text-zinc-300">
-                  <Phone className="h-4 w-4 shrink-0 text-amber-400" /> {newCustomer.mobile}
+                <p className="flex items-center gap-2 text-slate-300">
+                  <Phone className="h-4 w-4 shrink-0 text-indigo-300" /> {newCustomer.mobile}
                 </p>
               )}
               {addressMode === 'new' && newCustomer.address.street1 && (
-                <p className="flex items-start gap-2 text-zinc-300">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <p className="flex items-start gap-2 text-slate-300">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
                   <span>
                     {[newCustomer.address.street1, newCustomer.address.postalCode, newCustomer.address.city]
                       .filter(Boolean)
@@ -425,22 +474,22 @@ export default function AddCustomerForm({ onCreated, show }: AddCustomerFormProp
                 </p>
               )}
               {addressMode === 'existing' && selectedAddressId && (
-                <p className="flex items-center gap-2 text-zinc-300">
-                  <MapPin className="h-4 w-4 shrink-0 text-amber-400" /> Adresse existante sélectionnée
+                <p className="flex items-center gap-2 text-slate-300">
+                  <MapPin className="h-4 w-4 shrink-0 text-indigo-300" /> Adresse existante sélectionnée
                 </p>
               )}
               {(newCustomer.siret || newCustomer.vatNumber) && (
-                <p className="flex items-center gap-2 text-zinc-300">
-                  <FileText className="h-4 w-4 shrink-0 text-amber-400" /> {newCustomer.siret || newCustomer.vatNumber}
+                <p className="flex items-center gap-2 text-slate-300">
+                  <FileText className="h-4 w-4 shrink-0 text-indigo-300" /> {newCustomer.siret || newCustomer.vatNumber}
                 </p>
               )}
               {!newCustomer.email && !newCustomer.phone && !newCustomer.mobile && (
-                <p className="text-zinc-500">Les informations saisies apparaîtront ici au fur et à mesure.</p>
+                <p className="text-slate-500">Les informations saisies apparaîtront ici au fur et à mesure.</p>
               )}
             </div>
           </div>
 
-          <p className="text-xs text-zinc-500">Fiche générée automatiquement à partir de vos saisies.</p>
+          <p className="text-xs text-slate-500">Fiche générée automatiquement à partir de vos saisies.</p>
         </aside>
       </div>
     </form>

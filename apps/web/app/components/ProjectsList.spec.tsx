@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProjectsList from './ProjectsList';
 import type { Project } from './AddProjectForm';
@@ -114,7 +114,20 @@ describe('ProjectsList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Ouvrir le projet PRJ-2026-001' })[0]);
 
     expect(handleSelected).toHaveBeenCalledWith(mockProject);
-    expect(window.location.search).toBe('?project=proj-1');
+    expect(window.location.search).toBe('');
+  });
+
+  it('groups control labels, uses semantic status filters, and removes the action heading', () => {
+    render(
+      <AuthProvider session={session}>
+        <ProjectsList projects={[mockProject]} onDelete={null} />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByLabelText('Trier par')).toBeInTheDocument();
+    expect(screen.getByLabelText('Projets par page')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Filtrer les projets par statut' })).toBeInTheDocument();
+    expect(screen.queryByText('Action')).toBeNull();
   });
 
   it('filters projects by reference, title, and customer and distinguishes an empty result', () => {
@@ -161,7 +174,25 @@ describe('ProjectsList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Supprimer le projet PRJ-2026-001' })[0]);
     expect(screen.getByRole('dialog', { name: 'Supprimer ce projet ?' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Supprimer', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer définitivement' }));
     expect(onDelete).toHaveBeenCalledWith('proj-1');
+  });
+
+  it('closes the deletion dialog with Escape and reports deletion errors in the dialog', async () => {
+    const onDelete = vi.fn().mockRejectedValue(new Error('network'));
+    render(
+      <AuthProvider session={session}>
+        <ProjectsList projects={[mockProject]} onDelete={onDelete} />
+      </AuthProvider>,
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Supprimer le projet PRJ-2026-001' })[0]);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Supprimer ce projet ?' })).toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Supprimer le projet PRJ-2026-001' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer définitivement' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('La suppression a échoué'));
+    expect(screen.getByRole('dialog', { name: 'Supprimer ce projet ?' })).toBeInTheDocument();
   });
 });

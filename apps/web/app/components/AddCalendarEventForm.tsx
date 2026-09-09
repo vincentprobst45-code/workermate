@@ -5,6 +5,7 @@ import SelectExistingAddress from "./SelectExistingAddress";
 import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm';
 import { useApiClient } from "../api-client";
 import AddWorkOrderForm from './AddWorkOrderForm';
+import type { CalendarEventApi } from './calendar.types';
 
 type AddressMode = 'new' | 'existing' | 'none';
 type AssociationMode = 'new' | 'existing' | 'none';
@@ -37,28 +38,6 @@ interface WorkOrder {
   title: string;
   description?: string;
   createdAt: string;
-}
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: Date;
-  end: Date;
-
-  color?: string;
-  description?: string;
-  notes?:string;
-  
-  customerId?: string;
-  customerName?: string;
-  workOrderId?: string;
-  workOrderName?: string;
-  addressId?: string;
-  addressName?: string;
-  createdById?: string;
-  createdByName?: string;
-
-  address? : AddAddressFormData
 }
 
 export function createEmptyCalendarEvent(): AddCalendarEventFormData {
@@ -114,7 +93,7 @@ function formatDuration(startIso: string, endIso: string): string | null {
 }
 
 type AddCalendarEventFormProps = {
-  onCreated : (calendarEvent: CalendarEvent) => void;
+  onCreated : (calendarEvent: CalendarEventApi) => void;
   projectid?: string;
   projectTitle?: string;
 };

@@ -69,6 +69,17 @@ export default function ProjectsPage() {
     setSelectedProject(null);
   }
 
+  function selectProject(project: Project | null) {
+    const url = new URL(window.location.href);
+    if (project) {
+      url.searchParams.set('project', project.id);
+    } else {
+      url.searchParams.delete('project');
+    }
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    setSelectedProject(project);
+  }
+
   async function handleDelete(id: string) {
     try {
       const response = await api.delete(`/projects/${id}`);
@@ -83,7 +94,8 @@ export default function ProjectsPage() {
       setError('');
       setSuccess('Projet supprimé avec succès');
     } catch {
-      setError('Erreur lors de la suppression');
+      setError('La suppression du projet a échoué. Vérifiez votre connexion et réessayez.');
+      throw new Error('Project deletion failed');
     }
   }
 
@@ -120,8 +132,8 @@ export default function ProjectsPage() {
 
             <button
               type="button"
-              onClick={() => setSelectedProject(null)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+              onClick={closeSelectedProject}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               <span>Retour</span>
@@ -207,12 +219,17 @@ export default function ProjectsPage() {
         )}
 
         {loading ? (
-          <p className="text-sm text-slate-500">Chargement des projets...</p>
+          <div className="space-y-3" aria-label="Chargement des projets" role="status">
+            <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+            <div className="hidden h-16 animate-pulse rounded-lg bg-slate-100 sm:block" />
+            <div className="h-28 animate-pulse rounded-lg bg-slate-100 sm:hidden" />
+            <p className="text-sm text-slate-500">Chargement des projets...</p>
+          </div>
         ) : (
           <ProjectsList
             projects={projects}
             onDelete={handleDelete}
-            handleSelectedProject={setSelectedProject}
+            handleSelectedProject={selectProject}
           />
         )}
       </main>
