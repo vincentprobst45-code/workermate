@@ -697,6 +697,13 @@ export class InvoiceService {
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName: true,
+            company: true,
+          },
+        },
         items: {
           orderBy: {
             position: 'asc',
@@ -722,6 +729,13 @@ export class InvoiceService {
     const results = await this.prisma.invoice.findFirst({
       where: { id, tenantId },
       include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName: true,
+            company: true,
+          },
+        },
         items: {
           orderBy: {
             position: 'asc',

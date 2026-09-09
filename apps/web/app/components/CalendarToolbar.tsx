@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import type { View } from 'react-big-calendar';
 
 type CalendarToolbarProps = {
@@ -12,6 +12,8 @@ type CalendarToolbarProps = {
   onNext: () => void;
   onViewChange: (view: View) => void;
   onAdd: () => void;
+  onSettings: () => void;
+  onChooseDate: () => void;
 };
 
 const views: Array<{ value: View; label: string }> = [
@@ -21,7 +23,7 @@ const views: Array<{ value: View; label: string }> = [
   { value: 'day', label: 'Jour' },
 ];
 
-export default function CalendarToolbar({ dateLabel, view, loading, onToday, onPrevious, onNext, onViewChange, onAdd }: CalendarToolbarProps) {
+export default function CalendarToolbar({ dateLabel, view, loading, onToday, onPrevious, onNext, onViewChange, onAdd, onSettings, onChooseDate }: CalendarToolbarProps) {
   return (
     <div className="calendar-toolbar">
       <div className="calendar-toolbar__heading">
@@ -31,6 +33,8 @@ export default function CalendarToolbar({ dateLabel, view, loading, onToday, onP
       </div>
       <div className="calendar-toolbar__actions">
         <div className="calendar-navigation" aria-label="Navigation du calendrier">
+          <button type="button" onClick={onSettings} disabled={loading} aria-label="Réglages du calendrier" title="Réglages du calendrier" className="calendar-icon-button"><Settings aria-hidden="true" /></button>
+          <button type="button" onClick={onChooseDate} disabled={loading} className="calendar-button"><CalendarDays aria-hidden="true" /> <span>Choisir la date</span></button>
           <button type="button" onClick={onToday} disabled={loading} className="calendar-button calendar-button--today">Aujourd&apos;hui</button>
           <button type="button" onClick={onPrevious} disabled={loading} aria-label="Période précédente" className="calendar-icon-button"><ChevronLeft aria-hidden="true" /></button>
           <button type="button" onClick={onNext} disabled={loading} aria-label="Période suivante" className="calendar-icon-button"><ChevronRight aria-hidden="true" /></button>

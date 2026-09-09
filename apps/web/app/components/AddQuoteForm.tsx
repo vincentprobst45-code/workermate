@@ -1387,10 +1387,10 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     <>
     <form
       onSubmit={handleSubmit}
-      className={`space-y-4 rounded-2xl border border-slate-600 bg-slate-200 p-4 pb-24 shadow-sm sm:p-5 sm:pb-24 ${!show ? 'hidden' : ''}`}
+      className={`w-full space-y-4 rounded-2xl border border-slate-600 bg-slate-200 p-4 shadow-sm sm:p-5 ${!show ? 'hidden' : ''}`}
     >
-      <div className={`grid items-start gap-6 ${isDesktopPreviewExpanded ? 'xl:grid-cols-[minmax(0,1fr)_minmax(52rem,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_auto]'}`}>
-      <div className="min-w-0 space-y-4">
+      <div className={`grid w-full items-start gap-6 ${isDesktopPreviewExpanded ? 'xl:grid-cols-[minmax(0,1fr)_minmax(52rem,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_max-content]'}`}>
+      <div className="min-w-0 w-full space-y-4 xl:col-start-1">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Nouveau document</p>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2238,15 +2238,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         </div>
       </section>
 
-      <div className="hidden md:sticky md:bottom-4 md:z-20 md:flex md:items-center md:justify-between md:gap-5 md:rounded-xl md:border md:border-slate-300 md:bg-white/95 md:px-4 md:py-3 md:shadow-lg md:backdrop-blur">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-          <span>{form.quoteItems.length} ligne{form.quoteItems.length !== 1 ? 's' : ''}</span>
-          <span>HT <strong className="text-slate-900">{form.subtotal.toFixed(2)} {form.currency || 'EUR'}</strong></span>
-          <span>TVA <strong className="text-slate-900">{form.vatAmount.toFixed(2)} {form.currency || 'EUR'}</strong></span>
-          <span>Acompte <strong className="text-amber-700">{form.depositAmount.toFixed(2)} {form.currency || 'EUR'}</strong></span>
-          <span>TTC <strong className="text-slate-900">{form.total.toFixed(2)} {form.currency || 'EUR'}</strong></span>
-        </div>
-        <div className="flex shrink-0 gap-2">
+      <div className="hidden justify-end gap-2 md:flex">
           <button type="submit" data-submit-intent="draft" onClick={() => setSubmitIntent('draft')} className={`${btnSecondary} inline-flex items-center gap-1.5`}>
             <Save className="h-4 w-4" aria-hidden="true" />
             Enregistrer comme brouillon
@@ -2255,7 +2247,6 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <Send className="h-4 w-4" aria-hidden="true" />
             Émettre le devis
           </button>
-        </div>
       </div>
       <div className="flex flex-wrap gap-2 md:hidden">
         <button type="submit" data-submit-intent="draft" onClick={() => setSubmitIntent('draft')} className={`${btnSecondary} inline-flex flex-1 items-center justify-center gap-1.5`}>
@@ -2269,9 +2260,9 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       </div>
       </div>
 
-      <aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block`} aria-label="Aperçu du devis">
+      <aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:col-start-2 xl:justify-self-end xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu du devis">
         <div className="flex items-start gap-2">
-          <div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
+          <div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 w-fit max-w-full shrink-0 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
             <NewQuote quote={buildQuotePreview()} />
           </div>
           <div className="hidden shrink-0 flex-col gap-2 xl:flex">

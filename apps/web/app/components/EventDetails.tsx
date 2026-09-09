@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
-import { X } from 'lucide-react';
+import { Pencil, X } from 'lucide-react';
 import type { CalendarEvent } from './calendar.types';
 
 type EventDetailsProps = {
   event: CalendarEvent;
   onClose: () => void;
+  onEdit?: () => void;
 };
 
 function formatDate(value: Date): string {
@@ -30,7 +31,7 @@ function Detail({ label, value }: { label: string; value?: string }) {
   );
 }
 
-export default function EventDetails({ event, onClose }: EventDetailsProps) {
+export default function EventDetails({ event, onClose, onEdit }: EventDetailsProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +84,17 @@ export default function EventDetails({ event, onClose }: EventDetailsProps) {
           <Detail label="Notes" value={event.notes} />
         </div>
       )}
+
+      <div className="mt-5 flex justify-end border-t border-slate-200 pt-5">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+        >
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          Modifier
+        </button>
+      </div>
     </div>
   );
 }

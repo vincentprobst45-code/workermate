@@ -5,7 +5,7 @@ import SelectExistingAddress from "./SelectExistingAddress";
 import AddressForm, { type AddAddressFormData, createEmptyAddress } from './AddressForm';
 import { useApiClient } from "../api-client";
 import AddWorkOrderForm from './AddWorkOrderForm';
-import type { CalendarEventApi } from './calendar.types';
+import type { CalendarEvent, CalendarEventApi } from './calendar.types';
 
 type AddressMode = 'new' | 'existing' | 'none';
 type AssociationMode = 'new' | 'existing' | 'none';
@@ -94,22 +94,51 @@ function formatDuration(startIso: string, endIso: string): string | null {
 
 type AddCalendarEventFormProps = {
   onCreated : (calendarEvent: CalendarEventApi) => void;
+  event?: CalendarEvent;
+  onUpdated?: (calendarEvent: CalendarEventApi) => void;
+  onCancel?: () => void;
   projectid?: string;
   projectTitle?: string;
+  initialStart?: Date;
+  initialEnd?: Date;
 };
 
-export default function AddCalendarEventForm({ onCreated, projectid, projectTitle }: AddCalendarEventFormProps){
+function toDateTimeLocal(value: Date) {
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+}
+
+function initialEventData(event?: CalendarEvent, initialStart?: Date, initialEnd?: Date): AddCalendarEventFormData {
+  const empty = createEmptyCalendarEvent();
+  if (!event) return { ...empty, startDate: initialStart ? toDateTimeLocal(initialStart) : '', endDate: initialEnd ? toDateTimeLocal(initialEnd) : '' };
+  return {
+    ...empty,
+    title: event.title,
+    description: event.description ?? '',
+    startDate: toDateTimeLocal(event.start),
+    endDate: toDateTimeLocal(event.end),
+    type: event.type as CalendarEventType,
+    color: event.color ?? empty.color,
+    notes: event.notes ?? '',
+    addressId: event.addressId ?? '',
+    address: { ...empty.address, street1: event.address?.street1 ?? '', postalCode: event.address?.postalCode ?? '', city: event.address?.city ?? '', countryCode: 'FR' },
+  };
+}
+
+export default function AddCalendarEventForm({ onCreated, event, onUpdated, onCancel, projectid, projectTitle, initialStart, initialEnd }: AddCalendarEventFormProps){
+  const isEditMode = Boolean(event);
   const api = useApiClient();
-  const [newCalendarEvent, setNewCalendarEvent] = useState<AddCalendarEventFormData>(createEmptyCalendarEvent());
+  const [newCalendarEvent, setNewCalendarEvent] = useState<AddCalendarEventFormData>(() => initialEventData(event, initialStart, initialEnd));
 
   const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
   const [workOrdersListOpen, setWorkOrdersListOpen] = useState(false)
-  const [selectedWorkOrder, setSelectedWorkOrder] = useState("")
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState(event?.workOrderId ?? "")
   const [workOrderMode, setWorkOrderMode] = useState<AssociationMode>('none');
-  const [addressMode, setAddressMode] = useState<AddressMode>('new');
+  const [addressMode, setAddressMode] = useState<AddressMode>(event?.addressId ? 'existing' : 'none');
   const [workOrdersLite, setWorkOrdersLite] = useState<WorkOrder[]>([]);
-  const [projectMode, setProjectMode] = useState<AssociationMode>(projectid ? 'existing' : 'none');
-  const [selectedProject, setSelectedProject] = useState('');
+  const [projectMode, setProjectMode] = useState<AssociationMode>(projectid || event?.projectId ? 'existing' : 'none');
+  const [selectedProject, setSelectedProject] = useState(event?.projectId ?? '');
   const [projects, setProjects] = useState<Array<{ id: string; title: string; reference?: string }>>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
@@ -192,20 +221,27 @@ export default function AddCalendarEventForm({ onCreated, projectid, projectTitl
 
       const basePayload = {
         ...newCalendarEvent,
-        workOrderId: workOrderMode === 'existing' ? selectedWorkOrder : undefined,
-        projectId: projectid || (projectMode === 'existing' ? selectedProject : undefined),
+        addressId: addressMode === 'existing' ? newCalendarEvent.addressId : addressMode === 'none' ? '' : undefined,
+        address: addressMode === 'new' ? newCalendarEvent.address : undefined,
+        workOrderId: workOrderMode === 'existing' ? selectedWorkOrder : '',
+        projectId: projectid || (projectMode === 'existing' ? selectedProject : ''),
       };
-      const res = await api.post('/calendarevents', basePayload);
+      const res = isEditMode
+        ? await api.put(`/calendarevents/${event.id}`, basePayload)
+        : await api.post('/calendarevents', basePayload);
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();
-      onCreated(data);
-      setNewCalendarEvent(createEmptyCalendarEvent());
-      setSelectedWorkOrder('');
-      setSelectedProject('');
+      if (isEditMode) onUpdated?.(data);
+      else {
+        onCreated(data);
+        setNewCalendarEvent(createEmptyCalendarEvent());
+        setSelectedWorkOrder('');
+        setSelectedProject('');
+      }
       setError('');
-      setSuccess('Évènement ajouté avec succès');
+      setSuccess(isEditMode ? 'Évènement modifié avec succès' : 'Évènement ajouté avec succès');
     } catch (error) {
-      setError(`Erreur lors de l\'ajout ${error}`);
+      setError(`Erreur lors de l\'${isEditMode ? 'enregistrement' : 'ajout'} ${error}`);
     }
   }
   
@@ -222,7 +258,7 @@ export default function AddCalendarEventForm({ onCreated, projectid, projectTitl
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">
                 <CalendarDays className="h-3.5 w-3.5" /> Planning
               </p>
-              <h3 className="mt-1 text-xl font-bold text-slate-900">Nouvel évènement</h3>
+              <h3 className="mt-1 text-xl font-bold text-slate-900">{isEditMode ? 'Modifier l’évènement' : 'Nouvel évènement'}</h3>
             </div>
 
             {error && (
@@ -453,8 +489,9 @@ export default function AddCalendarEventForm({ onCreated, projectid, projectTitl
               type="submit"
               className="w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700 sm:w-auto"
             >
-              Ajouter l&apos;évènement
+              {isEditMode ? 'Enregistrer les modifications' : 'Ajouter l&apos;évènement'}
             </button>
+            {onCancel && <button type="button" onClick={onCancel} className="mt-3 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 sm:ml-3 sm:mt-0 sm:w-auto">Annuler</button>}
           </div>
         </form>
 

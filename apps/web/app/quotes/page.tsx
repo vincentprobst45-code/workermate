@@ -65,7 +65,7 @@ export default function QuotesPage() {
 
 	return (
 		<ProtectedRoute>
-				<main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+				<main className="mx-auto w-full max-w-[1600px] px-5 py-8 sm:px-6">
 				<div className="mb-8 flex flex-wrap items-end justify-between gap-4">
 					<div>
 						<p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Ventes</p>

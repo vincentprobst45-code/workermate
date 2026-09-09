@@ -5,7 +5,6 @@ import { useApiClient } from '../api-client';
 import AddInvoiceForm from '../components/AddInvoiceForm';
 import AddPaymentForm, { type Payment } from '../components/AddPaymentForm';
 import InvoicesList, { type Invoice } from '../components/InvoicesList';
-import NewInvoice, { type Invoice as DraftInvoice } from '../components/NewInvoice';
 import { ProtectedRoute } from '../protected-route';
 
 const invoiceKindOptions: Array<{ value: InvoiceKind; label: string }> = [
@@ -26,8 +25,6 @@ export default function InvoicesPage() {
   const [isChoosingInvoiceKind, setIsChoosingInvoiceKind] = useState(false);
   const [selectedInvoiceKind, setSelectedInvoiceKind] = useState<InvoiceKind | null>(null);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
-  const [draftInvoice, setDraftInvoice] = useState<DraftInvoice | null>(null);
-  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,39 +68,65 @@ export default function InvoicesPage() {
 
   return (
     <ProtectedRoute>
-      <main className="mx-auto max-w-6xl px-5 py-6 sm:px-6">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-2xl font-semibold">Gestion des Factures</h2>
+      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Factures</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-900">Gestion des factures</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {invoices.length} facture{invoices.length > 1 ? 's' : ''} au total
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setIsAddingPayment(true)}
-              className="rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-800"
+              className="rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800"
             >
               Ajouter un paiement
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (isCreatingInvoice) {
-                  setIsCreatingInvoice(false);
-                } else {
-                  setIsChoosingInvoiceKind(true);
-                  setSelectedInvoiceKind(null);
-                }
-              }}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
-            >
-              {isCreatingInvoice ? 'Masquer le formulaire' : 'Créer une nouvelle facture'}
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isCreatingInvoice) {
+                    setIsCreatingInvoice(false);
+                  } else {
+                    setIsChoosingInvoiceKind((current) => !current);
+                    setSelectedInvoiceKind(null);
+                  }
+                }}
+                className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700"
+              >
+                {isCreatingInvoice ? 'Masquer le formulaire' : 'Créer une nouvelle facture'}
+              </button>
+              {isChoosingInvoiceKind && !isCreatingInvoice && (
+                <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+                  {invoiceKindOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => {
+                        setSelectedInvoiceKind(option.value);
+                        setIsChoosingInvoiceKind(false);
+                        setIsCreatingInvoice(true);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {isAddingPayment && (
-          <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
+          <div className="mb-8 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-zinc-900">Ajouter un paiement</h3>
-              <button type="button" onClick={() => setIsAddingPayment(false)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100">
+              <h3 className="text-lg font-semibold text-slate-900">Ajouter un paiement</h3>
+              <button type="button" onClick={() => setIsAddingPayment(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                 Fermer
               </button>
             </div>
@@ -120,72 +143,19 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        {isChoosingInvoiceKind && !isCreatingInvoice && (
-          <section className="mb-8 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-            <h3 className="mb-3 text-lg font-semibold text-zinc-900">Choisir le type de facture</h3>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex min-w-64 flex-1 flex-col gap-1.5">
-                <span className="text-sm font-medium text-zinc-700">Type de facture</span>
-                <select
-                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
-                  defaultValue=""
-                  onChange={(event) => setSelectedInvoiceKind(event.target.value as InvoiceKind || null)}
-                >
-                  <option value="">-- Sélectionner un type --</option>
-                  {invoiceKindOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                disabled={!selectedInvoiceKind}
-                onClick={() => {
-                  setIsChoosingInvoiceKind(false);
-                  setIsCreatingInvoice(true);
-                }}
-                className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Continuer
-              </button>
-            </div>
-          </section>
-        )}
-
         {isCreatingInvoice && selectedInvoiceKind && (
-          <div className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start">
-            <div className="min-w-0 flex-1">
+          <div className="mb-8">
               <AddInvoiceForm
                 show={true}
                 invoiceKind={selectedInvoiceKind!}
-                onChange={setDraftInvoice}
                 onCreated={(invoice) => {
                   setInvoices((current) => [invoice, ...current]);
                 }}
               />
-            </div>
-            <div className="flex min-w-0 xl:sticky xl:top-6 xl:self-start">
-              <button
-                type="button"
-                aria-label={isPreviewCollapsed ? 'Réélargir l’aperçu de la facture' : 'Réduire l’aperçu de la facture'}
-                title={isPreviewCollapsed ? 'Réélargir l’aperçu' : 'Réduire l’aperçu'}
-                onClick={() => setIsPreviewCollapsed((current) => !current)}
-                className="hidden w-10 shrink-0 self-stretch rounded-l-xl border border-r-0 border-zinc-300 bg-white text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 xl:block"
-              >
-                {isPreviewCollapsed ? '<-' : '->'}
-              </button>
-              <div
-                className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${
-                  isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(220mm,calc(100vw-8rem))]'
-                }`}
-              >
-                {draftInvoice && <NewInvoice invoice={draftInvoice} />}
-              </div>
-            </div>
           </div>
         )}
 
-        {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
         {/* <form onSubmit={handleAddInvoice} className="mb-8 p-5 bg-white rounded-lg shadow">
           <h3 className="font-semibold mb-4">Ajouter une facture</h3>
@@ -219,7 +189,12 @@ export default function InvoicesPage() {
         </form> */}
 
         {loading ? (
-          <p>Chargement...</p>
+          <div className="space-y-3" aria-label="Chargement des factures" role="status">
+            <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+            <div className="hidden h-16 animate-pulse rounded-lg bg-slate-100 sm:block" />
+            <div className="h-28 animate-pulse rounded-lg bg-slate-100 sm:hidden" />
+            <p className="text-sm text-slate-500">Chargement des factures...</p>
+          </div>
         ) : (
           <InvoicesList
             invoices={invoices}

@@ -33,7 +33,7 @@ import AddInvoiceAdjustmentForm, { type InvoiceAdjustmentFormData } from './AddI
 import AddInvoiceItemAdjustmentForm, { type InvoiceItemAdjustmentFormData } from './AddInvoiceItemAdjustmentForm';
 import CustomersList, { type Customer as CustomerRecord } from './CustomersList';
 import InvoicesList, { type Invoice as CreatedInvoice } from './InvoicesList';
-import type { Invoice as PreviewInvoice } from './NewInvoice';
+import NewInvoice, { type Invoice as PreviewInvoice } from './NewInvoice';
 import QuotesList, { type Quote as QuoteOption } from './QuotesList';
 import WorkOrdersList, { type WorkOrder as WorkOrderBase } from './WorkOrdersList';
 
@@ -809,7 +809,7 @@ type AddInvoiceFormProps = {
 	show: boolean;
 };
 
-const fieldClassName = 'rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900';
+const fieldClassName = 'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100';
 
 const invoiceKindLabels: Record<InvoiceKind, string> = {
 	[InvoiceKind.STANDARD]: 'standard',
@@ -953,6 +953,8 @@ function FieldLabel({ label, required = false, children, className = '', compact
 
 export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, invoiceKind, onChange, show }: AddInvoiceFormProps) {
 	const api = useApiClient();
+	const [showMobilePreview, setShowMobilePreview] = useState(false);
+	const [isDesktopPreviewExpanded, setIsDesktopPreviewExpanded] = useState(false);
 	const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults | null>(null);
 	const [form, setForm] = useState<AddInvoiceFormData>(() => {
 		if (!initialInvoice) {
@@ -1997,13 +1999,28 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 					event.preventDefault();
 				}
 			}}
-			className={`mb-8 space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm ${!show ? 'hidden' : ''}`}
+				className={`mb-8 space-y-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${!show ? 'hidden' : ''}`}
 			aria-busy={isSubmitting}
 		>
-			<h3 className="text-lg font-semibold text-zinc-900">
-				{initialInvoice ? 'Modifier la facture' : `Nouvelle facture ${invoiceKindLabels[invoiceKind]}`}
-			</h3>
-			<p className="text-sm text-zinc-600"><span aria-hidden="true">*</span> Champs obligatoires</p>
+			<div className={`grid items-start gap-6 ${isDesktopPreviewExpanded ? 'xl:grid-cols-[minmax(0,1fr)_minmax(52rem,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_auto]'}`}>
+			<div className="min-w-0 space-y-6">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">Nouveau document</p>
+					<h3 className="mt-1 text-xl font-bold text-slate-900">
+						{initialInvoice ? 'Modifier la facture' : `Nouvelle facture ${invoiceKindLabels[invoiceKind]}`}
+					</h3>
+				</div>
+				<button
+					type="button"
+					className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 xl:hidden"
+					aria-expanded={showMobilePreview}
+					onClick={() => setShowMobilePreview((current) => !current)}
+				>
+					{showMobilePreview ? "Masquer l'aperçu" : "Afficher l'aperçu"}
+				</button>
+			</div>
+			<p className="text-sm text-slate-500"><span aria-hidden="true">*</span> Champs obligatoires</p>
 			{(error || validationErrors.length > 0) && (
 				<div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" aria-live="assertive">
 					<p className="font-semibold">{error || 'Des informations sont incomplètes.'}</p>
@@ -2018,7 +2035,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			<div className="flex flex-wrap gap-2">
 				<button
 					type="button"
-					className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+					className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
 					onClick={() => {
 						void openTopQuoteSelector();
 					}}
@@ -2027,7 +2044,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				</button>
 				<button
 					type="button"
-					className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+					className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
 					onClick={() => {
 						openTopWorkOrderSelector();
 					}}
@@ -2036,11 +2053,11 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				</button>
 			</div>
 
-			{topQuotesError && <div className="rounded bg-red-100 p-3 text-red-700">{topQuotesError}</div>}
-			{topWorkOrdersError && <div className="rounded bg-red-100 p-3 text-red-700">{topWorkOrdersError}</div>}
+			{topQuotesError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{topQuotesError}</div>}
+			{topWorkOrdersError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{topWorkOrdersError}</div>}
 
 			{showTopQuotesList && (
-				<div className="rounded-md border border-zinc-200 bg-white p-4">
+				<div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
 					<div className="mb-3 flex items-center gap-2">
 						<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un devis</h4>
 						<button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowTopQuotesList(false)}>
@@ -2067,7 +2084,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			)}
 
 			{showTopWorkOrdersList && (
-				<div className="rounded-md border border-zinc-200 bg-white p-4">
+				<div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
 					<div className="mb-3 flex items-center gap-2">
 						<h4 className="text-lg font-semibold text-zinc-900">Sélectionner un chantier</h4>
 						<button type="button" className="ml-auto rounded border px-3 py-2" onClick={() => setShowTopWorkOrdersList(false)}>
@@ -2093,15 +2110,15 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				</div>
 			)}
 
-			{error && <div className="rounded bg-red-100 p-3 text-red-700">{error}</div>}
-			{success && <div className="rounded bg-green-100 p-3 text-green-700">{success}</div>}
+			{error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+			{success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
 
 			{(invoiceKind === InvoiceKind.CORRECTIVE || invoiceKind === InvoiceKind.CREDIT_NOTE) && (
 				<section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
 					<div className="flex flex-wrap items-center gap-3">
 						<button
 							type="button"
-							className="rounded-md border border-amber-700 bg-amber-700 px-3 py-2 text-sm text-white transition hover:bg-amber-800"
+							className="rounded-lg border border-amber-700 bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-800"
 							onClick={() => { void openSourceInvoiceSelector(); }}
 						>
 							{sourceInvoiceButtonLabel}
@@ -2115,21 +2132,21 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				</section>
 			)}
 
-			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+			<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
 				<div className="mb-4 flex items-center justify-between gap-3">
-					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Client</h4>
+					<h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Client</h4>
 				</div>
 				<div className="mb-4 flex flex-wrap gap-2">
 					<button
 						type="button"
-						className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+						className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
 						onClick={() => setShowCustomerSelector(true)}
 					>
 						Remplir depuis un client existant
 					</button>
 					<button
 						type="button"
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+						className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
 						onClick={() => setShowNewCustomerModal(true)}
 					>
 						Nouveau client
@@ -2184,10 +2201,10 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				)}
 			</section>
 
-			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+			<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
 				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Ajustements de facture</h4>
-					<button type="button" className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm text-white transition hover:bg-emerald-800" onClick={() => openInvoiceAdjustmentForm()}>
+					<h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Ajustements de facture</h4>
+					<button type="button" className="rounded-lg border border-emerald-700 bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800" onClick={() => openInvoiceAdjustmentForm()}>
 						+ Ajouter une remise ou des frais
 					</button>
 				</div>
@@ -2203,21 +2220,21 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				)}
 			</section>
 
-			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+			<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
 				<div className="mb-4 flex items-center justify-between gap-3">
-					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Chantier</h4>
+					<h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Chantier</h4>
 				</div>
 				<div className="mb-4 flex flex-wrap gap-2">
 					<button
 						type="button"
-						className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700"
+						className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
 						onClick={() => setShowWorkOrderSelector(true)}
 					>
 						Remplir depuis un chantier existant
 					</button>
 					<button
 						type="button"
-						className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+						className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
 						onClick={() => setShowNewWorkOrderModal(true)}
 					>
 						Nouveau chantier
@@ -2265,19 +2282,19 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				)}
 			</section>
 
-			<section className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 sm:p-5">
+			<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
 				<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-					<h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">Lignes de facture</h4>
+					<h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Lignes de facture</h4>
 					<div className="relative">
-						<button type="button" className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-700" onClick={() => setShowAddLineMenu((current) => !current)}>
+						<button type="button" className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700" onClick={() => setShowAddLineMenu((current) => !current)}>
 							+ Ajouter une ligne
 						</button>
 						{showAddLineMenu && (
-							<div className="absolute right-0 z-20 mt-2 w-52 rounded-md border border-zinc-200 bg-white p-1 shadow-lg">
-								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); void openCatalogItemSelector(); }}>Depuis le catalogue</button>
-								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); updateInvoiceItems((items) => [...items, createEmptyInvoiceItem(items.length)]); }}>Ligne libre</button>
-								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); void openQuoteSelector(); }}>Depuis le devis</button>
-								<button type="button" className="block w-full rounded px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-100" onClick={() => { setShowAddLineMenu(false); openWorkOrderLineSelector(); }}>Depuis le chantier</button>
+							<div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+								<button type="button" className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setShowAddLineMenu(false); void openCatalogItemSelector(); }}>Depuis le catalogue</button>
+								<button type="button" className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setShowAddLineMenu(false); updateInvoiceItems((items) => [...items, createEmptyInvoiceItem(items.length)]); }}>Ligne libre</button>
+								<button type="button" className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setShowAddLineMenu(false); void openQuoteSelector(); }}>Depuis le devis</button>
+								<button type="button" className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50" onClick={() => { setShowAddLineMenu(false); openWorkOrderLineSelector(); }}>Depuis le chantier</button>
 							</div>
 						)}
 					</div>
@@ -2625,6 +2642,47 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				>
 					{isSubmitting ? 'Enregistrement...' : initialInvoice ? 'Emettre la facture' : 'Emettre la facture'}
 				</button>
+			</div>
+			</div>
+
+			<aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu de la facture">
+				<div className="flex items-start gap-2">
+					<div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 flex-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
+						<NewInvoice invoice={createDraftPreviewInvoice(
+							{ ...form, number: displayedInvoiceNumber },
+							selectedSourceInvoice,
+							invoiceKind,
+							initialInvoice?.kind === invoiceKind ? {
+								number: invoiceKind === InvoiceKind.CORRECTIVE ? initialInvoice.correctedInvoiceNumber : initialInvoice.references?.[0]?.referencedInvoiceNumber,
+								issueDate: invoiceKind === InvoiceKind.CORRECTIVE ? initialInvoice.correctedInvoiceIssueDate : initialInvoice.references?.[0]?.referencedInvoiceIssueDate,
+							} : undefined,
+						)} />
+					</div>
+					<div className="hidden shrink-0 flex-col gap-2 xl:flex">
+						{!isDesktopPreviewExpanded ? (
+							<button
+								type="button"
+								aria-label="Voir l’aperçu de la facture"
+								title="Voir l’aperçu"
+								className="sticky top-6 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+								onClick={() => setIsDesktopPreviewExpanded(true)}
+							>
+								Voir l&apos;aperçu
+							</button>
+						) : (
+							<button
+								type="button"
+								aria-label="Réduire l’aperçu de la facture"
+								title="Réduire l’aperçu"
+								className="sticky top-6 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+								onClick={() => setIsDesktopPreviewExpanded(false)}
+							>
+								Réduire l&apos;aperçu
+							</button>
+						)}
+					</div>
+				</div>
+			</aside>
 			</div>
 		</form>
 

@@ -53,6 +53,11 @@ export interface Invoice {
   id: string;
   tenantId: string;
   customerId: string;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    company?: string | null;
+  } | null;
   workOrderId?: string;
   number: string;
   issueDate: string;
@@ -163,7 +168,8 @@ function formatDate(value?: string) {
 }
 
 function getClientName(invoice: Invoice) {
-  return invoice.customerName?.trim() || [invoice.customerFirstName, invoice.customerLastName].filter(Boolean).join(' ') || '-';
+  const relatedCustomerName = [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(' ');
+  return relatedCustomerName || invoice.customer?.company?.trim() || invoice.customerName?.trim() || [invoice.customerFirstName, invoice.customerLastName].filter(Boolean).join(' ') || '-';
 }
 
 const INVOICE_STATUS_STYLES: Record<InvoiceStatus, { label: string; className: string }> = {
@@ -192,8 +198,6 @@ export default function InvoicesList({
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceBeingEdited, setInvoiceBeingEdited] = useState<Invoice | null>(null);
-  const [invoiceEditPreview, setInvoiceEditPreview] = useState<Invoice | null>(null);
-  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [invoicesPerPage, setInvoicesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
@@ -230,13 +234,13 @@ export default function InvoicesList({
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
         <label htmlFor="invoices-sort" className="text-sm text-slate-600">
           Trier
         </label>
         <select
           id="invoices-sort"
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           value={sortBy}
           onChange={(e) => {
             setSortBy(e.target.value as SortBy);
@@ -254,7 +258,7 @@ export default function InvoicesList({
         </label>
         <select
           id="invoices-per-page"
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           value={invoicesPerPage}
           onChange={(e) => {
             setInvoicesPerPage(Number(e.target.value));
@@ -272,7 +276,7 @@ export default function InvoicesList({
         <p className="mb-3 text-sm text-slate-500">Cliquez sur une facture pour en voir le détail.</p>
       )}
 
-      <section className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:block">
+      <section className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
@@ -291,7 +295,7 @@ export default function InvoicesList({
                 <tr
                   key={invoice.id}
                   tabIndex={0}
-                  className="cursor-pointer transition hover:bg-sky-50/60 focus-visible:bg-sky-50/60 focus-visible:outline-none"
+                  className="cursor-pointer transition hover:bg-indigo-50/50 focus-visible:bg-indigo-50/50 focus-visible:outline-none"
                   onClick={() => openInvoice(invoice)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -344,7 +348,7 @@ export default function InvoicesList({
                 openInvoice(invoice);
               }
             }}
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition active:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition active:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -377,7 +381,7 @@ export default function InvoicesList({
       {sortedInvoices.length > 0 && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
             disabled={effectiveCurrentPage === 1}
           >
@@ -387,7 +391,7 @@ export default function InvoicesList({
           {pageNumbers.map((pageNumber) => (
             <button
               key={pageNumber}
-              className={`rounded-lg border px-3 py-1.5 text-sm ${pageNumber === effectiveCurrentPage ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${pageNumber === effectiveCurrentPage ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
               onClick={() => setCurrentPage(pageNumber)}
               aria-current={pageNumber === effectiveCurrentPage ? 'page' : undefined}
             >
@@ -396,7 +400,7 @@ export default function InvoicesList({
           ))}
 
           <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
             onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             disabled={effectiveCurrentPage === totalPages}
           >
@@ -407,34 +411,32 @@ export default function InvoicesList({
 
       {showInvoiceDetails && selectedInvoice && (
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
           onClick={() => {
             setShowInvoiceDetails(false);
             setSelectedInvoice(null);
           }}
         >
           <div
-            className="bg-white rounded-lg p-6 max-w-3xl w-[92vw] max-h-[85vh] overflow-y-auto"
+            className="max-h-[85vh] w-[92vw] max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="pb-4 flex items-center">
               <h3 className="inline-block text-2xl">
                 <strong>Details facture</strong>
               </h3>
-              <button
+                <button
                 type="button"
-                className="ml-auto mr-2 rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-700"
+                  className="ml-auto mr-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
                 onClick={() => {
                   setInvoiceBeingEdited(selectedInvoice);
-                  setInvoiceEditPreview(selectedInvoice);
-                  setIsPreviewCollapsed(false);
                 }}
               >
                 Modifier la facture
               </button>
               <button
                 type="button"
-                className="border-2 rounded-md px-3 py-2 ml-auto inline-block"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 onClick={() => {
                   setShowInvoiceDetails(false);
                   setSelectedInvoice(null);
@@ -492,17 +494,16 @@ export default function InvoicesList({
 
       {invoiceBeingEdited && (
         <div
-          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 sm:p-6"
           onClick={() => setInvoiceBeingEdited(null)}
         >
           <div
             className="flex w-full max-w-7xl flex-col gap-6 xl:flex-row xl:items-start"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="min-w-0 flex-1 rounded-xl bg-white p-5 shadow-xl">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h3 className="text-xl font-semibold text-zinc-900">Modifier la facture</h3>
-                <button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setInvoiceBeingEdited(null)}>
+            <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-5">
+              <div className="mb-4 flex justify-end">
+                <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => setInvoiceBeingEdited(null)}>
                   Fermer
                 </button>
               </div>
@@ -511,29 +512,12 @@ export default function InvoicesList({
                 initialInvoice={invoiceBeingEdited}
                 invoiceKind={(invoiceBeingEdited.kind as InvoiceKind | undefined) ?? InvoiceKind.STANDARD}
                 onCreated={() => undefined}
-                onChange={setInvoiceEditPreview}
                 onUpdated={(updatedInvoice) => {
                   setSelectedInvoice(updatedInvoice);
-                  setInvoiceEditPreview(updatedInvoice);
                   setInvoiceBeingEdited(null);
                   onUpdated?.(updatedInvoice);
                 }}
               />
-            </div>
-
-            <div className="flex min-w-0 xl:sticky xl:top-6 xl:self-start">
-              <button
-                type="button"
-                aria-label={isPreviewCollapsed ? 'Réélargir l’aperçu de la facture' : 'Réduire l’aperçu de la facture'}
-                title={isPreviewCollapsed ? 'Réélargir l’aperçu' : 'Réduire l’aperçu'}
-                onClick={() => setIsPreviewCollapsed((current) => !current)}
-                className="hidden w-10 shrink-0 self-stretch rounded-l-xl border border-r-0 border-zinc-300 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-100 xl:block"
-              >
-                {isPreviewCollapsed ? '<-' : '->'}
-              </button>
-              <div className={`overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm transition-[width] duration-200 xl:rounded-l-none ${isPreviewCollapsed ? 'xl:w-0 xl:overflow-hidden xl:border-l-0 xl:p-0' : 'w-full p-4 xl:w-[min(58rem,calc(100vw-8rem))]'}`}>
-                <NewInvoice invoice={invoiceEditPreview ?? invoiceBeingEdited} />
-              </div>
             </div>
           </div>
         </div>

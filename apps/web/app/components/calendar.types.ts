@@ -15,6 +15,7 @@ export type CalendarEvent = {
   title: string;
   start: Date;
   end: Date;
+  allDay?: boolean;
   color?: string;
   type?: CalendarEventType | string;
   description?: string;
@@ -23,6 +24,11 @@ export type CalendarEvent = {
   projectName?: string;
   addressName?: string;
   createdByName?: string;
+  customerId?: string;
+  addressId?: string;
+  workOrderId?: string;
+  projectId?: string;
+  address?: { street1?: string | null; postalCode?: string | null; city?: string | null } | null;
 };
 
 export type CalendarEventApi = {
@@ -30,6 +36,7 @@ export type CalendarEventApi = {
   title: string;
   startDate: string;
   endDate: string;
+  allDay?: boolean;
   color?: string;
   type?: CalendarEventType | string;
   description?: string;
@@ -38,6 +45,10 @@ export type CalendarEventApi = {
   projectName?: string;
   addressName?: string;
   createdByName?: string;
+  customerId?: string;
+  addressId?: string;
+  workOrderId?: string;
+  projectId?: string;
   customer?: { firstName?: string | null; lastName?: string | null; company?: string | null } | null;
   project?: { title?: string | null } | null;
   address?: { street1?: string | null; postalCode?: string | null; city?: string | null } | null;
