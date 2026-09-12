@@ -26,6 +26,10 @@ import { RecurringInvoiceModule } from './recurring-invoice/recurring-invoice.mo
 import { CompanyExpenseModule } from './company-expense/company-expense.module';
 import { BankTransactionModule } from './bank-transaction/bank-transaction.module';
 import { TreasuryModule } from './treasury/treasury.module';
+import { SupplierModule } from './supplier/supplier.module';
+import { SupplierInvoiceModule } from './supplier-invoice/supplier-invoice.module';
+import { PurchaseModule } from './purchase/purchase.module';
+import { StockModule } from './stock/stock.module';
 
 @Module({
   imports: [
@@ -53,6 +57,10 @@ import { TreasuryModule } from './treasury/treasury.module';
     CompanyExpenseModule,
     BankTransactionModule,
     TreasuryModule,
+    SupplierModule,
+    SupplierInvoiceModule,
+    PurchaseModule,
+    StockModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],
@@ -89,6 +97,10 @@ export class AppModule implements NestModule {
         'company-expenses',
         'bank-transactions',
         'treasury',
+        'suppliers',
+        'supplier-invoices',
+        'purchases',
+        'stock',
         'quotes',
         'calendarevents',
         'addresses',
@@ -121,6 +133,10 @@ export class AppModule implements NestModule {
         'projects',
         'worklogs',
         'treasury',
+        'suppliers',
+        'supplier-invoices',
+        'purchases',
+        'stock',
       );
   }
 }

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Home, LucideIcon,
-  FolderOpenDot, Building2, UserRound, Hammer, NotepadText, ScrollText, BookOpenText, Bell, WalletCards } from 'lucide-react';
+  FolderOpenDot, Building2, UserRound, Hammer, NotepadText, ScrollText, BookOpenText, Bell, WalletCards, Truck, ShoppingCart, Boxes } from 'lucide-react';
 
 type NavigationItem = {
   href: string;
@@ -24,6 +24,9 @@ const navigationItems: NavigationItem[] = [
   { href: '/invoices', label: 'Factures', icon: ScrollText },
   { href: '/treasury', label: 'Trésorerie', icon: WalletCards },
   { href: '/catalogitem', label: 'Catalogue', icon: BookOpenText },
+  { href: '/suppliers', label: 'Fournisseurs', icon: Truck },
+  { href: '/purchases', label: 'Achats', icon: ShoppingCart },
+  { href: '/stock', label: 'Stock', icon: Boxes },
 ];
 
 function isActivePath(pathname: string, href: string): boolean {

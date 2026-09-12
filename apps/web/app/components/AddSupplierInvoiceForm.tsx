@@ -1,0 +1,11 @@
+'use client';
+
+import { FormEvent, useState } from 'react';
+import { useApiClient } from '../api-client';
+import type { Supplier } from './AddSupplierForm';
+
+export default function AddSupplierInvoiceForm({ supplier, onCreated }: { supplier: Supplier; onCreated: () => void }) {
+  const api = useApiClient(); const [number, setNumber] = useState(''); const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); const [ht, setHt] = useState('0'); const [vat, setVat] = useState('0'); const [ttc, setTtc] = useState('0'); const [error, setError] = useState('');
+  async function submit(event: FormEvent) { event.preventDefault(); const response = await api.post('/supplier-invoices', { supplierId: supplier.id, supplierInvoiceNumber: number, issueDate: date, taxExclusiveAmount: Number(ht), vatAmount: Number(vat), taxInclusiveAmount: Number(ttc), deductibleVatAmount: Number(vat) }); if (!response.ok) { setError('Impossible d’enregistrer la facture.'); return; } setNumber(''); setError(''); onCreated(); }
+  return <form onSubmit={submit} className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 md:grid-cols-6"><div className="md:col-span-2"><p className="text-sm font-semibold text-blue-900">Nouvelle facture · {supplier.name}</p></div><input required placeholder="N° facture" value={number} onChange={(event) => setNumber(event.target.value)} className="rounded-md border border-stone-300 px-3 py-2" /><input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-md border border-stone-300 px-3 py-2" /><input type="number" step="0.01" placeholder="HT" value={ht} onChange={(event) => setHt(event.target.value)} className="rounded-md border border-stone-300 px-3 py-2" /><input type="number" step="0.01" placeholder="TVA" value={vat} onChange={(event) => setVat(event.target.value)} className="rounded-md border border-stone-300 px-3 py-2" /><input type="number" step="0.01" placeholder="TTC" value={ttc} onChange={(event) => setTtc(event.target.value)} className="rounded-md border border-stone-300 px-3 py-2" /><button className="rounded-md bg-blue-600 px-4 py-2 font-semibold text-white">Enregistrer</button>{error && <p className="text-sm text-red-600 md:col-span-6">{error}</p>}</form>;
+}
