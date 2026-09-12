@@ -20,8 +20,11 @@ model Tenant {
   siretNumber String?
   vatNumber String?
 
-  iban String?
-  bic String?
+  paymentAccounts PaymentAccount[] @relation("TenantPaymentAccounts")
+
+  defaultPaymentAccountId String?
+
+  defaultPaymentAccount PaymentAccount? @relation("TenantDefaultPaymentAccount", fields: [defaultPaymentAccountId], references: [id], onDelete: SetNull)
 
   invoiceNumberPrefix String @default("FAC")
   nextInvoiceNumber Int @default(1)
@@ -53,6 +56,8 @@ model Tenant {
 
   insuranceGeographicCoverage String?
 
+  VatLiabilityRegime VatLiabilityRegime @default(LIABLE)
+  vatReturnFrequency VatReturnFrequency @default(MONTHLY)
 
   createdAt DateTime  @default(now())
 
@@ -62,6 +67,7 @@ model Tenant {
   quotes    Quote[]
   workOrders    WorkOrder[]
   invoices    Invoice[]
+  recurringInvoices RecurringInvoice[]
   calendarevents CalendarEvent[]
   catalogItems CatalogItem[]
   projects Project[]
@@ -72,11 +78,81 @@ model Tenant {
   payments Payment[]
   companyExpenses CompanyExpense[]
   bankTransactions BankTransaction[]
+  treasuryReconciliations TreasuryReconciliation[]
+  treasuryTransfers TreasuryTransfer[]
+  treasuryAlerts TreasuryAlert[]
+  purchases Purchase[]
+  suppliers Supplier[]
+  supplierInvoices SupplierInvoice[]
+  stockMovements StockMovement[]
+  stockItems StockItem[]
+
+  @@index([defaultPaymentAccountId])
 }
 
 enum VatAccountingMode {
   CASH
   DEBITS
+}
+
+enum VatLiabilityRegime {
+  // L'entreprise bénéficie de la franchise en base.
+  FRANCHISE_BASE
+
+  // L'entreprise collecte et déduit normalement la TVA.
+  LIABLE
+}
+
+enum VatReturnFrequency {
+  MONTHLY
+  QUARTERLY
+}
+
+model PaymentAccount {
+  id String @id @default(cuid())
+
+  tenantId String
+
+  tenant Tenant @relation("TenantPaymentAccounts", fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Tenant qui utilisent ce compte comme compte par défaut.
+  //
+  // Normalement un seul puisque le compte appartient à un seul tenant,
+  // mais Prisma exprime ici la relation inverse.
+  defaultForTenants Tenant[] @relation("TenantDefaultPaymentAccount")
+
+  name String
+  bankName String?
+
+  accountHolderName String
+
+  iban String
+  bic String?
+
+  currency String @default("EUR")
+
+  openingBalance     Decimal  @default(0) @db.Decimal(12, 2)
+  openingBalanceDate DateTime?
+
+  archivedAt DateTime?
+  closedAt DateTime?
+  closedBalance Decimal? @db.Decimal(12, 2)
+
+  recurringInvoices RecurringInvoice[]
+  bankTransactions BankTransaction[]
+  companyExpenses CompanyExpense[]
+  reconciliations TreasuryReconciliation[]
+  alerts TreasuryAlert[]
+  outgoingTransfers TreasuryTransfer[] @relation("TransferFromAccount")
+  incomingTransfers TreasuryTransfer[] @relation("TransferToAccount")
+  purchases Purchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, iban])
+  @@index([tenantId])
+  @@index([tenantId, archivedAt])
 }
 
 model User {
@@ -96,6 +172,7 @@ model User {
   createdCustomers Customer[] @relation("CustomerCreator")
   createdWorkOrders    WorkOrder[] @relation("WorkOrderCreator")
   createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
+  createdRecurringInvoices RecurringInvoice[] @relation("RecurringInvoiceCreator")
   passwordResetTokens PasswordResetToken[]
   receivedNotifications Notification[] @relation("NotificationRecipient")
   sentNotifications Notification[] @relation("NotificationSender")
@@ -205,6 +282,7 @@ model Customer {
   workOrders    WorkOrder[]
   calendarevents CalendarEvent[]
   invoices Invoice[]
+  recurringInvoices RecurringInvoice[]
   projects ProjectCustomer[]
   payments Payment[]
 
@@ -359,10 +437,12 @@ model WorkOrder {
 
   quotes Quote[]
   invoices Invoice[]
+  recurringInvoices RecurringInvoice[]
 
   documents Document[]
   calendarevents CalendarEvent[]
   workLogs WorkLog[]
+  purchaseItems PurchaseItem[]
 
 
   // ==========================================================================
@@ -1185,12 +1265,30 @@ model Invoice {
   //
   attachments InvoiceAttachment[]
 
+
+  // ==========================================================================
+  // FACTURE RECCURENTE
+  // ==========================================================================
+
+  // Récurrence ayant généré cette facture.
+  recurringInvoiceId String?
+
+  recurringInvoice RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
+
+
   // ==========================================================================
   // MÉTADONNÉES WORKERMATE
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+
+  // Occurrence exacte représentée par cette facture.
+  //
+  // Exemple :
+  // facture mensuelle d'octobre -> 2026-10-01
+  recurrenceDate DateTime? @db.Date
 
 
   // ==========================================================================
@@ -1200,6 +1298,8 @@ model Invoice {
   // Numérotation propre à chaque entreprise.
   // Plusieurs DRAFT peuvent avoir number = null.
   @@unique([tenantId, number])
+  
+  @@unique([recurringInvoiceId, recurrenceDate])
 
   @@index([tenantId, issueDate])
   @@index([tenantId, status])
@@ -1706,6 +1806,808 @@ model InvoiceVatBreakdown {
   @@index([invoiceId])
   @@index([invoiceId, vatCategory, vatRate])
 }
+// ============================================================================
+// FACTURATION RÉCURRENTE — ENUMS
+// ============================================================================
+
+enum RecurringInvoiceStatus {
+  // La récurrence est active et peut générer de nouvelles factures.
+  ACTIVE
+
+  // Suspendue temporairement.
+  // nextOccurrenceDate est conservée afin de pouvoir reprendre.
+  PAUSED
+
+  // La série est définitivement terminée.
+  ENDED
+}
+
+
+enum RecurrenceUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+
+enum RecurringInvoiceGenerationMode {
+  // Crée une Invoice en DRAFT.
+  //
+  // Mode recommandé / exposé en V1.
+  DRAFT
+
+  // Génère et émet automatiquement la facture.
+  //
+  // Le modèle peut être prêt dès maintenant,
+  // même si cette option n'est pas encore exposée dans l'interface V1.
+  AUTO_ISSUE
+}
+
+
+enum RecurringInvoiceBillingPeriodMode {
+  // Aucune période de facturation automatiquement renseignée.
+  NONE
+
+  // La facture concerne la période correspondant à l'occurrence.
+  //
+  // Exemple avec une récurrence mensuelle :
+  // occurrence 01/10/2026
+  // -> 01/10/2026 au 31/10/2026.
+  CURRENT_PERIOD
+
+  // La facture concerne la période précédant l'occurrence.
+  //
+  // Exemple :
+  // occurrence 01/10/2026
+  // -> 01/09/2026 au 30/09/2026.
+  PREVIOUS_PERIOD
+}
+
+
+enum RecurringInvoiceSupplyDateMode {
+  // Ne renseigne pas automatiquement Invoice.supplyDate.
+  NONE
+
+  // Utilise la date de l'occurrence.
+  OCCURRENCE_DATE
+
+  // Utilise le début de la période calculée.
+  PERIOD_START
+
+  // Utilise la fin de la période calculée.
+  PERIOD_END
+}
+
+
+// ============================================================================
+// FACTURATION RÉCURRENTE
+// ============================================================================
+
+model RecurringInvoice {
+  // ==========================================================================
+  // IDENTITÉ WORKERMATE
+  // ==========================================================================
+
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Utilisateur ayant créé la récurrence.
+  createdById String?
+  createdBy User? @relation("RecurringInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+
+  // ==========================================================================
+  // CLIENT / CONTEXTE MÉTIER
+  // ==========================================================================
+
+  customerId String
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  // Une facturation récurrente peut éventuellement appartenir
+  // à une affaire / un contrat suivi dans un Project.
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  // Facultatif.
+  //
+  // À utiliser seulement lorsque toutes les occurrences concernent
+  // réellement le même WorkOrder.
+  workOrderId String?
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  // Nom interne permettant à l'artisan d'identifier la récurrence.
+  //
+  // Exemple :
+  // "Entretien mensuel Restaurant Dupont"
+  // "Maintenance annuelle chaudière Martin"
+  name String
+
+  status RecurringInvoiceStatus @default(ACTIVE)
+
+
+  // ==========================================================================
+  // RÈGLE DE RÉCURRENCE
+  // ==========================================================================
+
+  // DAY / WEEK / MONTH / YEAR.
+  recurrenceUnit RecurrenceUnit
+
+  // Nombre d'unités entre deux occurrences.
+  //
+  // Exemples :
+  //
+  // MONTH + 1 -> tous les mois
+  // MONTH + 3 -> tous les trimestres
+  // WEEK  + 2 -> toutes les deux semaines
+  interval Int @default(1)
+
+  // Première occurrence de la série.
+  //
+  // Sert également d'ancre de calendrier.
+  startDate DateTime @db.Date
+
+  // Prochaine occurrence devant être traitée.
+  //
+  // Nullable lorsque la récurrence est définitivement terminée.
+  nextOccurrenceDate DateTime? @db.Date
+
+  // Dernière occurrence ayant réellement généré une facture.
+  //
+  // Utile pour l'historique, le scheduler et le diagnostic.
+  lastOccurrenceDate DateTime? @db.Date
+
+  // Date maximale autorisée pour une occurrence.
+  //
+  // Null = pas de date de fin.
+  endDate DateTime? @db.Date
+
+  // Nombre maximum de factures à générer.
+  //
+  // Null = pas de limite par nombre.
+  maxOccurrences Int?
+
+  // Nombre de factures effectivement générées avec succès.
+  generatedCount Int @default(0)
+
+
+  // ==========================================================================
+  // MODE DE GÉNÉRATION
+  // ==========================================================================
+
+  generationMode RecurringInvoiceGenerationMode @default(DRAFT)
+
+
+  // ==========================================================================
+  // CADRE DE FACTURATION
+  // ==========================================================================
+
+  // Catégorie de l'opération des futures factures.
+  operationCategory InvoiceOperationCategory
+
+  // Null peut signifier :
+  // utiliser le régime configuré pour l'entreprise au moment
+  // de la génération.
+  vatAccountingMode VatAccountingMode?
+
+  // Devise des futures factures.
+  currency String @default("EUR")
+
+  // Principalement utile lorsque la facture utilise une devise différente
+  // de la devise comptable.
+  accountingCurrency String?
+
+
+  // ==========================================================================
+  // RÉFÉRENCES COMMERCIALES
+  // ==========================================================================
+
+  // Référence acheteur stable sur le contrat / la récurrence.
+  buyerReference String?
+
+  // Référence projet explicitement transmise sur les factures.
+  //
+  // Si null, le backend peut éventuellement la déduire du Project lié.
+  projectReference String?
+
+  contractReference String?
+
+  purchaseOrderReference String?
+
+  salesOrderReference String?
+
+
+  // ==========================================================================
+  // PÉRIODE FACTURÉE / DATE DE PRESTATION
+  // ==========================================================================
+
+  // Règle utilisée pour générer :
+  //
+  // Invoice.billingPeriodStart
+  // Invoice.billingPeriodEnd
+  billingPeriodMode RecurringInvoiceBillingPeriodMode @default(NONE)
+
+  // Règle utilisée pour générer Invoice.supplyDate.
+  supplyDateMode RecurringInvoiceSupplyDateMode @default(NONE)
+
+
+  // ==========================================================================
+  // CONDITIONS DE PAIEMENT
+  // ==========================================================================
+
+  // Nombre de jours utilisé pour déterminer l'échéance.
+  //
+  // null :
+  // utiliser la valeur par défaut de l'entreprise.
+  dueInDays Int?
+
+  // Override des conditions de paiement de l'entreprise.
+  //
+  // null :
+  // utiliser les conditions actuellement configurées sur le Tenant.
+  paymentTerms String?
+
+  // Override du moyen de paiement demandé.
+  //
+  // null :
+  // utiliser le moyen de paiement par défaut de l'entreprise.
+  paymentMeansCode String?
+
+  paymentMeansText String?
+
+
+  // ==========================================================================
+  // COMPTE DE PAIEMENT
+  // ==========================================================================
+
+  // Compte bancaire explicitement imposé pour cette récurrence.
+  //
+  // null :
+  // utiliser Tenant.defaultPaymentAccount au moment de la génération.
+  paymentAccountId String?
+
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+
+  // IMPORTANT :
+  //
+  // On ne stocke PAS ici :
+  //
+  // paymentIban
+  // paymentAccountName
+  // paymentBic
+  //
+  // Ces valeurs sont récupérées depuis PaymentAccount lors de la génération,
+  // puis snapshotées dans Invoice.
+
+
+  // ==========================================================================
+  // CONTENU DES FUTURES FACTURES
+  // ==========================================================================
+
+  items RecurringInvoiceItem[]
+
+  // Remises / charges globales qui seront copiées vers InvoiceAdjustment.
+  adjustments RecurringInvoiceAdjustment[]
+
+  // Notes destinées à apparaître sur les factures générées.
+  notes RecurringInvoiceNote[]
+
+
+  // ==========================================================================
+  // NOTES INTERNES
+  // ==========================================================================
+
+  // Information uniquement destinée à Workermate.
+  //
+  // Ne doit pas automatiquement être copiée dans Invoice.internalNotes.
+  internalNotes String?
+
+
+  // ==========================================================================
+  // FACTURES GÉNÉRÉES
+  // ==========================================================================
+
+  // Historique des vraies factures issues de cette récurrence.
+  invoices Invoice[]
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // INDEX
+  // ==========================================================================
+
+  // Requête principale du scheduler :
+  //
+  // WHERE tenantId = ...
+  // AND status = ACTIVE
+  // AND nextOccurrenceDate <= aujourd'hui
+  @@index([tenantId, status, nextOccurrenceDate])
+
+  @@index([customerId])
+  @@index([projectId])
+  @@index([workOrderId])
+  @@index([paymentAccountId])
+}
+
+// ============================================================================
+// PÉRIODE D'UNE LIGNE DE FACTURATION RÉCURRENTE
+// ============================================================================
+
+enum RecurringInvoiceItemBillingPeriodMode {
+  // Reprend la période définie au niveau de RecurringInvoice.
+  INHERIT
+
+  // Aucune période spécifique sur la ligne.
+  NONE
+
+  // Période correspondant à l'occurrence courante.
+  //
+  // Exemple pour une récurrence mensuelle générée le 01/10 :
+  // 01/10 -> 31/10
+  CURRENT_PERIOD
+
+  // Période précédant l'occurrence.
+  //
+  // Exemple pour une facture générée le 01/10 :
+  // 01/09 -> 30/09
+  PREVIOUS_PERIOD
+}
+
+
+// ============================================================================
+// LIGNE D'UNE FACTURATION RÉCURRENTE
+// ============================================================================
+
+model RecurringInvoiceItem {
+  // ==========================================================================
+  // IDENTITÉ WORKERMATE
+  // ==========================================================================
+
+  id String @id @default(cuid())
+
+  recurringInvoiceId String
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION DE LA LIGNE
+  // ==========================================================================
+
+  // Ordre utilisé dans le modèle de facture récurrente.
+  //
+  // Lors de la génération :
+  //
+  // position = 0 -> InvoiceItem.lineIdentifier = "1"
+  // position = 1 -> InvoiceItem.lineIdentifier = "2"
+  // etc.
+  position Int
+
+  // Notes qui seront copiées dans chaque InvoiceItem généré.
+  notes String[] @default([])
+
+  // Identifiant métier de l'objet facturé lorsqu'il est stable
+  // d'une occurrence à l'autre.
+  //
+  // Exemple :
+  // compteur, équipement sous contrat, abonnement...
+  objectIdentifier String?
+
+
+  // ==========================================================================
+  // TYPE WORKERMATE
+  // ==========================================================================
+
+  type LineItemType
+
+
+  // ==========================================================================
+  // QUANTITÉ
+  // ==========================================================================
+
+  // Quantité utilisée comme valeur par défaut à chaque occurrence.
+  quantity Decimal @default(1) @db.Decimal(19, 6)
+
+  // Code d'unité normalisé.
+  //
+  // Exemples :
+  // C62 = unité
+  // HUR = heure
+  // KGM = kilogramme
+  // MTR = mètre
+  unitCode String
+
+  // Libellé utilisateur.
+  //
+  // Exemple :
+  // "unité", "heure", "kg", "m".
+  unitLabel String?
+
+
+  // ==========================================================================
+  // RÉFÉRENCES ACHETEUR
+  // ==========================================================================
+
+  // Référence de ligne de bon de commande utilisée pour les futures factures.
+  //
+  // À utiliser uniquement si cette référence est stable sur la récurrence.
+  purchaseOrderLineReference String?
+
+  // Référence comptable acheteur stable utilisée pour cette ligne.
+  buyerAccountingReference String?
+
+
+  // ==========================================================================
+  // PÉRIODE DE FACTURATION
+  // ==========================================================================
+
+  // Contrairement à InvoiceItem.billingPeriodStart / billingPeriodEnd,
+  // on ne stocke pas ici de dates historiques figées.
+  //
+  // Le générateur déterminera les dates réelles lors de chaque occurrence.
+  billingPeriodMode RecurringInvoiceItemBillingPeriodMode @default(INHERIT)
+
+
+  // ==========================================================================
+  // PRIX
+  // ==========================================================================
+
+  // Prix unitaire NET HT utilisé pour les prochaines occurrences.
+  unitPrice Decimal @db.Decimal(19, 6)
+
+  // Rabais sur le prix unitaire brut permettant d'obtenir unitPrice.
+  //
+  // Même sémantique que InvoiceItem.unitPriceDiscountAmount.
+  unitPriceDiscountAmount Decimal? @db.Decimal(19, 6)
+
+  // Prix unitaire brut avant rabais.
+  grossUnitPrice Decimal? @db.Decimal(19, 6)
+
+  // Quantité de base à laquelle s'applique le prix.
+  //
+  // Exemple :
+  // 20 € pour 100 vis.
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  baseQuantityUnitCode String?
+
+
+  // ==========================================================================
+  // TVA
+  // ==========================================================================
+
+  vatCategory VatCategory
+
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  // Motifs qui seront copiés sur l'InvoiceItem généré lorsqu'ils sont
+  // applicables à cette ligne récurrente.
+  vatExemptionReason String?
+
+  vatExemptionReasonCode String?
+
+
+  // ==========================================================================
+  // DESCRIPTION DE L'ARTICLE / PRESTATION
+  // ==========================================================================
+
+  title String
+
+  description String?
+
+  // Référence article vendeur utilisée comme snapshot dans les futures factures.
+  //
+  // Elle peut provenir initialement d'un CatalogItem mais devient indépendante.
+  sellerItemIdentifier String?
+
+  // Référence article attribuée par l'acheteur.
+  buyerItemIdentifier String?
+
+  // Identifiant standardisé du produit.
+  //
+  // Exemple : GTIN/EAN.
+  standardItemIdentifier String?
+
+  standardItemIdentifierScheme String?
+
+  // Pays d'origine ISO 3166-1 alpha-2.
+  countryOfOriginCode String?
+
+
+  // ==========================================================================
+  // SOUS-BLOCS
+  // ==========================================================================
+
+  // Remises et charges devant être reproduites sur chaque InvoiceItem généré.
+  adjustments RecurringInvoiceItemAdjustment[]
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([recurringInvoiceId, position])
+  @@index([recurringInvoiceId])
+}
+
+// ============================================================================
+// RÈGLE DE CALCUL D'UNE REMISE / CHARGE RÉCURRENTE
+// ============================================================================
+
+enum RecurringAdjustmentCalculationMode {
+  // Montant fixe.
+  //
+  // Exemple :
+  // remise de 50 € HT.
+  FIXED_AMOUNT
+
+  // Pourcentage calculé lors de la génération de la facture.
+  //
+  // Exemple :
+  // remise de 10 %.
+  PERCENTAGE
+}
+
+
+// ============================================================================
+// AFFECTATION TVA D'UNE REMISE / CHARGE GLOBALE RÉCURRENTE
+// ============================================================================
+
+enum RecurringInvoiceAdjustmentVatMode {
+  // Workermate répartit automatiquement la remise / charge
+  // entre les différents groupes TVA présents sur la facture.
+  //
+  // Exemple :
+  //
+  // lignes :
+  // - 1 000 € à 20 %
+  // -   500 € à 10 %
+  //
+  // remise globale : 10 %
+  //
+  // génération :
+  // - InvoiceAdjustment 100 € / STANDARD / 20 %
+  // - InvoiceAdjustment  50 € / STANDARD / 10 %
+  AUTO
+
+  // La remise / charge concerne explicitement
+  // une catégorie / un taux TVA précis.
+  SPECIFIC
+}
+
+model RecurringInvoiceAdjustment {
+  // ==========================================================================
+  // IDENTITÉ
+  // ==========================================================================
+
+  id String @id @default(cuid())
+
+  recurringInvoiceId String
+
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  // Ordre d'application / affichage.
+  position Int @default(0)
+
+  // ALLOWANCE = remise
+  // CHARGE    = charge / frais
+  type InvoiceAdjustmentType
+
+
+  // ==========================================================================
+  // MODE DE CALCUL
+  // ==========================================================================
+
+  calculationMode RecurringAdjustmentCalculationMode
+
+  // Utilisé uniquement lorsque :
+  //
+  // calculationMode = FIXED_AMOUNT
+  //
+  // Montant HT de la remise / charge.
+  amount Decimal? @db.Decimal(19, 2)
+
+  // Utilisé uniquement lorsque :
+  //
+  // calculationMode = PERCENTAGE
+  //
+  // Exemple :
+  // 10.000000 = 10 %
+  percentage Decimal? @db.Decimal(9, 6)
+
+
+  // ==========================================================================
+  // AFFECTATION TVA
+  // ==========================================================================
+
+  // AUTO :
+  //
+  // Workermate répartit la remise / charge entre les différents
+  // groupes TVA présents lors de la génération.
+  //
+  // SPECIFIC :
+  //
+  // vatCategory doit être renseigné.
+  vatMode RecurringInvoiceAdjustmentVatMode @default(AUTO)
+
+  // Utilisé lorsque vatMode = SPECIFIC.
+  vatCategory VatCategory?
+
+  // Taux correspondant lorsque nécessaire.
+  //
+  // Exemple :
+  //
+  // STANDARD + 20
+  // STANDARD + 10
+  //
+  // Peut rester null pour certaines catégories TVA.
+  vatRate Decimal? @db.Decimal(5, 2)
+
+
+  // ==========================================================================
+  // MOTIF
+  // ==========================================================================
+
+  // Motif qui sera snapshoté sur les InvoiceAdjustment générés.
+  reason String?
+
+  // Code normalisé éventuel du motif.
+  reasonCode String?
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([recurringInvoiceId, position])
+  @@index([recurringInvoiceId])
+}
+
+model RecurringInvoiceItemAdjustment {
+  // ==========================================================================
+  // IDENTITÉ
+  // ==========================================================================
+
+  id String @id @default(cuid())
+
+  recurringInvoiceItemId String
+
+  recurringInvoiceItem RecurringInvoiceItem @relation(fields: [recurringInvoiceItemId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  // Ordre d'application / affichage.
+  position Int @default(0)
+
+  // ALLOWANCE = remise
+  // CHARGE    = charge
+  type InvoiceAdjustmentType
+
+
+  // ==========================================================================
+  // MODE DE CALCUL
+  // ==========================================================================
+
+  calculationMode RecurringAdjustmentCalculationMode
+
+  // Utilisé lorsque :
+  //
+  // calculationMode = FIXED_AMOUNT
+  amount Decimal? @db.Decimal(19, 2)
+
+  // Utilisé lorsque :
+  //
+  // calculationMode = PERCENTAGE
+  percentage Decimal? @db.Decimal(9, 6)
+
+
+  // ==========================================================================
+  // MOTIF
+  // ==========================================================================
+
+  // Motif recopié dans InvoiceItemAdjustment.reason.
+  reason String?
+
+  // Code éventuel du motif.
+  reasonCode String?
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([recurringInvoiceItemId, position])
+  @@index([recurringInvoiceItemId])
+}
+
+model RecurringInvoiceNote {
+  // ==========================================================================
+  // IDENTITÉ
+  // ==========================================================================
+
+  id String @id @default(cuid())
+
+  recurringInvoiceId String
+
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // CONTENU
+  // ==========================================================================
+
+  // Ordre d'affichage dans les futures factures.
+  position Int @default(0)
+
+  // Code sujet qui sera copié vers InvoiceNote.subjectCode.
+  //
+  // Nullable pour une note libre classique.
+  subjectCode String?
+
+  // Texte qui sera copié vers InvoiceNote.text.
+  text String
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([recurringInvoiceId, position])
+  @@index([recurringInvoiceId])
+}
 
 model Quote {
   id String @id @default(cuid())
@@ -2093,8 +2995,15 @@ model QuoteVatBreakdown {
 model CatalogItem {
   id String @id @default(cuid())
 
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
   tenantId String
+
   tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
 
   // ==========================================================================
   // IDENTIFICATION
@@ -2102,9 +3011,9 @@ model CatalogItem {
 
   type LineItemType
 
-  // Référence interne de l'article/prestation.
+  // Référence interne de l'article / prestation.
   //
-  // Exemple :
+  // Exemples :
   // MAT-CUIVRE-22
   // MO-PLOMBERIE
   // DEP-001
@@ -2114,10 +3023,11 @@ model CatalogItem {
   reference String?
 
   title String
+
   description String?
 
   // Permet de désactiver une entrée sans la supprimer,
-  // afin de préserver l'historique.
+  // afin de préserver l'historique et les relations existantes.
   isActive Boolean @default(true)
 
 
@@ -2125,19 +3035,21 @@ model CatalogItem {
   // QUANTITÉ / UNITÉ PAR DÉFAUT
   // ==========================================================================
 
-  // Quantité proposée par défaut à l'ajout dans un devis/WorkOrder.
+  // Quantité proposée par défaut lors de l'ajout dans :
+  // - un devis,
+  // - un WorkOrder,
+  // - éventuellement un Purchase.
   //
-  // Plus de 2 décimales pour :
+  // Exemples :
+  // 1
   // 0.125 m³
-  // 1.333 heure
-  // etc.
+  // 1.5 heure
   defaultQuantity Decimal @default(1) @db.Decimal(19, 6)
 
-  // Code d'unité normalisé.
+  // Unité de référence de l'article.
   //
-  // Peut être copié directement vers :
-  // QuoteItem.unitCode
-  // InvoiceItem.unitCode -> FE BT-130
+  // Pour un article suivi en stock, il s'agit également
+  // de son unité de stock.
   //
   // Exemples :
   // C62 = unité
@@ -2146,9 +3058,8 @@ model CatalogItem {
   // MTR = mètre
   unitCode String
 
-  // Libellé humain utilisé dans l'interface.
-  //
-  // "unité", "heure", "kg", "m"...
+  // Libellé humain :
+  // unité, heure, kg, m...
   unitLabel String?
 
 
@@ -2156,26 +3067,38 @@ model CatalogItem {
   // PRIX DE VENTE
   // ==========================================================================
 
-  // Prix unitaire de vente NET HT par défaut.
+  // Prix de vente NET HT proposé par défaut.
+  //
+  // Nullable car un CatalogItem peut être créé automatiquement
+  // depuis un achat avant qu'un prix de vente ne soit défini.
+  //
+  // Exemple :
+  // achat de câble -> CatalogItem créé avec unitCost connu,
+  // mais unitPrice encore null.
   //
   // Peut être copié vers :
   // QuoteItem.unitPrice
-  // InvoiceItem.unitPrice -> FE BT-146
-  unitPrice Decimal @db.Decimal(19, 6)
+  // InvoiceItem.unitPrice
+  //
+  // Le frontend / backend devra demander un prix avant de créer
+  // une ligne commerciale qui exige unitPrice.
+  unitPrice Decimal? @db.Decimal(19, 6)
 
-  // Quantité de base à laquelle le prix correspond.
+  // Quantité à laquelle unitPrice correspond.
   //
   // Exemple :
+  //
   // 25 € pour 100 vis
   //
-  // unitPrice = 25
-  // baseQuantity = 100
+  // unitPrice     = 25
+  // baseQuantity  = 100
   //
-  // Peut devenir InvoiceItem.baseQuantity -> FE BT-149.
+  // Peut devenir InvoiceItem.baseQuantity.
   baseQuantity Decimal @default(1) @db.Decimal(19, 6)
 
-  // Code unité correspondant à baseQuantity.
-  // Peut devenir InvoiceItem.baseQuantityUnitCode -> FE BT-150.
+  // Unité correspondant à baseQuantity.
+  //
+  // Peut devenir InvoiceItem.baseQuantityUnitCode.
   baseQuantityUnitCode String?
 
 
@@ -2183,23 +3106,17 @@ model CatalogItem {
   // TVA DE VENTE
   // ==========================================================================
 
-  // Catégorie TVA proposée par défaut.
+  // Catégorie TVA proposée par défaut lors de la création
+  // d'une ligne commerciale.
   //
-  // Peut être copiée dans QuoteItem / InvoiceItem.
-  //
-  // STANDARD
-  // EXEMPT
-  // REVERSE_CHARGE
-  // INTRA_COMMUNITY_SUPPLY
-  // EXPORT
-  // OUTSIDE_SCOPE
-  // ZERO
+  // Elle reste une valeur par défaut :
+  // QuoteItem / InvoiceItem deviennent ensuite indépendants.
   vatCategory VatCategory @default(STANDARD)
 
-  // Taux de TVA proposé par défaut.
+  // Taux de TVA de vente proposé par défaut.
   //
-  // Nullable car certaines catégories TVA ne correspondent pas
-  // à un taux classique.
+  // Nullable car certaines catégories TVA n'utilisent
+  // pas de taux classique.
   vatRate Decimal? @db.Decimal(5, 2)
 
 
@@ -2207,18 +3124,88 @@ model CatalogItem {
   // COÛT / RENTABILITÉ
   // ==========================================================================
 
-  // Coût unitaire HT estimé.
+  // Coût économique de référence pour UNE unité `unitCode`.
   //
-  // Sert au budget prévisionnel / calcul de marge.
-  // Ne doit jamais être copié sur une facture client.
+  // IMPORTANT :
+  // contrairement à unitPrice, il ne dépend pas de baseQuantity.
+  //
+  // Exemple :
+  //
+  // unitCode = MTR
+  // unitCost = 4.50
+  //
+  // signifie :
+  // 4,50 € de coût économique par mètre.
+  //
+  // Il s'agit du coût hors TVA récupérable.
+  // Il peut donc inclure de la TVA non déductible.
+  //
+  // Exemple entreprise récupérant la TVA :
+  //
+  // achat :
+  // 4 € HT + 0,80 € TVA déductible
+  // -> unitCost = 4 €
+  //
+  // Exemple TVA non récupérable :
+  //
+  // 4 € HT + 0,80 € TVA
+  // -> unitCost = 4,80 €
+  //
+  // Pour un article suivi en stock, cette valeur peut être
+  // automatiquement synchronisée avec :
+  //
+  // StockItem.averageUnitCost.
+  //
+  // Pour une prestation ou un article non suivi en stock,
+  // elle reste un coût estimatif saisi manuellement.
   unitCost Decimal? @db.Decimal(19, 6)
 
-  // TVA d'achat indicative.
+  // Taux de TVA généralement constaté lors de l'achat.
   //
-  // Sert éventuellement aux estimations de trésorerie/achat.
-  // Elle ne constitue pas la TVA réellement constatée :
-  // celle-ci devra venir d'une future facture fournisseur / PurchaseItem.
+  // Purement indicatif :
+  // ce n'est PAS une donnée fiscale définitive.
+  //
+  // Les vraies données viennent de :
+  // PurchaseItem
+  // puis, lorsqu'elle existe, SupplierInvoice / SupplierInvoiceItem.
+  //
+  // Ce champ peut servir à préremplir une estimation d'achat.
   purchaseVatRate Decimal? @db.Decimal(5, 2)
+
+
+  // ==========================================================================
+  // STOCK
+  // ==========================================================================
+
+  // Indique si cet article doit être suivi physiquement en stock.
+  //
+  // Exemples :
+  //
+  // câble électrique       -> true
+  // raccord                -> true
+  // sac de ciment          -> true
+  //
+  // main-d'œuvre           -> false
+  // location mini-pelle    -> false
+  // déplacement            -> false
+  trackStock Boolean @default(false)
+
+  // État courant du stock.
+  //
+  // Nullable lorsque l'article n'est pas suivi en stock.
+  stockItem StockItem?
+
+
+  // ==========================================================================
+  // ACHATS
+  // ==========================================================================
+
+  // Historique des lignes d'achat opérationnelles ayant été
+  // rattachées à cet article.
+  //
+  // PurchaseItem reste un snapshot indépendant :
+  // modifier CatalogItem ne modifie jamais un achat passé.
+  purchaseItems PurchaseItem[]
 
 
   // ==========================================================================
@@ -2226,12 +3213,19 @@ model CatalogItem {
   // ==========================================================================
 
   createdAt DateTime @default(now())
+
   updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEXES
+  // ==========================================================================
 
   @@unique([tenantId, reference])
 
   @@index([tenantId])
   @@index([tenantId, isActive])
+  @@index([tenantId, trackStock])
 }
 
 model Project {
@@ -2251,8 +3245,10 @@ model Project {
   quotes Quote[]
   workOrders WorkOrder[]
   invoices Invoice[]
+  recurringInvoices RecurringInvoice[]
   calendarEvents CalendarEvent[]
   workLogs WorkLog[]
+  purchaseItems PurchaseItem[]
 
   archivedAt DateTime?
 
@@ -2330,6 +3326,7 @@ model WorkLogItem {
   // Très utile pour comparer prévu / réel.
   workOrderItemId String?
   workOrderItem WorkOrderItem? @relation(fields: [workOrderItemId],references: [id],onDelete: SetNull)
+  stockMovements StockMovement[]
 
   // ==========================================================================
   // IDENTIFICATION
@@ -2559,22 +3556,51 @@ model CompanyExpense {
   tenantId String
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  paymentAccountId String?
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+
+  bankTransactionId String?
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
   label String
   category CompanyExpenseCategory
 
-  amount Decimal @db.Decimal(12,2)
+  currency String @default("EUR")
 
-  vatRate Decimal? @db.Decimal(5,2)
+  // ==========================================================================
+  // MONTANTS
+  // ==========================================================================
+
+  taxExclusiveAmount Decimal? @db.Decimal(19, 2)
+
+  vatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
 
   dueDate DateTime
 
   paidAt DateTime?
 
-  recurring Boolean @default(false)
+  recurrenceTemplateId String?
+  recurrenceTemplate CompanyExpense? @relation("CompanyExpenseOccurrences", fields: [recurrenceTemplateId], references: [id], onDelete: SetNull)
+  occurrences CompanyExpense[] @relation("CompanyExpenseOccurrences")
+  occurrenceDate DateTime?
+  recurrenceUnit CompanyExpenseRecurrenceUnit?
+  recurrenceInterval Int?
+  recurrenceStartDate DateTime?
+  recurrenceEndDate DateTime?
+  nextDueDate DateTime?
+  lastGeneratedAt DateTime?
 
   createdAt DateTime @default(now())
 
   @@index([tenantId, dueDate])
+  @@index([tenantId, nextDueDate])
+  @@unique([recurrenceTemplateId, occurrenceDate])
+  @@index([paymentAccountId])
+  @@index([bankTransactionId])
 }
 enum CompanyExpenseCategory{
   PURCHASE
@@ -2585,6 +3611,13 @@ enum CompanyExpenseCategory{
   VAT_DUE
   TAXES
   LOAN_REPAYMENT
+}
+
+enum CompanyExpenseRecurrenceUnit {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
 }
 model EmployeeCost {
   id String @id @default(cuid())
@@ -2607,7 +3640,12 @@ model BankTransaction {
   tenantId String
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  paymentAccountId String
+  paymentAccount PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+
   amount Decimal @db.Decimal(12, 2)
+  direction BankTransactionDirection @default(CREDIT)
+  currency String @default("EUR")
   transactionDate DateTime
 
   label String?
@@ -2615,12 +3653,1176 @@ model BankTransaction {
 
   // identifiant fourni par la banque / agrégateur
   externalId String?
+  transactionType BankTransactionType @default(STANDARD)
+  transferId String?
+  transfer TreasuryTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  reconciliationId String?
+  reconciliation TreasuryReconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
 
   payments Payment[]
+  companyExpenses CompanyExpense[]
+  purchases Purchase[]
 
   createdAt DateTime @default(now())
 
+  @@unique([tenantId, externalId])
   @@index([tenantId, transactionDate])
+  @@index([paymentAccountId, transactionDate])
+}
+
+enum BankTransactionDirection {
+  CREDIT
+  DEBIT
+}
+
+enum BankTransactionType {
+  STANDARD
+  TRANSFER
+  FEE
+  INTEREST
+  REFUND
+  CASH_WITHDRAWAL
+}
+
+enum TreasuryReconciliationStatus {
+  COMPLETED
+  DISCREPANCY
+}
+
+enum TreasuryAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model TreasuryReconciliation {
+  id String @id @default(cuid())
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentAccountId String
+  paymentAccount PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  openingBalance Decimal @db.Decimal(12, 2)
+  calculatedBalance Decimal @db.Decimal(12, 2)
+  actualBalance Decimal @db.Decimal(12, 2)
+  difference Decimal @db.Decimal(12, 2)
+  reconciledAt DateTime @default(now())
+  previousReconciliationDate DateTime?
+  status TreasuryReconciliationStatus
+  notes String?
+  transactions BankTransaction[]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, paymentAccountId, reconciledAt])
+}
+
+model TreasuryTransfer {
+  id String @id @default(cuid())
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromAccountId String
+  fromAccount PaymentAccount @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccountId String
+  toAccount PaymentAccount @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
+  amount Decimal @db.Decimal(12, 2)
+  currency String
+  transferDate DateTime
+  label String?
+  transactions BankTransaction[]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, transferDate])
+}
+
+model TreasuryAlert {
+  id String @id @default(cuid())
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentAccountId String?
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: Cascade)
+  severity TreasuryAlertSeverity
+  code String
+  title String
+  message String
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, resolvedAt, createdAt])
+}
+
+enum PurchaseStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+model Purchase {
+  id String @id @default(cuid())
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // FOURNISSEUR — FACULTATIF
+  // ==========================================================================
+
+  // L'utilisateur peut enregistrer un achat sans créer de Supplier.
+  supplierId String?
+
+  supplier Supplier? @relation(fields: [supplierId],references: [id],onDelete: SetNull)
+
+  // Permet éventuellement de simplement saisir :
+  // "Point.P", "Leroy Merlin", etc.
+  //
+  // Si supplierId est renseigné, le backend peut automatiquement
+  // renseigner cette valeur à partir du Supplier.
+  supplierName String?
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  // Libellé libre facultatif :
+  // "Matériaux chantier Dupont"
+  // "Achat électricité"
+  label String?
+
+  purchaseDate DateTime @db.Date
+
+  status PurchaseStatus @default(CONFIRMED)
+
+  currency String @default("EUR")
+
+
+  // ==========================================================================
+  // MONTANTS
+  // ==========================================================================
+
+  // Totaux opérationnels calculés depuis les PurchaseItem.
+  //
+  // Ils peuvent servir à la trésorerie tant qu'aucune véritable
+  // SupplierInvoice n'a pris le relais comme source financière/fiscale.
+
+  taxExclusiveAmount Decimal? @db.Decimal(19, 2)
+
+  vatAmount Decimal? @db.Decimal(19, 2)
+
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+  // TVA considérée comme récupérable au moment de l'achat.
+  //
+  // Cette valeur reste opérationnelle/prévisionnelle.
+  // Si l'achat est ensuite rapproché d'une SupplierInvoice,
+  // la SupplierInvoice devient la source fiscale de vérité.
+  deductibleVatAmount Decimal? @db.Decimal(19, 2)
+
+  // Coût économique réel de l'achat :
+  //
+  // TTC - TVA déductible
+  //
+  // Exemple :
+  // 120 € TTC avec 20 € entièrement déductibles -> 100 €
+  // 120 € TTC sans droit à déduction            -> 120 €
+  effectiveCostAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // TRÉSORERIE
+  // ==========================================================================
+
+  // Pour un achat payé immédiatement.
+  paidAt DateTime?
+
+  // Pour un achat enregistré avant son paiement.
+  dueDate DateTime?
+
+  paymentAccountId String?
+
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId],references: [id],onDelete: SetNull)
+
+  // Rapprochement bancaire facultatif.
+  //
+  // Suffisant pour la V1.
+  // Si plus tard un Purchase peut être payé par plusieurs transactions,
+  // on remplacera cette relation par un modèle d'allocation.
+  bankTransactionId String?
+
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // CONTENU
+  // ==========================================================================
+
+  items PurchaseItem[]
+
+
+  // ==========================================================================
+  // AUTRES
+  // ==========================================================================
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // INDEXES
+  // ==========================================================================
+
+  @@index([tenantId, purchaseDate])
+  @@index([tenantId, status])
+  @@index([supplierId])
+  @@index([paymentAccountId])
+  @@index([bankTransactionId])
+}
+
+model PurchaseItem {
+  id String @id @default(cuid())
+
+  purchaseId String
+
+  purchase Purchase @relation(fields: [purchaseId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  position Int
+
+  // Article du catalogue correspondant à ce qui a été acheté.
+  //
+  // Facultatif car on peut enregistrer :
+  // - une prestation,
+  // - un achat libre,
+  // - quelque chose qui ne doit pas entrer dans le catalogue.
+  //
+  // Pour un article ajouté au stock, CatalogItem est en revanche requis
+  // au niveau métier.
+  catalogItemId String?
+
+  catalogItem CatalogItem? @relation(fields: [catalogItemId],references: [id],onDelete: SetNull)
+
+  type LineItemType
+
+  // Snapshot : ne dépend pas d'une modification future du CatalogItem.
+  title String
+  description String?
+
+
+  // ==========================================================================
+  // QUANTITÉ / UNITÉ
+  // ==========================================================================
+
+  quantity Decimal @default(1) @db.Decimal(19, 6)
+
+  // C62, HUR, KGM, MTR...
+  unitCode String
+
+  // unité, heure, kg, m...
+  unitLabel String?
+
+  // Permet par exemple :
+  // prix de 200 € pour 100 unités.
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  baseQuantityUnitCode String?
+
+
+  // ==========================================================================
+  // PRIX FOURNISSEUR
+  // ==========================================================================
+
+  // Prix unitaire HT porté/connu lors de l'achat.
+  //
+  // Nullable car l'utilisateur peut simplement saisir :
+  // "100 m pour 480 € TTC"
+  // sans connaître immédiatement le HT.
+  unitPrice Decimal? @db.Decimal(19, 6)
+
+  // Montant HT total de la ligne.
+  taxExclusiveAmount Decimal? @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // TVA D'ACHAT
+  // ==========================================================================
+
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  // TVA facturée sur cette ligne.
+  vatAmount Decimal? @db.Decimal(19, 2)
+
+  // Partie de vatAmount réellement récupérable.
+  //
+  // Exemple :
+  //
+  // vatAmount             = 20 €
+  // deductibleVatAmount   = 20 € -> coût économique = 100 €
+  //
+  // ou :
+  //
+  // vatAmount             = 20 €
+  // deductibleVatAmount   = 0 €  -> coût économique = 120 €
+  deductibleVatAmount Decimal? @db.Decimal(19, 2)
+
+  // Montant réellement payé / dû au fournisseur pour cette ligne.
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // COÛT ÉCONOMIQUE / STOCK
+  // ==========================================================================
+
+  // Coût qui doit réellement être imputé au stock et aux chantiers.
+  //
+  // Il exclut la TVA récupérable mais inclut la TVA non récupérable :
+  //
+  // effectiveCostAmount =
+  // taxInclusiveAmount - deductibleVatAmount
+  //
+  // Exemple artisan assujetti :
+  // 100 HT + 20 TVA déductible
+  // -> effectiveCostAmount = 100
+  //
+  // Exemple franchise en base :
+  // 100 HT + 20 TVA non déductible
+  // -> effectiveCostAmount = 120
+  effectiveCostAmount Decimal @db.Decimal(19, 2)
+
+  // Coût économique rapporté à baseQuantity.
+  //
+  // C'est ce coût qui alimente le StockItem.averageUnitCost.
+  effectiveUnitCost Decimal @db.Decimal(19, 6)
+
+
+  // ==========================================================================
+  // AFFECTATION MÉTIER FACULTATIVE
+  // ==========================================================================
+
+  // Permet de savoir dès l'achat que celui-ci concerne un projet,
+  // sans pour autant considérer que tout le matériel est déjà consommé
+  // par le projet.
+  projectId String?
+
+  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+
+  workOrderId String?
+
+  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // STOCK
+  // ==========================================================================
+
+  // Un PurchaseItem peut produire plusieurs mouvements dans le futur :
+  // achat initial, correction, annulation partielle...
+  stockMovements StockMovement[]
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES
+  // ==========================================================================
+
+  @@unique([purchaseId, position])
+
+  @@index([purchaseId])
+  @@index([catalogItemId])
+  @@index([projectId])
+  @@index([workOrderId])
+}
+
+// ============================================================================
+// SUPPLIER INVOICE ENUMS
+// ============================================================================
+
+enum SupplierInvoiceKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
+enum SupplierInvoiceStatus {
+  // Document en cours de saisie / vérification.
+  // Ne doit pas encore être utilisé comme source financière/fiscale définitive.
+  DRAFT
+
+  // Document vérifié et validé dans Workermate.
+  CONFIRMED
+
+  // Document annulé / invalidé dans Workermate.
+  CANCELLED
+}
+
+enum SupplierInvoiceSettlementStatus {
+  UNSETTLED
+  PARTIALLY_SETTLED
+  SETTLED
+}
+
+
+// ============================================================================
+// SUPPLIER
+// ============================================================================
+
+model Supplier {
+  id String @id @default(cuid())
+
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
+  tenantId String
+
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  // Référence interne facultative :
+  // "POINTP", "REXEL", "FOURN-001"...
+  reference String?
+
+  // Nom affiché dans Workermate :
+  // "Point.P Orléans", "Rexel", etc.
+  name String
+
+  // Raison sociale officielle si différente du nom affiché.
+  legalName String?
+
+
+  // ==========================================================================
+  // IDENTIFIANTS LÉGAUX
+  // ==========================================================================
+
+  sirenNumber String?
+  siretNumber String?
+
+  vatNumber String?
+
+
+  // ==========================================================================
+  // CONTACT
+  // ==========================================================================
+
+  contactName String?
+
+  email String?
+  phone String?
+
+  website String?
+
+
+  // ==========================================================================
+  // ADRESSE
+  // ==========================================================================
+
+  // Je préfère ici conserver une adresse simple directement sur Supplier.
+  // SupplierInvoice en prendra ensuite un snapshot.
+  //
+  // On pourra toujours normaliser davantage plus tard si nécessaire.
+
+  street1 String?
+  street2 String?
+
+  postalCode String?
+  city String?
+
+  countryCode String @default("FR")
+
+
+  // ==========================================================================
+  // AUTRES
+  // ==========================================================================
+
+  notes String?
+
+  purchases Purchase[]
+
+  invoices SupplierInvoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // On archive un fournisseur utilisé historiquement au lieu de le supprimer.
+  archivedAt DateTime?
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEXES
+  // ==========================================================================
+
+  @@unique([tenantId, reference])
+
+  // Évite notamment de créer plusieurs fois le même établissement
+  // lorsque son SIRET est connu.
+  //
+  // PostgreSQL accepte plusieurs NULL dans cette contrainte.
+  @@unique([tenantId, siretNumber])
+
+  @@index([tenantId, name])
+  @@index([tenantId, archivedAt])
+}
+
+
+// ============================================================================
+// SUPPLIER INVOICE
+// ============================================================================
+
+model SupplierInvoice {
+  id String @id @default(cuid())
+
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
+  tenantId String
+
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // FOURNISSEUR
+  // ==========================================================================
+
+  // Contrairement à Purchase, une véritable facture fournisseur
+  // doit être rattachée à un fournisseur identifié.
+
+  supplierId String
+
+  supplier Supplier @relation(fields: [supplierId],references: [id],onDelete: Restrict)
+
+
+  // ==========================================================================
+  // DOCUMENT
+  // ==========================================================================
+
+  kind SupplierInvoiceKind @default(INVOICE)
+
+  status SupplierInvoiceStatus @default(DRAFT)
+
+  // Numéro attribué par le fournisseur.
+  supplierInvoiceNumber String
+
+  issueDate DateTime @db.Date
+
+  // Date à laquelle l'entreprise a effectivement reçu le document.
+  receivedDate DateTime? @db.Date
+
+  dueDate DateTime? @db.Date
+
+  currency String @default("EUR")
+
+
+  // ==========================================================================
+  // SNAPSHOT FOURNISSEUR
+  // ==========================================================================
+
+  // Ces valeurs sont copiées depuis Supplier lorsque le document
+  // devient CONFIRMED.
+  //
+  // Elles permettent de conserver l'historique même si la fiche
+  // fournisseur est modifiée plusieurs années plus tard.
+
+  supplierName String
+  supplierLegalName String?
+
+  supplierSirenNumber String?
+  supplierSiretNumber String?
+  supplierVatNumber String?
+
+  supplierEmail String?
+
+  supplierStreet1 String?
+  supplierStreet2 String?
+
+  supplierPostalCode String?
+  supplierCity String?
+
+  supplierCountryCode String @default("FR")
+
+
+  // ==========================================================================
+  // TOTAUX DU DOCUMENT
+  // ==========================================================================
+
+  // Somme nette des lignes avant éventuelles remises/frais globaux.
+  //
+  // Nullable car Workermate doit pouvoir enregistrer une facture
+  // fournisseur uniquement à partir de ses totaux, sans recopier
+  // toutes ses lignes.
+  lineNetTotal Decimal? @db.Decimal(19, 2)
+
+  // Remises globales présentes sur le document.
+  allowanceTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // Frais globaux présents sur le document :
+  // transport, emballage, etc.
+  chargeTotal Decimal @default(0) @db.Decimal(19, 2)
+
+  // Total HT du document.
+  taxExclusiveAmount Decimal @db.Decimal(19, 2)
+
+  // TVA portée par le document.
+  vatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // Total TTC du document.
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // TVA DÉDUCTIBLE
+  // ==========================================================================
+
+  // Partie de la TVA que l'entreprise est effectivement en droit
+  // de récupérer.
+  //
+  // Ce montant peut être différent de vatAmount.
+  //
+  // Exemple :
+  //
+  // TVA facturée          100 €
+  // TVA déductible         80 €
+  //
+  // Les 20 € restants font partie du coût économique réel.
+  deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // RÈGLEMENT
+  // ==========================================================================
+
+  // On utilise "settlement" plutôt que "payment" pour que la logique
+  // reste correcte aussi pour les avoirs fournisseur.
+
+  settledAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // Montant restant à régler / solder.
+  //
+  // Pour une facture :
+  // taxInclusiveAmount - settledAmount
+  //
+  // Les montants restent positifs.
+  // Le signe financier dépend de SupplierInvoiceKind.
+  openAmount Decimal @db.Decimal(19, 2)
+
+  settlementStatus SupplierInvoiceSettlementStatus @default(UNSETTLED)
+
+
+  // ==========================================================================
+  // CONTENU
+  // ==========================================================================
+
+  // Facultatif dans les faits :
+  // une SupplierInvoice peut être parfaitement valide avec items = []
+  // si l'utilisateur saisit uniquement les totaux.
+  items SupplierInvoiceItem[]
+
+
+  // ==========================================================================
+  // NOTES
+  // ==========================================================================
+
+  // Information éventuellement présente sur le document.
+  notes String?
+
+  // Information Workermate qui ne fait pas partie du document.
+  internalNotes String?
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEXES
+  // ==========================================================================
+
+  // Évite d'importer deux fois la même facture du même fournisseur.
+  @@unique([tenantId, supplierId, supplierInvoiceNumber])
+
+  @@index([tenantId, issueDate])
+  @@index([tenantId, dueDate])
+  @@index([tenantId, status])
+  @@index([tenantId, settlementStatus])
+
+  @@index([supplierId, issueDate])
+}
+
+
+// ============================================================================
+// SUPPLIER INVOICE ITEM
+// ============================================================================
+
+model SupplierInvoiceItem {
+  id String @id @default(cuid())
+
+  supplierInvoiceId String
+
+  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // IDENTIFICATION
+  // ==========================================================================
+
+  position Int
+
+  // Identifiant porté par le document électronique fournisseur,
+  // lorsqu'il existe.
+  lineIdentifier String?
+
+  notes String[] @default([])
+
+  // La classification MATERIAL / SERVICE / etc. n'est pas obligatoire
+  // pour une facture fournisseur.
+  //
+  // Workermate doit pouvoir importer le document sans demander à
+  // l'artisan de classifier chaque ligne.
+  type LineItemType?
+
+  title String
+  description String?
+
+  // Référence article utilisée par le fournisseur.
+  sellerItemIdentifier String?
+
+
+  // ==========================================================================
+  // QUANTITÉ / UNITÉ
+  // ==========================================================================
+
+  quantity Decimal @default(1) @db.Decimal(19, 6)
+
+  // Peut être inconnu lors d'une saisie manuelle ou d'un OCR.
+  //
+  // Exemple :
+  // C62, HUR, KGM, MTR...
+  unitCode String?
+
+  unitLabel String?
+
+  // Quantité sur laquelle porte unitPrice.
+  baseQuantity Decimal @default(1) @db.Decimal(19, 6)
+
+  baseQuantityUnitCode String?
+
+
+  // ==========================================================================
+  // PRIX
+  // ==========================================================================
+
+  // Prix unitaire HT lorsqu'il est disponible.
+  //
+  // Nullable pour permettre une ligne saisie simplement comme :
+  // "Matériaux divers : 850 € HT".
+  unitPrice Decimal? @db.Decimal(19, 6)
+
+  // Montant net HT réel de la ligne.
+  taxExclusiveAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // TVA
+  // ==========================================================================
+
+  vatCategory VatCategory @default(STANDARD)
+
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  // TVA réellement portée par cette ligne.
+  vatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  // TVA de cette ligne réellement récupérable par l'entreprise.
+  //
+  // C'est cette donnée qui permettra ensuite à Workermate
+  // de calculer correctement la TVA déductible.
+  deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  vatExemptionReason String?
+  vatExemptionReasonCode String?
+
+  // Montant TTC de la ligne.
+  taxInclusiveAmount Decimal @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEXES
+  // ==========================================================================
+
+  @@unique([supplierInvoiceId, position])
+
+  // PostgreSQL autorise plusieurs lineIdentifier NULL.
+  @@unique([supplierInvoiceId, lineIdentifier])
+
+  @@index([supplierInvoiceId])
+}
+
+// ============================================================================
+// STOCK MOVEMENT ENUMS
+// ============================================================================
+
+enum StockMovementDirection {
+  IN
+  OUT
+}
+
+enum StockMovementReason {
+  // Stock renseigné lors de l'initialisation de Workermate.
+  OPENING_BALANCE
+
+  // Entrée provenant d'un PurchaseItem.
+  PURCHASE
+
+  // Sortie correspondant à une consommation réelle enregistrée
+  // dans un WorkLogItem.
+  CONSUMPTION
+
+  // Matériel retourné au fournisseur.
+  SUPPLIER_RETURN
+
+  // Matériel précédemment sorti puis remis en stock.
+  //
+  // Exemple :
+  // 30 m sortis pour un chantier,
+  // finalement 5 m non utilisés sont remis en stock.
+  RETURN_TO_STOCK
+
+  // Correction manuelle / inventaire.
+  //
+  // Le sens est donné par direction :
+  // IN  = ajout
+  // OUT = retrait
+  ADJUSTMENT
+
+  // Annulation logique d'un mouvement précédent.
+  //
+  // Le sens est nécessairement opposé au mouvement annulé.
+  REVERSAL
+}
+
+
+// ============================================================================
+// STOCK MOVEMENT
+// ============================================================================
+
+model StockMovement {
+  id String @id @default(cuid())
+
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
+  tenantId String
+
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // STOCK
+  // ==========================================================================
+
+  stockItemId String
+
+  stockItem StockItem @relation(fields: [stockItemId],references: [id],onDelete: Restrict)
+
+
+  // ==========================================================================
+  // MOUVEMENT
+  // ==========================================================================
+
+  // IN  = entrée dans le stock
+  // OUT = sortie du stock
+  direction StockMovementDirection
+
+  reason StockMovementReason
+
+  // Toujours positive.
+  //
+  // Le sens du mouvement est porté uniquement par direction.
+  //
+  // Exemple :
+  // achat de 100 m :
+  // direction = IN
+  // quantity  = 100
+  //
+  // consommation de 20 m :
+  // direction = OUT
+  // quantity  = 20
+  quantity Decimal @db.Decimal(19, 6)
+
+  // Snapshot de l'unité du stock au moment du mouvement.
+  //
+  // MTR, C62, KGM...
+  //
+  // Une fois qu'un CatalogItem possède des mouvements de stock,
+  // son unité de stock ne devrait normalement plus pouvoir être modifiée.
+  unitCode String
+
+
+  // ==========================================================================
+  // VALORISATION
+  // ==========================================================================
+
+  // Coût économique unitaire utilisé pour valoriser ce mouvement.
+  //
+  // Il s'agit du coût hors TVA récupérable :
+  //
+  // - TVA entièrement déductible :
+  //   achat 4 € HT + 0,80 € TVA -> unitCost = 4 €
+  //
+  // - TVA non déductible :
+  //   achat 4 € HT + 0,80 € TVA -> unitCost = 4,80 €
+  //
+  // Pour une sortie de stock, il correspond normalement au
+  // StockItem.averageUnitCost au moment de la sortie.
+  unitCost Decimal? @db.Decimal(19, 6)
+
+  // Snapshot de la valeur économique totale du mouvement.
+  //
+  // Normalement :
+  //
+  // quantity * unitCost
+  //
+  // Arrondi monétaire effectué par le backend.
+  totalCost Decimal? @db.Decimal(19, 2)
+
+
+  // ==========================================================================
+  // ORIGINE : ACHAT
+  // ==========================================================================
+
+  // Renseigné principalement pour :
+  //
+  // reason = PURCHASE
+  //
+  // ou éventuellement SUPPLIER_RETURN lorsque le retour peut
+  // être rattaché à l'achat d'origine.
+  purchaseItemId String?
+
+  purchaseItem PurchaseItem? @relation(fields: [purchaseItemId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // ORIGINE : CONSOMMATION CHANTIER
+  // ==========================================================================
+
+  // Renseigné principalement pour :
+  //
+  // reason = CONSUMPTION
+  //
+  // ou RETURN_TO_STOCK lorsqu'un matériau précédemment attribué
+  // au WorkLog est remis en stock.
+  workLogItemId String?
+
+  workLogItem WorkLogItem? @relation(fields: [workLogItemId],references: [id],onDelete: SetNull)
+
+
+  // ==========================================================================
+  // ANNULATION / CORRECTION
+  // ==========================================================================
+
+  // Lorsqu'un mouvement existant est erroné, on ne le modifie pas.
+  //
+  // On crée un nouveau mouvement REVERSAL de sens opposé et celui-ci
+  // référence le mouvement qu'il annule.
+  //
+  // Exemple :
+  //
+  // #1 PURCHASE IN 100 m
+  //
+  // erreur détectée :
+  //
+  // #2 REVERSAL OUT 100 m
+  //    reversedMovementId = #1
+  //
+  // puis éventuellement :
+  //
+  // #3 PURCHASE IN 80 m
+
+  reversedMovementId String? @unique
+
+  reversedMovement StockMovement? @relation("StockMovementReversal",fields: [reversedMovementId],references: [id],onDelete: SetNull)
+
+  reversalMovement StockMovement? @relation("StockMovementReversal")
+
+
+  // ==========================================================================
+  // INFORMATIONS COMPLÉMENTAIRES
+  // ==========================================================================
+
+  // Principalement utile pour les ajustements manuels :
+  //
+  // "Correction après inventaire"
+  // "5 unités cassées"
+  // "Stock initial"
+  notes String?
+
+  // Date effective du mouvement.
+  //
+  // Elle peut être différente de createdAt lorsqu'un achat ou un
+  // inventaire est saisi après coup.
+  occurredAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+
+  // ==========================================================================
+  // INDEXES
+  // ==========================================================================
+
+  @@index([tenantId, occurredAt])
+
+  @@index([stockItemId, occurredAt])
+
+  @@index([purchaseItemId])
+
+  @@index([workLogItemId])
+
+  @@index([reversedMovementId])
+}
+
+// ============================================================================
+// STOCK ITEM
+// ============================================================================
+
+model StockItem {
+  id String @id @default(cuid())
+
+
+  // ==========================================================================
+  // PROPRIÉTAIRE
+  // ==========================================================================
+
+  tenantId String
+
+  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+
+
+  // ==========================================================================
+  // ARTICLE
+  // ==========================================================================
+
+  // Un StockItem représente le stock courant d'un CatalogItem.
+  //
+  // En V1 :
+  // un CatalogItem ne possède qu'un seul stock pour l'entreprise.
+  //
+  // Plus tard, si Workermate gère plusieurs dépôts / véhicules,
+  // cette relation pourra évoluer vers :
+  //
+  // CatalogItem + StockLocation -> StockItem.
+  catalogItemId String @unique
+
+  catalogItem CatalogItem @relation(fields: [catalogItemId],references: [id],onDelete: Restrict)
+
+
+  // ==========================================================================
+  // QUANTITÉ DISPONIBLE
+  // ==========================================================================
+
+  // Quantité physique actuellement enregistrée dans Workermate.
+  //
+  // Cette quantité est exprimée dans CatalogItem.unitCode.
+  //
+  // Exemple :
+  //
+  // CatalogItem.unitCode = "MTR"
+  // quantityOnHand = 82.5
+  //
+  // -> 82,5 mètres disponibles.
+  //
+  // La valeur peut être négative :
+  //
+  // quantityOnHand = -5
+  //
+  // signifie que Workermate a enregistré plus de consommation
+  // que d'entrées de stock.
+  //
+  // On autorise cela en V1 afin de ne pas bloquer l'artisan
+  // lorsqu'un achat n'a simplement pas encore été renseigné.
+  quantityOnHand Decimal @default(0) @db.Decimal(19, 6)
+
+
+  // ==========================================================================
+  // VALORISATION
+  // ==========================================================================
+
+  // Coût économique unitaire moyen du stock.
+  //
+  // Il s'agit du coût hors TVA récupérable.
+  //
+  // Exemple :
+  //
+  // 100 m à 4 €/m
+  // puis
+  // 100 m à 6 €/m
+  //
+  // -> averageUnitCost = 5 €/m
+  //
+  // Cette valeur sert notamment à valoriser les sorties de stock
+  // vers les WorkLogItem.
+  //
+  // Nullable lorsqu'aucun coût n'est encore connu.
+  averageUnitCost Decimal? @db.Decimal(19, 6)
+
+
+  // ==========================================================================
+  // MOUVEMENTS
+  // ==========================================================================
+
+  // Journal complet expliquant comment on est arrivé à l'état courant.
+  movements StockMovement[]
+
+
+  // ==========================================================================
+  // MÉTADONNÉES
+  // ==========================================================================
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+
+  // ==========================================================================
+  // CONTRAINTES / INDEXES
+  // ==========================================================================
+
+  // Un seul stock courant par article et par entreprise en V1.
+  @@unique([tenantId, catalogItemId])
+
+  @@index([tenantId])
 }
 
 enum TenantRole {

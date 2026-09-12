@@ -20,11 +20,14 @@ export default function CalendarEventItem({ event }: CalendarEventItemProps) {
   const meta = eventMeta[event.type ?? 'OTHER'] ?? eventMeta.OTHER;
   const TypeIcon = meta.icon;
   const address = event.addressName ?? [event.address?.street1, event.address?.postalCode, event.address?.city].filter(Boolean).join(', ');
+  const startLabel = event.start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const endLabel = event.end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   return (
-    <div className={`calendar-event calendar-event--${meta.tone}`}>
+    <div className={`calendar-event calendar-event--${meta.tone}`} title={`${event.title} · ${startLabel}–${endLabel}`}>
       <div className="calendar-event__time">
-        <span>{event.start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-        <span>{event.end.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span>{startLabel}</span>
+        <span className="calendar-event__time-sep" aria-hidden="true">–</span>
+        <span>{endLabel}</span>
       </div>
       <div className="calendar-event__content">
         <div className="calendar-event__title">{event.title}</div>

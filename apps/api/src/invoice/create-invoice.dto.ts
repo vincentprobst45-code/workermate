@@ -233,6 +233,14 @@ export class CreateInvoiceDto {
   quoteNumber?: string;
 
   @IsOptional()
+  @IsString()
+  recurringInvoiceId?: string;
+
+  @IsOptional()
+  @IsDate({ message: 'recurrenceDate must be a date' })
+  recurrenceDate?: Date;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateInvoiceItemDto)

@@ -10,6 +10,7 @@ import AddressForm, {
 } from '../components/AddressForm';
 import AddTenantForm from '../components/AddTenantForm';
 import EmployeesList from '../components/EmployeesList';
+import AddBankAccountForm, { type PaymentAccount } from '../components/AddBankAccountForm';
 
 interface TenantAddress {
   id: string;
@@ -36,7 +37,14 @@ interface TenantProfile {
   defaultPaymentTerms?: string | null;
   defaultLegalMentions?: string | null;
   defaultInvoiceNotes?: string | null;
+  defaultPaymentAccountId?: string | null;
+  VatLiabilityRegime?: 'FRANCHISE_BASE' | 'LIABLE' | null;
+  vatReturnFrequency?: 'MONTHLY' | 'QUARTERLY' | null;
+  paymentAccounts?: PaymentAccount[];
 }
+
+type VatLiabilityRegime = 'FRANCHISE_BASE' | 'LIABLE';
+type VatReturnFrequency = 'MONTHLY' | 'QUARTERLY';
 
 interface TenantFormData {
   name: string;
@@ -46,12 +54,13 @@ interface TenantFormData {
   email: string;
   siretNumber: string;
   vatNumber: string;
-  iban: string;
-  bic: string;
+  defaultPaymentAccountId: string;
   defaultPaymentTerms: string;
   defaultLegalMentions: string;
   defaultInvoiceNotes: string;
   defaultCurrency: string;
+  VatLiabilityRegime: VatLiabilityRegime;
+  vatReturnFrequency: VatReturnFrequency;
 }
 
 type AddressMode = 'new' | 'existing';
@@ -65,12 +74,13 @@ function createEmptyForm(): TenantFormData {
     email: '',
     siretNumber: '',
     vatNumber: '',
-    iban: '',
-    bic: '',
+    defaultPaymentAccountId: '',
     defaultPaymentTerms: '',
     defaultLegalMentions: '',
     defaultInvoiceNotes: '',
     defaultCurrency: 'EUR',
+    VatLiabilityRegime: 'LIABLE',
+    vatReturnFrequency: 'MONTHLY',
   };
 }
 
@@ -83,12 +93,13 @@ function mapTenantToForm(tenant: TenantProfile): TenantFormData {
     email: tenant.email || '',
     siretNumber: tenant.siretNumber || '',
     vatNumber: tenant.vatNumber || '',
-    iban: tenant.iban || '',
-    bic: tenant.bic || '',
+    defaultPaymentAccountId: tenant.defaultPaymentAccountId || '',
     defaultPaymentTerms: tenant.defaultPaymentTerms || '',
     defaultLegalMentions: tenant.defaultLegalMentions || '',
     defaultInvoiceNotes: tenant.defaultInvoiceNotes || '',
     defaultCurrency: tenant.defaultCurrency || 'EUR',
+    VatLiabilityRegime: tenant.VatLiabilityRegime || 'LIABLE',
+    vatReturnFrequency: tenant.vatReturnFrequency || 'MONTHLY',
   };
 }
 
@@ -115,6 +126,8 @@ export default function TenantPage() {
   const [addressMode, setAddressMode] = useState<AddressMode>('existing');
   const [newAddress, setNewAddress] = useState<AddAddressFormData>(createEmptyAddress());
   const [showCreateTenantForm, setShowCreateTenantForm] = useState(false);
+  const [showCreateBankAccountForm, setShowCreateBankAccountForm] = useState(false);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +144,7 @@ export default function TenantPage() {
           setForm(mapTenantToForm(data));
           setCurrentAddressLabel(formatAddress(data.address));
           setAddressMode(data.addressId ? 'existing' : 'new');
+          setPaymentAccounts(data.paymentAccounts || []);
         }
       } catch {
         if (!cancelled) {
@@ -167,12 +181,13 @@ export default function TenantPage() {
         email: form.email,
         siretNumber: form.siretNumber,
         vatNumber: form.vatNumber,
-        iban: form.iban,
-        bic: form.bic,
+        defaultPaymentAccountId: form.defaultPaymentAccountId || undefined,
         defaultPaymentTerms: form.defaultPaymentTerms,
         defaultLegalMentions: form.defaultLegalMentions,
         defaultInvoiceNotes: form.defaultInvoiceNotes,
         defaultCurrency: form.defaultCurrency,
+        VatLiabilityRegime: form.VatLiabilityRegime,
+        vatReturnFrequency: form.VatLiabilityRegime === 'LIABLE' ? form.vatReturnFrequency : undefined,
       };
 
       const res = await api.put('/tenants/current', payload);
@@ -183,6 +198,7 @@ export default function TenantPage() {
       const updated: TenantProfile = await res.json();
       setForm(mapTenantToForm(updated));
       setCurrentAddressLabel(formatAddress(updated.address));
+      setPaymentAccounts(updated.paymentAccounts || paymentAccounts);
       setSuccess('Informations entreprise mises a jour.');
     } catch {
       setError('La mise a jour a echoue.');
@@ -219,6 +235,21 @@ export default function TenantPage() {
               onCreated={() => {
                 setShowCreateTenantForm(false);
                 window.location.reload();
+              }}
+            />
+          </div>
+        )}
+
+        {showCreateBankAccountForm && (
+          <div className="mb-6">
+            <AddBankAccountForm
+              onCancel={() => setShowCreateBankAccountForm(false)}
+              onCreated={(account) => {
+                setPaymentAccounts((current) => [...current, account]);
+                setShowCreateBankAccountForm(false);
+                if (!form.defaultPaymentAccountId) {
+                  setForm((current) => ({ ...current, defaultPaymentAccountId: account.id }));
+                }
               }}
             />
           </div>
@@ -332,23 +363,28 @@ export default function TenantPage() {
                     onChange={(e) => setForm({ ...form, vatNumber: e.target.value })}
                   />
                 </div>
-                <div>
-                  <label htmlFor="tenant-iban" className="mb-1 block text-sm font-medium text-slate-700">IBAN</label>
-                  <input
-                    id="tenant-iban"
-                    className="w-full rounded border border-slate-300 px-3 py-2"
-                    value={form.iban}
-                    onChange={(e) => setForm({ ...form, iban: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="tenant-bic" className="mb-1 block text-sm font-medium text-slate-700">BIC</label>
-                  <input
-                    id="tenant-bic"
-                    className="w-full rounded border border-slate-300 px-3 py-2"
-                    value={form.bic}
-                    onChange={(e) => setForm({ ...form, bic: e.target.value })}
-                  />
+                <div className="sm:col-span-2">
+                  <label htmlFor="tenant-default-payment-account" className="mb-1 block text-sm font-medium text-slate-700">Compte bancaire principal</label>
+                  <select
+                    id="tenant-default-payment-account"
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2"
+                    value={form.defaultPaymentAccountId}
+                    onChange={(e) => setForm({ ...form, defaultPaymentAccountId: e.target.value })}
+                  >
+                    <option value="">Aucun compte sélectionné</option>
+                    {paymentAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} - {account.iban}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="mt-3 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+                    onClick={() => setShowCreateBankAccountForm((current) => !current)}
+                  >
+                    {showCreateBankAccountForm ? 'Fermer' : 'Ajouter un compte bancaire'}
+                  </button>
                 </div>
               </div>
             </section>
@@ -395,6 +431,38 @@ export default function TenantPage() {
                     onChange={(e) => setForm({ ...form, defaultCurrency: e.target.value })}
                   />
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+              <h3 className="text-lg font-semibold text-slate-900">TVA</h3>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="tenant-vat-regime" className="mb-1 block text-sm font-medium text-slate-700">Régime de TVA</label>
+                  <select
+                    id="tenant-vat-regime"
+                    className="w-full rounded border border-slate-300 bg-white px-3 py-2"
+                    value={form.VatLiabilityRegime}
+                    onChange={(e) => setForm({ ...form, VatLiabilityRegime: e.target.value as VatLiabilityRegime })}
+                  >
+                    <option value="FRANCHISE_BASE">Franchise en base</option>
+                    <option value="LIABLE">Assujetti à la TVA</option>
+                  </select>
+                </div>
+                {form.VatLiabilityRegime === 'LIABLE' && (
+                  <div>
+                    <label htmlFor="tenant-vat-frequency" className="mb-1 block text-sm font-medium text-slate-700">Fréquence de déclaration</label>
+                    <select
+                      id="tenant-vat-frequency"
+                      className="w-full rounded border border-slate-300 bg-white px-3 py-2"
+                      value={form.vatReturnFrequency}
+                      onChange={(e) => setForm({ ...form, vatReturnFrequency: e.target.value as VatReturnFrequency })}
+                    >
+                      <option value="MONTHLY">Mensuelle</option>
+                      <option value="QUARTERLY">Trimestrielle</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </section>
 

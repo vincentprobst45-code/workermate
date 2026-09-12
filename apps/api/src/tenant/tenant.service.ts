@@ -19,8 +19,6 @@ export class TenantService {
           phoneNumber: this.normalizeOptionalString(dto.phoneNumber),
           siretNumber: this.normalizeOptionalString(dto.siretNumber),
           vatNumber: this.normalizeOptionalString(dto.vatNumber),
-          iban: this.normalizeOptionalString(dto.iban),
-          bic: this.normalizeOptionalString(dto.bic),
           logoFileId: this.normalizeOptionalString(dto.logoFileId),
           defaultCurrency: dto.defaultCurrency?.trim() || 'EUR',
           defaultPaymentTerms: this.normalizeOptionalString(dto.defaultPaymentTerms),
@@ -88,6 +86,10 @@ export class TenantService {
             countryCode: true,
           },
         },
+        paymentAccounts: {
+          where: { archivedAt: null },
+          orderBy: { name: 'asc' },
+        },
       },
     });
   }
@@ -133,6 +135,15 @@ export class TenantService {
       );
     }
 
+    if (tenantData.defaultPaymentAccountId) {
+      const account = await this.prisma.paymentAccount.findFirst({
+        where: { id: tenantData.defaultPaymentAccountId, tenantId, archivedAt: null },
+      });
+      if (!account) {
+        throw new BadRequestException('Le compte bancaire principal est invalide.');
+      }
+    }
+
     const data: Prisma.TenantUpdateInput = {
       name: tenantData.name,
       email:
@@ -151,13 +162,11 @@ export class TenantService {
         tenantData.vatNumber !== undefined
           ? this.normalizeOptionalString(tenantData.vatNumber)
           : undefined,
-      iban:
-        tenantData.iban !== undefined
-          ? this.normalizeOptionalString(tenantData.iban)
-          : undefined,
-      bic:
-        tenantData.bic !== undefined
-          ? this.normalizeOptionalString(tenantData.bic)
+      defaultPaymentAccount:
+        tenantData.defaultPaymentAccountId !== undefined
+          ? tenantData.defaultPaymentAccountId
+            ? { connect: { id: tenantData.defaultPaymentAccountId } }
+            : { disconnect: true }
           : undefined,
       invoiceNumberPrefix:
         tenantData.invoiceNumberPrefix !== undefined
@@ -188,6 +197,8 @@ export class TenantService {
         tenantData.defaultVatRate !== undefined
           ? tenantData.defaultVatRate
           : undefined,
+      VatLiabilityRegime: tenantData.VatLiabilityRegime,
+      vatReturnFrequency: tenantData.vatReturnFrequency,
     };
 
     if (addressId !== undefined) {
@@ -241,6 +252,10 @@ export class TenantService {
             city: true,
             countryCode: true,
           },
+        },
+        paymentAccounts: {
+          where: { archivedAt: null },
+          orderBy: { name: 'asc' },
         },
       },
     });

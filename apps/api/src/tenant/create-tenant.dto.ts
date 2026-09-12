@@ -15,8 +15,6 @@ export class CreateTenantDto {
   @IsOptional() @IsString() phoneNumber?: string;
   @IsOptional() @IsString() siretNumber?: string;
   @IsOptional() @IsString() vatNumber?: string;
-  @IsOptional() @IsString() iban?: string;
-  @IsOptional() @IsString() bic?: string;
   @IsOptional() @IsString() logoFileId?: string;
   @IsOptional() @IsString() defaultCurrency?: string;
   @IsOptional() @IsString() defaultPaymentTerms?: string;

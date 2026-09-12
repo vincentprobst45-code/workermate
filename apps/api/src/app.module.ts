@@ -1,4 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -20,6 +21,11 @@ import { WorkLogModule } from './worklog/worklog.module';
 import { MembershipModule } from './membership/membership.module';
 import { NotificationModule } from './notification/notification.module';
 import { PaymentModule } from './payment/payment.module';
+import { PaymentAccountModule } from './payment-account/payment-account.module';
+import { RecurringInvoiceModule } from './recurring-invoice/recurring-invoice.module';
+import { CompanyExpenseModule } from './company-expense/company-expense.module';
+import { BankTransactionModule } from './bank-transaction/bank-transaction.module';
+import { TreasuryModule } from './treasury/treasury.module';
 
 @Module({
   imports: [
@@ -27,6 +33,7 @@ import { PaymentModule } from './payment/payment.module';
       secret: process.env.JWT_SECRET || 'your-secret-key-change-this-in-production',
       signOptions: { expiresIn: '15m' },
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     CustomerModule,
     WorkOrderModule,
@@ -41,6 +48,11 @@ import { PaymentModule } from './payment/payment.module';
     MembershipModule,
     NotificationModule,
     PaymentModule,
+    PaymentAccountModule,
+    RecurringInvoiceModule,
+    CompanyExpenseModule,
+    BankTransactionModule,
+    TreasuryModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],
@@ -72,6 +84,11 @@ export class AppModule implements NestModule {
         'workorders',
         'invoices',
         'payments',
+        'payment-accounts',
+        'recurring-invoices',
+        'company-expenses',
+        'bank-transactions',
+        'treasury',
         'quotes',
         'calendarevents',
         'addresses',
@@ -93,12 +110,17 @@ export class AppModule implements NestModule {
         'workorders',
         'invoices',
         'payments',
+        'payment-accounts',
+        'recurring-invoices',
+        'company-expenses',
+        'bank-transactions',
         'quotes',
         'calendarevents',
         'addresses',
         'catalogitems',
         'projects',
         'worklogs',
+        'treasury',
       );
   }
 }

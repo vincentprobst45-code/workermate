@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Calendar, dayjsLocalizer, type DayLayoutFunction, type SlotInfo, type View } from 'react-big-calendar';
+import { Calendar, dayjsLocalizer, type SlotInfo, type View } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -46,13 +46,6 @@ function addressName(address?: CalendarEventApi['address']) {
   if (!address) return undefined;
   return [address.street1, [address.postalCode, address.city].filter(Boolean).join(' ')]
     .filter(Boolean).join(', ') || undefined;
-}
-
-function isAllDayEvent(event: CalendarEvent) {
-  if (event.allDay) return true;
-  const startsAtMidnight = event.start.getHours() === 0 && event.start.getMinutes() === 0;
-  const endsAtMidnight = event.end.getHours() === 0 && event.end.getMinutes() === 0;
-  return startsAtMidnight && endsAtMidnight && event.end.getTime() - event.start.getTime() >= 24 * 60 * 60 * 1000;
 }
 
 export function toCalendarEvent(dto: CalendarEventApi): CalendarEvent {
@@ -109,55 +102,8 @@ function periodLabel(date: Date, view: View) {
   if (view === 'day') return dayjs(date).format('dddd D MMMM YYYY');
   if (view === 'agenda') return `Agenda du ${dayjs(date).format('D MMMM YYYY')}`;
   const start = getMonday(date);
-  return `${dayjs(start).format('D MMM')} - ${dayjs(start).add(6, 'day').format('D MMM YYYY')}`;
+  return `${dayjs(start).format('D')}–${dayjs(start).add(6, 'day').format('D MMM YYYY')}`;
 }
-
-const adaptiveDayLayout: DayLayoutFunction<CalendarEvent> = ({ events, slotMetrics, accessors }) => {
-  const positioned = events.map((event) => {
-    const start = accessors.start(event);
-    const end = accessors.end(event);
-    const range = slotMetrics.getRange(start, end);
-    return { event, start, end, top: range.top, height: range.height };
-  }).sort((left, right) => left.start.getTime() - right.start.getTime() || left.end.getTime() - right.end.getTime());
-
-  const groups: typeof positioned[] = [];
-  for (const item of positioned) {
-    const group = groups.find((candidate) => candidate.some((entry) => entry.end > item.start));
-    if (group) group.push(item);
-    else groups.push([item]);
-  }
-
-  return groups.flatMap((group) => {
-    const columns: typeof positioned[] = [];
-    const columnsByEvent = new Map<CalendarEvent, number>();
-
-    for (const item of group) {
-      let column = columns.findIndex((entries) => entries.every((entry) => entry.end <= item.start));
-      if (column === -1) {
-        column = columns.length;
-        columns.push([]);
-      }
-      columns[column].push(item);
-      columnsByEvent.set(item.event, column);
-    }
-
-    const columnWidth = 100 / columns.length;
-    const eventWidth = Math.min(100, columnWidth * 1.7);
-    return group.map((item) => {
-      const left = (columnsByEvent.get(item.event) ?? 0) * columnWidth;
-      const padding = left === 0 ? 0 : 3;
-      return {
-        event: item.event,
-        style: {
-          top: item.top,
-          height: `calc(${item.height}% - 2px)`,
-          width: `calc(${eventWidth}% - ${padding}px)`,
-          xOffset: `calc(${left}% + ${padding}px)`,
-        },
-      };
-    });
-  });
-};
 
 function AgendaEventItem({ event }: { event: CalendarEvent }) {
   return (
@@ -215,15 +161,17 @@ export default function BigCalendar() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const displayedEvents = calendarEvents.filter((event) => visibleTypes.has(event.type ?? 'OTHER'));
   const empty = !loading && !error && displayedEvents.length === 0;
-  const hasAllDayEvents = displayedEvents.some(isAllDayEvent);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const storedDate = savedDate();
       setDate(storedDate);
       setView(savedView());
-      setStartHour(savedHour(START_HOUR_KEY, DEFAULT_START_HOUR));
-      setEndHour(savedHour(END_HOUR_KEY, DEFAULT_END_HOUR));
+      const storedStartHour = savedHour(START_HOUR_KEY, DEFAULT_START_HOUR);
+      const storedEndHour = savedHour(END_HOUR_KEY, DEFAULT_END_HOUR);
+      const hasValidHourRange = storedEndHour > storedStartHour;
+      setStartHour(hasValidHourRange ? storedStartHour : DEFAULT_START_HOUR);
+      setEndHour(hasValidHourRange ? storedEndHour : DEFAULT_END_HOUR);
       setVisibleRange({ start: getMonday(storedDate), end: dayjs(getMonday(storedDate)).add(7, 'day').toDate() });
       setIsHydrated(true);
     });
@@ -317,24 +265,27 @@ export default function BigCalendar() {
 
       {error && <div role="alert" className="calendar-alert"><span>{error}</span><button type="button" onClick={retry}>Réessayer</button></div>}
 
-      <div className={`calendar-frame${empty ? ' calendar-frame--empty' : ''}${view === 'week' || view === 'day' ? ' calendar-frame--time-grid' : ''}${hasAllDayEvents ? ' calendar-frame--has-allday' : ' calendar-frame--empty-allday'}`}>
+      <div className={`calendar-frame${empty ? ' calendar-frame--empty' : ''}${view === 'week' || view === 'day' ? ' calendar-frame--time-grid' : ''}`}>
         <button type="button" className="calendar-lock-button" aria-label={calendarUnlocked ? 'Verrouiller les événements' : 'Déverrouiller les événements'} aria-pressed={calendarUnlocked} onClick={() => setCalendarUnlocked((current) => !current)}>{calendarUnlocked ? <LockOpen aria-hidden="true" /> : <Lock aria-hidden="true" />}</button>
         {isHydrated && <DragAndDropCalendar
           localizer={localizer}
           events={displayedEvents}
           toolbar={false}
+          date={date}
           view={view}
           onView={setView}
           onRangeChange={rangeChange}
           onNavigate={setDate}
           startAccessor="start"
           endAccessor="end"
-          dayLayoutAlgorithm={adaptiveDayLayout}
+          dayLayoutAlgorithm="overlap"
+          showMultiDayTimes
+          allDayMaxRows={2}
           titleAccessor="title"
           culture="fr"
           formats={{ agendaDateFormat: 'ddd D MMM', dayHeaderFormat: 'ddd D MMM', dayRangeHeaderFormat: ({ start, end }) => `${dayjs(start).format('D MMM')} - ${dayjs(end).format('D MMM')}` }}
           components={{ event: CalendarEventItem, agenda: { event: AgendaEventItem }, header: ({ label, date: headerDate }) => <CalendarDayHeader label={label} date={headerDate} isToday={dayjs(headerDate).isSame(dayjs(), 'day')} /> }}
-          eventPropGetter={(event) => ({ className: `calendar-event-wrapper calendar-event-wrapper--${event.type ?? 'OTHER'}`, style: { '--event-color': event.color ?? '#3730A3' } as React.CSSProperties })}
+          eventPropGetter={(event) => ({ className: `calendar-event-wrapper calendar-event-wrapper--${event.type ?? 'OTHER'}`, style: { '--event-color': event.color ?? '#64748b' } as React.CSSProperties })}
           onSelectEvent={setSelectedEvent}
           selectable
           onSelectSlot={selectEmptySlot}

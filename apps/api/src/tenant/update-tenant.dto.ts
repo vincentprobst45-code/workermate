@@ -1,6 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
+
+enum VatLiabilityRegimeDto {
+  FRANCHISE_BASE = 'FRANCHISE_BASE',
+  LIABLE = 'LIABLE',
+}
+
+enum VatReturnFrequencyDto {
+  MONTHLY = 'MONTHLY',
+  QUARTERLY = 'QUARTERLY',
+}
 
 export class UpdateTenantDto {
   @IsOptional()
@@ -34,11 +44,7 @@ export class UpdateTenantDto {
 
   @IsOptional()
   @IsString()
-  iban?: string;
-
-  @IsOptional()
-  @IsString()
-  bic?: string;
+  defaultPaymentAccountId?: string;
 
   @IsOptional()
   @IsString()
@@ -73,4 +79,12 @@ export class UpdateTenantDto {
   @IsNumber()
   @Min(0)
   defaultVatRate?: number;
+
+  @IsOptional()
+  @IsEnum(VatLiabilityRegimeDto)
+  VatLiabilityRegime?: VatLiabilityRegimeDto;
+
+  @IsOptional()
+  @IsEnum(VatReturnFrequencyDto)
+  vatReturnFrequency?: VatReturnFrequencyDto;
 }

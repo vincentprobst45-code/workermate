@@ -5,6 +5,8 @@ import { useApiClient } from '../api-client';
 import AddInvoiceForm from '../components/AddInvoiceForm';
 import AddPaymentForm, { type Payment } from '../components/AddPaymentForm';
 import InvoicesList, { type Invoice } from '../components/InvoicesList';
+import AddReccuringInvoiceForm from '../components/AddReccuringInvoiceForm';
+import RecuringInvoicesList from '../components/RecuringInvoicesList';
 import { ProtectedRoute } from '../protected-route';
 
 const invoiceKindOptions: Array<{ value: InvoiceKind; label: string }> = [
@@ -25,6 +27,8 @@ export default function InvoicesPage() {
   const [isChoosingInvoiceKind, setIsChoosingInvoiceKind] = useState(false);
   const [selectedInvoiceKind, setSelectedInvoiceKind] = useState<InvoiceKind | null>(null);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
+  const [isCreatingRecurringInvoice, setIsCreatingRecurringInvoice] = useState(false);
+  const [recurringInvoicesRefreshKey, setRecurringInvoicesRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +89,13 @@ export default function InvoicesPage() {
             >
               Ajouter un paiement
             </button>
+            <button
+              type="button"
+              onClick={() => setIsCreatingRecurringInvoice((current) => !current)}
+              className="rounded-lg border border-indigo-600 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+            >
+              {isCreatingRecurringInvoice ? 'Masquer le formulaire' : 'Créer une facture récurrente'}
+            </button>
             <div className="relative">
               <button
                 type="button"
@@ -139,6 +150,18 @@ export default function InvoicesPage() {
                 setIsAddingPayment(false);
               }}
               onCancel={() => setIsAddingPayment(false)}
+            />
+          </div>
+        )}
+
+        {isCreatingRecurringInvoice && (
+          <div className="mb-8">
+            <AddReccuringInvoiceForm
+              onCreated={() => {
+                setIsCreatingRecurringInvoice(false);
+                setRecurringInvoicesRefreshKey((current) => current + 1);
+              }}
+              onCancel={() => setIsCreatingRecurringInvoice(false)}
             />
           </div>
         )}
@@ -204,6 +227,8 @@ export default function InvoicesPage() {
             }}
           />
         )}
+
+        <RecuringInvoicesList refreshKey={recurringInvoicesRefreshKey} />
       </main>
     </ProtectedRoute>
   );

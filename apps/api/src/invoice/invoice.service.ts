@@ -540,6 +540,7 @@ export class InvoiceService {
         tenant: {
           include: {
             address: true,
+            defaultPaymentAccount: true,
           },
         },
       },
@@ -650,8 +651,8 @@ export class InvoiceService {
       amountDue: total,
       paymentTerms: dto.paymentTerms,
       internalNotes: dto.notes ?? undefined,
-      paymentIban: workOrder.tenant.iban ?? undefined,
-      paymentBic: workOrder.tenant.bic ?? undefined,
+      paymentIban: workOrder.tenant.defaultPaymentAccount?.iban ?? undefined,
+      paymentBic: workOrder.tenant.defaultPaymentAccount?.bic ?? undefined,
     };
 
     for (let attempt = 0; attempt < InvoiceService.INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
