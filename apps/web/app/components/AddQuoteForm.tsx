@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { ArrowDown, ArrowUp, Building2, ChevronRight, GripVertical, Link2, MapPin, Pencil, Plus, Save, Send, Trash2, UserPlus, X } from 'lucide-react';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useApiClient } from '../api-client';
 import AddressForm, {
   createEmptyAddress,
@@ -674,6 +674,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [newAddressError, setNewAddressError] = useState('');
   const [submitIntent, setSubmitIntent] = useState<'draft' | 'issue'>('issue');
   const [showMobilePreview, setShowMobilePreview] = useState(false);
+  const mobilePreviewRef = useRef<HTMLElement>(null);
   const [isDesktopPreviewExpanded, setIsDesktopPreviewExpanded] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -808,6 +809,13 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       cancelled = true;
     };
   }, [api]);
+
+  // The preview <aside> sits after every section in the DOM; scroll to it so the mobile toggle is actually useful.
+  useEffect(() => {
+    if (showMobilePreview) {
+      mobilePreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showMobilePreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2264,7 +2272,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       </div>
       </div>
 
-      <aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:col-start-2 xl:justify-self-end xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu du devis">
+      <aside ref={mobilePreviewRef} className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:col-start-2 xl:justify-self-end xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu du devis">
         <div className="flex items-start gap-2">
           <div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 w-fit max-w-full shrink-0 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
             <NewQuote quote={buildQuotePreview()} />

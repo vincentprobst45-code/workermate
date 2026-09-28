@@ -25,6 +25,10 @@ export interface TenantProfile {
   defaultPaymentTerms?: string | null;
   defaultLegalMentions?: string | null;
   defaultInvoiceNotes?: string | null;
+  emailRemindersEnabled: boolean;
+  emailReminderDelayDays: number;
+  emailReminderRepeatDays: number;
+  emailReminderMaxAttempts: number;
   defaultPaymentAccountId?: string | null;
   VatLiabilityRegime?: 'FRANCHISE_BASE' | 'LIABLE' | null;
   vatReturnFrequency?: 'MONTHLY' | 'QUARTERLY' | null;

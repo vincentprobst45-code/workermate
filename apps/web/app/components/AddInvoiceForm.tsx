@@ -24,7 +24,7 @@ import {
 	InvoiceAdjustmentType,
 	VatCategory,
 } from '@prisma/client';
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useApiClient } from '../api-client';
 import CatalogItemList, { type CatalogItem } from './CatalogItemList';
 import AddCustomerForm, { type Customer } from './AddCustomerForm';
@@ -265,56 +265,6 @@ interface CreateInvoiceDto {
 		reference?: string;
 		notes?: string;
 	}>;
-}
-
-const INVOICE_NUMBER_PREFIX = 'FAC';
-const INVOICE_NUMBER_PAD = 4;
-
-function getInvoiceYear(value?: string): number {
-	if (!value) {
-		return new Date().getFullYear();
-	}
-
-	const parsedDate = new Date(value);
-	if (Number.isNaN(parsedDate.getTime())) {
-		return new Date().getFullYear();
-	}
-
-	return parsedDate.getFullYear();
-}
-
-function parseInvoiceNumber(value: string): { year: number; sequence: number } | null {
-	const match = /^FAC-(\d{4})-(\d+)$/.exec(value.trim());
-	if (!match) {
-		return null;
-	}
-
-	const year = Number(match[1]);
-	const sequence = Number(match[2]);
-	if (!Number.isFinite(year) || !Number.isFinite(sequence)) {
-		return null;
-	}
-
-	return { year, sequence };
-}
-
-function formatInvoiceNumber(year: number, sequence: number): string {
-	return `${INVOICE_NUMBER_PREFIX}-${year}-${String(sequence).padStart(INVOICE_NUMBER_PAD, '0')}`;
-}
-
-function computeSequenceByYearFromNumbers(numbers: string[]): Record<number, number> {
-	const maxByYear: Record<number, number> = {};
-
-	for (const number of numbers) {
-		const parsed = parseInvoiceNumber(number);
-		if (!parsed) {
-			continue;
-		}
-
-		maxByYear[parsed.year] = Math.max(maxByYear[parsed.year] ?? 0, parsed.sequence);
-	}
-
-	return maxByYear;
 }
 
 function toDatetimeLocal(date: Date): string {
@@ -954,6 +904,7 @@ function FieldLabel({ label, required = false, children, className = '', compact
 export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, invoiceKind, onChange, show }: AddInvoiceFormProps) {
 	const api = useApiClient();
 	const [showMobilePreview, setShowMobilePreview] = useState(false);
+	const mobilePreviewRef = useRef<HTMLElement>(null);
 	const [isDesktopPreviewExpanded, setIsDesktopPreviewExpanded] = useState(false);
 	const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults | null>(null);
 	const [form, setForm] = useState<AddInvoiceFormData>(() => {
@@ -1043,7 +994,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			})),
 		};
 	});
-	const [invoiceSequenceByYear, setInvoiceSequenceByYear] = useState<Record<number, number>>({});
 	const [customers, setCustomers] = useState<CustomerOption[]>([]);
 	const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
 	const [workOrdersLoading, setWorkOrdersLoading] = useState(false);
@@ -1098,11 +1048,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [activeModal, setActiveModal] = useState<string | null>(null);
 	const sensors = useSensors(useSensor(PointerSensor));
-	const generatedInvoiceNumber = formatInvoiceNumber(
-		getInvoiceYear(form.issueDate),
-		(invoiceSequenceByYear[getInvoiceYear(form.issueDate)] ?? 0) + 1,
-	);
-	const displayedInvoiceNumber = initialInvoice ? (form.number || initialInvoice.number || '') : generatedInvoiceNumber;
+	// The backend always assigns the definitive number in its own transaction; never predict it client-side.
+	const displayedInvoiceNumber = initialInvoice ? (form.number || initialInvoice.number || '') : '';
 	const sourceInvoiceButtonLabel = invoiceKind === InvoiceKind.CORRECTIVE
 		? 'Choisir la facture à corriger'
 		: 'Choisir la facture pour laquelle créer un avoir';
@@ -1157,6 +1104,13 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		return () => document.removeEventListener('keydown', handleModalKeyDown);
 	}, [hasOpenModal]);
 
+	// The preview <aside> sits after every section in the DOM; scroll to it so the mobile toggle is actually useful.
+	useEffect(() => {
+		if (showMobilePreview) {
+			mobilePreviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	}, [showMobilePreview]);
+
 	useEffect(() => {
 		onChange?.(createDraftPreviewInvoice(
 		{ ...form, number: displayedInvoiceNumber },
@@ -1175,38 +1129,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	));
 	}, [displayedInvoiceNumber, form, initialInvoice, invoiceKind, onChange, selectedSourceInvoice]);
 
-	useEffect(() => {
-		let cancelled = false;
-
-		async function loadExistingInvoiceNumbers() {
-			try {
-				const response = await api.get('/invoices');
-				if (!response.ok) {
-					throw new Error('Erreur');
-				}
-
-				const invoices = (await response.json()) as Array<{ number?: string | null }>;
-				if (cancelled) {
-					return;
-				}
-
-				const numbers = invoices
-					.map((invoice) => invoice.number?.trim())
-					.filter((value): value is string => Boolean(value));
-				setInvoiceSequenceByYear(computeSequenceByYearFromNumbers(numbers));
-			} catch {
-				if (!cancelled) {
-					setInvoiceSequenceByYear({});
-				}
-			}
-		}
-
-		void loadExistingInvoiceNumbers();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [api]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -1829,10 +1751,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		const submitIntent: SubmitIntent = submitter?.dataset.submitIntent === 'draft' ? 'draft' : 'issue';
 		const errors: string[] = [];
 
-		if (!displayedInvoiceNumber.trim()) {
-			errors.push('Le numéro de facture est obligatoire.');
-		}
-
 		if (!form.customerId.trim()) {
 			errors.push('Le client est obligatoire.');
 		}
@@ -1964,13 +1882,6 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			}
 
 			const data: CreatedInvoice = await response.json();
-			const parsedNumber = parseInvoiceNumber(data.number);
-			if (parsedNumber) {
-				setInvoiceSequenceByYear((currentMap) => ({
-					...currentMap,
-					[parsedNumber.year]: Math.max(currentMap[parsedNumber.year] ?? 0, parsedNumber.sequence),
-				}));
-			}
 			if (initialInvoice) {
 				onUpdated?.(data);
 				setSuccess('Facture modifiée avec succès.');
@@ -2540,8 +2451,8 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				<h4 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-700">Infos facture</h4>
 				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					<div className="sm:col-span-2 lg:col-span-3 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Identification et dates</div>
-					<FieldLabel label="Numéro facture" required>
-						<input className={`${fieldClassName} bg-zinc-100`} value={displayedInvoiceNumber} readOnly required />
+					<FieldLabel label="Numéro facture">
+						<input className={`${fieldClassName} bg-zinc-100`} value={displayedInvoiceNumber} placeholder="Attribué automatiquement à l'enregistrement" readOnly />
 					</FieldLabel>
 					<FieldLabel label="Date d'émission" required>
 						<input type="datetime-local" className={fieldClassName} value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} required />
@@ -2645,7 +2556,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			</div>
 			</div>
 
-			<aside className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu de la facture">
+			<aside ref={mobilePreviewRef} className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu de la facture">
 				<div className="flex items-start gap-2">
 					<div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 flex-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
 						<NewInvoice invoice={createDraftPreviewInvoice(

@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import EasyAddProjectForm from '../components/EasyAddProjectForm';
 import { type Project } from '../components/AddProjectForm';
@@ -16,17 +18,59 @@ import { ProtectedRoute } from '../protected-route';
 
 export default function ProjectsPage() {
   const searchParams = useSearchParams();
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddProjectForm, setShowAddProjectForm] = useState(false);
   const [projectFormWasOpened, setProjectFormWasOpened] = useState(false);
-  const [profitabilityProjects, setProfitabilityProjects] = useState<ProjectProfitability[]>([]);
-  const [profitabilityLoading, setProfitabilityLoading] = useState(true);
-  const [profitabilityError, setProfitabilityError] = useState('');
+  const queryClient = useQueryClient();
+  const projectsQueryKey = ['projects', activeTenant?.tenantId];
+  const profitabilityQueryKey = ['projects-profitability', activeTenant?.tenantId];
+  const dashboardQueryKey = ['dashboard', activeTenant?.tenantId];
+  const projectsQuery = useQuery({
+    queryKey: projectsQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/projects');
+      if (!response.ok) throw new Error('Erreur lors de la récupération des projets');
+      return await response.json() as Project[];
+    },
+  });
+  const profitabilityQuery = useQuery({
+    queryKey: profitabilityQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/projects/profitability');
+      if (!response.ok) throw new Error('Erreur lors de la récupération de la rentabilité des projets');
+      return await response.json() as ProjectProfitability[];
+    },
+  });
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+  const profitabilityProjects = profitabilityQuery.data ?? [];
+  const loading = projectsQuery.isPending;
+  const profitabilityLoading = profitabilityQuery.isPending;
+  const profitabilityError = profitabilityQuery.error?.message ?? '';
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/projects/${id}`);
+      if (!response.ok) throw new Error('La suppression du projet a échoué.');
+      return id;
+    },
+    onSuccess: async (id) => {
+      queryClient.setQueryData<Project[]>(projectsQueryKey, (currentProjects) => currentProjects?.filter((project) => project.id !== id));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profitabilityQueryKey }),
+        queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+      ]);
+      setError('');
+      setSuccess('Projet supprimé avec succès');
+    },
+    onError: () => {
+      setError('La suppression du projet a échoué. Vérifiez votre connexion et réessayez.');
+    },
+  });
 
   function updateCreateUrl(open: boolean, replace = false) {
     const url = new URL(window.location.href);
@@ -51,61 +95,6 @@ export default function ProjectsPage() {
     window.addEventListener('popstate', syncCreateFormFromUrl);
     return () => window.removeEventListener('popstate', syncCreateFormFromUrl);
   }, [searchParams]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProjects() {
-      try {
-        const response = await api.get('/projects');
-        if (!response.ok) {
-          throw new Error('Erreur');
-        }
-
-        const data: Project[] = await response.json();
-        if (!cancelled) {
-          setProjects(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Erreur lors de la récupération des projets');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadProjects();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadProfitability() {
-      try {
-        const response = await api.get('/projects/profitability');
-        if (!response.ok) throw new Error('Erreur');
-        const data = await response.json() as ProjectProfitability[];
-        if (!cancelled) {
-          setProfitabilityProjects(data);
-          setProfitabilityError('');
-        }
-      } catch {
-        if (!cancelled) setProfitabilityError('Erreur lors de la récupération de la rentabilité des projets.');
-      } finally {
-        if (!cancelled) setProfitabilityLoading(false);
-      }
-    }
-
-    void loadProfitability();
-    return () => { cancelled = true; };
-  }, [api]);
 
   useEffect(() => {
     function syncSelectedProjectFromUrl() {
@@ -139,22 +128,8 @@ export default function ProjectsPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const response = await api.delete(`/projects/${id}`);
-      if (!response.ok) {
-        throw new Error('Erreur');
-      }
-
-      setProjects((currentProjects) => currentProjects.filter((project) => project.id !== id));
-      if (selectedProject?.id === id) {
-        closeSelectedProject();
-      }
-      setError('');
-      setSuccess('Projet supprimé avec succès');
-    } catch {
-      setError('La suppression du projet a échoué. Vérifiez votre connexion et réessayez.');
-      throw new Error('Project deletion failed');
-    }
+    await deleteProjectMutation.mutateAsync(id);
+    if (selectedProject?.id === id) closeSelectedProject();
   }
 
   const activeSelectedProject = selectedProject
@@ -164,7 +139,7 @@ export default function ProjectsPage() {
   if (activeSelectedProject) {
     return (
       <ProtectedRoute>
-        <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+        <main className="mx-auto max-w-6xl px-3 py-5 sm:px-6 sm:py-8">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <nav aria-label="Fil d'ariane" className="flex items-center gap-2 text-sm text-slate-500">
               <Link
@@ -230,9 +205,9 @@ export default function ProjectsPage() {
           </button>
         </div>
 
-        {error && (
+        {(error || projectsQuery.isError) && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            {error}
+            {error || 'Erreur lors de la récupération des projets'}
           </div>
         )}
         {success && (
@@ -271,7 +246,8 @@ export default function ProjectsPage() {
           <EasyAddProjectForm
             show={showAddProjectForm}
             onCreated={(data) => {
-              setProjects((currentProjects) => [data, ...currentProjects]);
+              queryClient.setQueryData<Project[]>(projectsQueryKey, (currentProjects) => [data, ...(currentProjects ?? [])]);
+              void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
               setShowAddProjectForm(false);
               selectProject(data);
               setError('');

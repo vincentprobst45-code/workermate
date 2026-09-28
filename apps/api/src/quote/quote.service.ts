@@ -411,7 +411,7 @@ export class QuoteService {
         unitPrice,
         vatRate,
         subtotal: lineSubtotal,
-        vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
+        vatCategory: (item.vatCategory) ?? VatCategory.STANDARD,
       };
     });
 
@@ -687,7 +687,7 @@ export class QuoteService {
             unitPrice: Number(item.unitPrice),
             vatRate: Number(item.vatRate),
             subtotal: Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)),
-            vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
+            vatCategory: (item.vatCategory) ?? VatCategory.STANDARD,
           })),
         });
       }

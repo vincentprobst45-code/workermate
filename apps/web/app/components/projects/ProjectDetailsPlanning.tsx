@@ -109,7 +109,7 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 				<p className="text-sm text-slate-500">Aucun événement planifié pour ce projet.</p>
 			)}
 			{!loading && !error && events.length > 0 && (
-				<div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
+				<div className="space-y-3">
 					{events.map((event) => (
 						<article key={event.id} className={cardClass}>
 							<div className="flex items-start gap-3">

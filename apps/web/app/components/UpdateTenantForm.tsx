@@ -15,6 +15,7 @@ type TenantFormData = {
   name: string; logoFileId: string; addressId: string; phoneNumber: string; email: string;
   siretNumber: string; vatNumber: string; defaultPaymentAccountId: string;
   defaultPaymentTerms: string; defaultLegalMentions: string; defaultInvoiceNotes: string;
+  emailRemindersEnabled: boolean; emailReminderDelayDays: number; emailReminderRepeatDays: number; emailReminderMaxAttempts: number;
   defaultCurrency: string; VatLiabilityRegime: VatLiabilityRegime; vatReturnFrequency: VatReturnFrequency;
 };
 
@@ -40,6 +41,10 @@ function mapTenantToForm(tenant: TenantProfile): TenantFormData {
     vatNumber: tenant.vatNumber || '', defaultPaymentAccountId: tenant.defaultPaymentAccountId || '',
     defaultPaymentTerms: tenant.defaultPaymentTerms || '', defaultLegalMentions: tenant.defaultLegalMentions || '',
     defaultInvoiceNotes: tenant.defaultInvoiceNotes || '', defaultCurrency: tenant.defaultCurrency || 'EUR',
+    emailRemindersEnabled: tenant.emailRemindersEnabled ?? false,
+    emailReminderDelayDays: tenant.emailReminderDelayDays ?? 3,
+    emailReminderRepeatDays: tenant.emailReminderRepeatDays ?? 7,
+    emailReminderMaxAttempts: tenant.emailReminderMaxAttempts ?? 3,
     VatLiabilityRegime: tenant.VatLiabilityRegime || 'LIABLE', vatReturnFrequency: tenant.vatReturnFrequency || 'MONTHLY',
   };
 }
@@ -72,6 +77,10 @@ export default function UpdateTenantForm({ tenant, onCancel, onSaved }: UpdateTe
         defaultPaymentTerms: form.defaultPaymentTerms,
         defaultLegalMentions: form.defaultLegalMentions,
         defaultInvoiceNotes: form.defaultInvoiceNotes,
+        emailRemindersEnabled: form.emailRemindersEnabled,
+        emailReminderDelayDays: Number(form.emailReminderDelayDays),
+        emailReminderRepeatDays: Number(form.emailReminderRepeatDays),
+        emailReminderMaxAttempts: Number(form.emailReminderMaxAttempts),
         defaultCurrency: form.defaultCurrency,
         VatLiabilityRegime: form.VatLiabilityRegime,
         vatReturnFrequency: form.VatLiabilityRegime === 'LIABLE' ? form.vatReturnFrequency : undefined,
@@ -108,6 +117,8 @@ export default function UpdateTenantForm({ tenant, onCancel, onSaved }: UpdateTe
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h3 className="font-semibold text-slate-900">Facturation</h3><p className="mt-1 text-sm text-slate-600">Valeurs par défaut des nouveaux documents.</p><div className="mt-4 grid gap-4"><label className="text-sm font-medium text-slate-700">Conditions de règlement<textarea rows={3} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.defaultPaymentTerms} onChange={(e) => setForm({ ...form, defaultPaymentTerms: e.target.value })} /></label><label className="text-sm font-medium text-slate-700">Mentions légales par défaut<textarea rows={3} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.defaultLegalMentions} onChange={(e) => setForm({ ...form, defaultLegalMentions: e.target.value })} /></label><label className="text-sm font-medium text-slate-700">Note de bas de document<textarea rows={3} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.defaultInvoiceNotes} onChange={(e) => setForm({ ...form, defaultInvoiceNotes: e.target.value })} /></label><label className="max-w-sm text-sm font-medium text-slate-700">Devise par défaut<select className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.defaultCurrency} onChange={(e) => setForm({ ...form, defaultCurrency: e.target.value })}>{CURRENCY_OPTIONS.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.label} ({currency.symbol})</option>)}</select><span className="mt-1 block text-xs font-normal text-slate-500">Par défaut : EUR - Euro (€).</span></label></div></section>
+
+        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h3 className="font-semibold text-slate-900">Relances email</h3><p className="mt-1 text-sm text-slate-600">Les relances concernent uniquement les factures émises, échues et non réglées.</p><label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-700"><input type="checkbox" checked={form.emailRemindersEnabled} onChange={(e) => setForm({ ...form, emailRemindersEnabled: e.target.checked })} />Activer les relances automatiques</label><div className="mt-4 grid gap-4 sm:grid-cols-3"><label className="text-sm font-medium text-slate-700">Première relance (jours après échéance)<input type="number" min={0} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.emailReminderDelayDays} onChange={(e) => setForm({ ...form, emailReminderDelayDays: Number(e.target.value) })} /></label><label className="text-sm font-medium text-slate-700">Répétition (jours)<input type="number" min={1} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.emailReminderRepeatDays} onChange={(e) => setForm({ ...form, emailReminderRepeatDays: Number(e.target.value) })} /></label><label className="text-sm font-medium text-slate-700">Nombre maximum<input type="number" min={1} className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.emailReminderMaxAttempts} onChange={(e) => setForm({ ...form, emailReminderMaxAttempts: Number(e.target.value) })} /></label></div></section>
 
         <section className="rounded-xl border border-slate-200 bg-slate-50 p-4"><h3 className="font-semibold text-slate-900">TVA</h3><p className="mt-1 text-sm text-slate-600">Le régime choisi influence les mentions et le calcul de TVA.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-slate-700">Régime de TVA<select className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.VatLiabilityRegime} onChange={(e) => setForm({ ...form, VatLiabilityRegime: e.target.value as VatLiabilityRegime })}><option value="FRANCHISE_BASE">Franchise en base</option><option value="LIABLE">Assujetti à la TVA</option></select></label>{form.VatLiabilityRegime === 'LIABLE' && <label className="text-sm font-medium text-slate-700">Fréquence de déclaration<select className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.vatReturnFrequency} onChange={(e) => setForm({ ...form, vatReturnFrequency: e.target.value as VatReturnFrequency })}><option value="MONTHLY">Mensuelle</option><option value="QUARTERLY">Trimestrielle</option></select></label>}</div></section>
 

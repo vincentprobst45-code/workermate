@@ -8,17 +8,17 @@ datasource db {
 }
 
 model Tenant {
-  id        String    @id @default(uuid())
-  name      String
+  id   String @id @default(uuid())
+  name String
 
   addressId String?
-  address   Address?  @relation("TenantMainAddress",fields: [addressId], references: [id], onDelete: Cascade)
+  address   Address? @relation("TenantMainAddress", fields: [addressId], references: [id], onDelete: Cascade)
 
-  email String?
+  email       String?
   phoneNumber String?
 
   siretNumber String?
-  vatNumber String?
+  vatNumber   String?
 
   paymentAccounts PaymentAccount[] @relation("TenantPaymentAccounts")
 
@@ -27,31 +27,35 @@ model Tenant {
   defaultPaymentAccount PaymentAccount? @relation("TenantDefaultPaymentAccount", fields: [defaultPaymentAccountId], references: [id], onDelete: SetNull)
 
   invoiceNumberPrefix String @default("FAC")
-  nextInvoiceNumber Int @default(1)
+  nextInvoiceNumber   Int    @default(1)
   invoiceNumberYear   Int
 
   vatAccountingMode VatAccountingMode?
 
   quoteNumberPrefix String @default("DEV")
-  nextQuoteNumber Int @default(1)
+  nextQuoteNumber   Int    @default(1)
   quoteNumberYear   Int
-  
 
   logoFileId String?
 
   defaultCurrency String @default("EUR")
 
-  defaultPaymentTerms String?
+  defaultPaymentTerms  String?
   defaultLegalMentions String?
-  defaultInvoiceNotes String?
+  defaultInvoiceNotes  String?
+
+  emailRemindersEnabled    Boolean @default(false)
+  emailReminderDelayDays   Int     @default(3)
+  emailReminderRepeatDays  Int     @default(7)
+  emailReminderMaxAttempts Int     @default(3)
 
   defaultVatRate Decimal?
 
   //ASSURANCE
-  insuranceName String?
+  insuranceName         String?
   insurancePolicyNumber String?
 
-  insurerName String?
+  insurerName    String?
   insurerAddress String?
 
   insuranceGeographicCoverage String?
@@ -59,33 +63,35 @@ model Tenant {
   VatLiabilityRegime VatLiabilityRegime @default(LIABLE)
   vatReturnFrequency VatReturnFrequency @default(MONTHLY)
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  memberships Membership[]
-  addresses Address[] @relation("TenantAddresses")
-  customers   Customer[]
-  quotes    Quote[]
-  workOrders    WorkOrder[]
-  invoices    Invoice[]
-  recurringInvoices RecurringInvoice[]
-  calendarevents CalendarEvent[]
-  catalogItems CatalogItem[]
-  projects Project[]
-  workLogs WorkLog[]
-  notifications Notification[]
-  membershipRequests MembershipRequest[]
-  membershipInvitations MembershipInvitation[]
-  payments Payment[]
-  companyExpenses CompanyExpense[]
-  bankTransactions BankTransaction[]
+  memberships             Membership[]
+  addresses               Address[]                @relation("TenantAddresses")
+  customers               Customer[]
+  quotes                  Quote[]
+  workOrders              WorkOrder[]
+  invoices                Invoice[]
+  recurringInvoices       RecurringInvoice[]
+  calendarevents          CalendarEvent[]
+  catalogItems            CatalogItem[]
+  projects                Project[]
+  workLogs                WorkLog[]
+  notifications           Notification[]
+  membershipRequests      MembershipRequest[]
+  membershipInvitations   MembershipInvitation[]
+  payments                Payment[]
+  companyExpenses         CompanyExpense[]
+  bankTransactions        BankTransaction[]
+  storedFiles             StoredFile[]
+  emailDeliveries         EmailDelivery[]
   treasuryReconciliations TreasuryReconciliation[]
-  treasuryTransfers TreasuryTransfer[]
-  treasuryAlerts TreasuryAlert[]
-  purchases Purchase[]
-  suppliers Supplier[]
-  supplierInvoices SupplierInvoice[]
-  stockMovements StockMovement[]
-  stockItems StockItem[]
+  treasuryTransfers       TreasuryTransfer[]
+  treasuryAlerts          TreasuryAlert[]
+  purchases               Purchase[]
+  suppliers               Supplier[]
+  supplierInvoices        SupplierInvoice[]
+  stockMovements          StockMovement[]
+  stockItems              StockItem[]
 
   @@index([defaultPaymentAccountId])
 }
@@ -121,31 +127,31 @@ model PaymentAccount {
   // mais Prisma exprime ici la relation inverse.
   defaultForTenants Tenant[] @relation("TenantDefaultPaymentAccount")
 
-  name String
+  name     String
   bankName String?
 
   accountHolderName String
 
   iban String
-  bic String?
+  bic  String?
 
   currency String @default("EUR")
 
-  openingBalance     Decimal  @default(0) @db.Decimal(12, 2)
+  openingBalance     Decimal   @default(0) @db.Decimal(12, 2)
   openingBalanceDate DateTime?
 
-  archivedAt DateTime?
-  closedAt DateTime?
-  closedBalance Decimal? @db.Decimal(12, 2)
+  archivedAt    DateTime?
+  closedAt      DateTime?
+  closedBalance Decimal?  @db.Decimal(12, 2)
 
   recurringInvoices RecurringInvoice[]
-  bankTransactions BankTransaction[]
-  companyExpenses CompanyExpense[]
-  reconciliations TreasuryReconciliation[]
-  alerts TreasuryAlert[]
-  outgoingTransfers TreasuryTransfer[] @relation("TransferFromAccount")
-  incomingTransfers TreasuryTransfer[] @relation("TransferToAccount")
-  purchases Purchase[]
+  bankTransactions  BankTransaction[]
+  companyExpenses   CompanyExpense[]
+  reconciliations   TreasuryReconciliation[]
+  alerts            TreasuryAlert[]
+  outgoingTransfers TreasuryTransfer[]       @relation("TransferFromAccount")
+  incomingTransfers TreasuryTransfer[]       @relation("TransferToAccount")
+  purchases         Purchase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,41 +162,41 @@ model PaymentAccount {
 }
 
 model User {
-  id         String       @id @default(uuid())
-  email      String       @unique
-  password   String
-  firstname  String?
-  lastname   String?
+  id             String  @id @default(uuid())
+  email          String  @unique
+  password       String
+  firstname      String?
+  lastname       String?
   activeTenantId String?
 
   addressId String?
-  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: Cascade)
 
-  createdAt  DateTime     @default(now())
+  createdAt DateTime @default(now())
 
-  memberships Membership[]
-  createdCustomers Customer[] @relation("CustomerCreator")
-  createdWorkOrders    WorkOrder[] @relation("WorkOrderCreator")
-  createdCalendarEvents CalendarEvent[] @relation("CalendarEventCreator")
-  createdRecurringInvoices RecurringInvoice[] @relation("RecurringInvoiceCreator")
-  passwordResetTokens PasswordResetToken[]
-  receivedNotifications Notification[] @relation("NotificationRecipient")
-  sentNotifications Notification[] @relation("NotificationSender")
-  membershipRequests MembershipRequest[]
-  respondedMembershipRequests MembershipRequest[] @relation("MembershipRequestResponder")
-  sentMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationSender")
+  memberships                   Membership[]
+  createdCustomers              Customer[]             @relation("CustomerCreator")
+  createdWorkOrders             WorkOrder[]            @relation("WorkOrderCreator")
+  createdCalendarEvents         CalendarEvent[]        @relation("CalendarEventCreator")
+  createdRecurringInvoices      RecurringInvoice[]     @relation("RecurringInvoiceCreator")
+  passwordResetTokens           PasswordResetToken[]
+  receivedNotifications         Notification[]         @relation("NotificationRecipient")
+  sentNotifications             Notification[]         @relation("NotificationSender")
+  membershipRequests            MembershipRequest[]
+  respondedMembershipRequests   MembershipRequest[]    @relation("MembershipRequestResponder")
+  sentMembershipInvitations     MembershipInvitation[] @relation("MembershipInvitationSender")
   receivedMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationRecipient")
-  createdWorkLogs WorkLog[] @relation("WorkLogCreator")
+  createdWorkLogs               WorkLog[]              @relation("WorkLogCreator")
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId, expiresAt])
 }
@@ -199,7 +205,7 @@ model Membership {
   userId   String
   tenantId String
   role     TenantRole
-  joinedAt DateTime @default(now())
+  joinedAt DateTime   @default(now())
 
   user   User   @relation(fields: [userId], references: [id])
   tenant Tenant @relation(fields: [tenantId], references: [id])
@@ -211,16 +217,16 @@ model Address {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation("TenantAddresses", fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation("TenantAddresses", fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Adresse
   street1 String
   street2 String?
 
-  postalCode String
-  city       String
-  region     String?
-  countryCode String @default("FR")
+  postalCode  String
+  city        String
+  region      String?
+  countryCode String  @default("FR")
 
   // Coordonnées GPS (optionnel)
   latitude  Decimal? @db.Decimal(10, 7)
@@ -236,23 +242,23 @@ model Address {
   updatedAt DateTime @updatedAt
 
   // Relations
-  quotes Quote[]
-  customers Customer[]
-  workOrders WorkOrder[]
-  tenants Tenant[] @relation("TenantMainAddress")
-  users User[]
+  quotes         Quote[]
+  customers      Customer[]
+  workOrders     WorkOrder[]
+  tenants        Tenant[]        @relation("TenantMainAddress")
+  users          User[]
   calendarevents CalendarEvent[]
 }
 
 model Customer {
-  id        String   @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relation
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   createdById String?
-  createdBy   User? @relation("CustomerCreator", fields: [createdById], references: [id])
+  createdBy   User?   @relation("CustomerCreator", fields: [createdById], references: [id])
 
   // Identité
   firstName String?
@@ -260,33 +266,31 @@ model Customer {
   company   String?
 
   // Contact
-  email     String?
-  phone     String?
-  mobile    String?
-
+  email  String?
+  phone  String?
+  mobile String?
 
   // Addresse de facturation
   addressId String?
-  address   Address?  @relation(fields: [addressId], references: [id], onDelete: Cascade)
-
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: Cascade)
 
   // Professionnels
   siret     String?
   vatNumber String?
 
   // Divers
-  notes     String?
+  notes String?
 
   // Relations
-  quotes    Quote[]
-  workOrders    WorkOrder[]
-  calendarevents CalendarEvent[]
-  invoices Invoice[]
+  quotes            Quote[]
+  workOrders        WorkOrder[]
+  calendarevents    CalendarEvent[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  projects ProjectCustomer[]
-  payments Payment[]
+  projects          ProjectCustomer[]
+  payments          Payment[]
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([tenantId])
@@ -295,44 +299,44 @@ model Customer {
 }
 
 model CalendarEvent {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  customerId   String?
-  customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  addressId   String?
-  address     Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
-  workOrderId   String?
-  workOrder     WorkOrder?  @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  addressId String?
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   createdById String?
-  createdBy   User? @relation("CalendarEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation("CalendarEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   projectId String?
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   title       String
   description String?
 
-  startDate   DateTime
-  endDate     DateTime
-  
-  allDay Boolean @default(false)
+  startDate DateTime
+  endDate   DateTime
+
+  allDay Boolean             @default(false)
   status CalendarEventStatus @default(SCHEDULED)
 
   type CalendarEventType @default(OTHER)
 
-  color     String?
+  color String?
 
-  notes     String?
+  notes String?
 
   workLogs WorkLog[]
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   @@index([tenantId, startDate])
@@ -358,40 +362,37 @@ model WorkOrder {
   // ==========================================================================
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   createdById String?
-  createdBy User? @relation("WorkOrderCreator",fields: [createdById],references: [id],onDelete: SetNull)
-
+  createdBy   User?   @relation("WorkOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // CLIENT / PROJET
   // ==========================================================================
 
   customerId String?
-  customer Customer? @relation(fields: [customerId],references: [id],onDelete: SetNull)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   projectId String?
-  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
-
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // LIEU D'INTERVENTION
   // ==========================================================================
 
   addressId String?
-  address Address? @relation(fields: [addressId],references: [id],onDelete: SetNull)
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
 
   // Snapshot du lieu d'intervention.
   //
   // Permet de conserver l'adresse historique même si Address
   // est ensuite modifiée.
-  addressStreet1 String?
-  addressStreet2 String?
-  addressPostalCode String?
-  addressCity String?
+  addressStreet1     String?
+  addressStreet2     String?
+  addressPostalCode  String?
+  addressCity        String?
   addressCountryCode String?
-
 
   // ==========================================================================
   // IDENTITÉ DU WORK ORDER
@@ -400,11 +401,10 @@ model WorkOrder {
   // Référence unique uniquement dans l'entreprise.
   reference String
 
-  title String
+  title       String
   description String?
 
   status WorkOrderStatus @default(DRAFT)
-
 
   // ==========================================================================
   // PLANIFICATION
@@ -412,11 +412,10 @@ model WorkOrder {
 
   // Je préfère "planned..." car WorkLog représente ensuite le réel.
   plannedStartDate DateTime?
-  plannedEndDate DateTime?
+  plannedEndDate   DateTime?
 
   // Toujours stocker une durée dans une unité explicite.
   plannedDurationMinutes Int?
-
 
   // ==========================================================================
   // SUIVI
@@ -428,38 +427,34 @@ model WorkOrder {
   // Notes internes.
   internalNotes String?
 
-
   // ==========================================================================
   // RELATIONS
   // ==========================================================================
 
   items WorkOrderItem[]
 
-  quotes Quote[]
-  invoices Invoice[]
+  quotes            Quote[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
 
-  documents Document[]
+  documents      Document[]
   calendarevents CalendarEvent[]
-  workLogs WorkLog[]
-  purchaseItems PurchaseItem[]
-
+  workLogs       WorkLog[]
+  purchaseItems  PurchaseItem[]
 
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   archivedAt DateTime?
-
 
   // ==========================================================================
   // CONTRAINTES / INDEX
   // ==========================================================================
 
   @@unique([tenantId, reference])
-
   @@index([tenantId, status])
   @@index([customerId])
   @@index([projectId])
@@ -470,8 +465,7 @@ model WorkOrderItem {
   id String @id @default(cuid())
 
   workOrderId String
-  workOrder WorkOrder @relation(fields: [workOrderId],references: [id],onDelete: Cascade)
-
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -484,9 +478,8 @@ model WorkOrderItem {
   // Snapshot éventuel de CatalogItem.reference.
   sellerItemIdentifier String?
 
-  title String
+  title       String
   description String?
-
 
   // ==========================================================================
   // QUANTITÉ / UNITÉ
@@ -507,7 +500,6 @@ model WorkOrderItem {
 
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // PRIX DE VENTE PRÉVU
   // ==========================================================================
@@ -520,7 +512,6 @@ model WorkOrderItem {
   // Très utile pour le budget du projet.
   subtotal Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // TVA DE VENTE
   // ==========================================================================
@@ -528,7 +519,6 @@ model WorkOrderItem {
   vatCategory VatCategory @default(STANDARD)
 
   vatRate Decimal? @db.Decimal(5, 2)
-
 
   // ==========================================================================
   // COÛT PRÉVU
@@ -546,23 +536,21 @@ model WorkOrderItem {
   // La réalité viendra plus tard des achats / factures fournisseurs.
   purchaseVatRate Decimal? @db.Decimal(5, 2)
 
-
   // ==========================================================================
   // CONTRAINTES
   // ==========================================================================
 
   workLogItems WorkLogItem[]
-  
+
   @@unique([workOrderId, position])
   @@index([workOrderId])
 }
 
 model Document {
-
   id String @id @default(cuid())
 
   workOrderId String
-  workOrder WorkOrder @relation(fields:[workOrderId], references:[id], onDelete:Cascade)
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
 
   type DocumentType
 
@@ -582,11 +570,10 @@ model Document {
 }
 
 model DocumentItem {
-
   id String @id @default(cuid())
 
   documentId String
-  document Document @relation(fields:[documentId], references:[id], onDelete:Cascade)
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   position Int
 
@@ -596,13 +583,13 @@ model DocumentItem {
 
   description String?
 
-  quantity Decimal @db.Decimal(10,2)
+  quantity Decimal @db.Decimal(10, 2)
 
   unit String?
 
-  unitPrice Decimal @db.Decimal(10,2)
+  unitPrice Decimal @db.Decimal(10, 2)
 
-  vatRate Decimal @db.Decimal(4,2)
+  vatRate Decimal @db.Decimal(4, 2)
 }
 
 enum InvoiceKind {
@@ -632,7 +619,7 @@ model InvoiceAdjustment {
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // WM — Ordre d'affichage.
   position Int @default(0)
@@ -642,7 +629,6 @@ model InvoiceAdjustment {
   // ALLOWANCE -> remise globale / BG-20
   // CHARGE    -> charge globale / BG-21
   type InvoiceAdjustmentType
-
 
   // ==========================================================================
   // MONTANT
@@ -666,7 +652,6 @@ model InvoiceAdjustment {
   // CHARGE    -> BT-101
   percentage Decimal? @db.Decimal(9, 6)
 
-
   // ==========================================================================
   // TVA
   // ==========================================================================
@@ -685,7 +670,6 @@ model InvoiceAdjustment {
   // ALLOWANCE -> BT-96
   // CHARGE    -> BT-103
   vatRate Decimal? @db.Decimal(5, 2)
-
 
   // ==========================================================================
   // MOTIF
@@ -719,24 +703,23 @@ model Invoice {
   // WM — Entreprise propriétaire de la facture.
   // Sert notamment à garantir le cloisonnement multi-tenant.
   tenantId String
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Restrict)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   // WM — Client Workermate auquel appartient la facture.
   customerId String
-  customer Customer @relation(fields: [customerId],references: [id],onDelete: Restrict)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   // WM — WorkOrder à l'origine de la facture, si applicable.
   workOrderId String?
-  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   // WM — Projet auquel la facture appartient, si applicable.
   projectId String?
-  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   // WM — Devis à l'origine de la facture, si applicable.
   quoteId String?
-  quote Quote? @relation(fields: [quoteId],references: [id],onDelete: SetNull)
-
+  quote   Quote?  @relation(fields: [quoteId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // IDENTIFICATION DU DOCUMENT
@@ -784,7 +767,6 @@ model Invoice {
   // FE BT-9 — Date d'échéance / date limite de paiement.
   dueDate DateTime?
 
-
   // ==========================================================================
   // CADRE DE FACTURATION
   // ==========================================================================
@@ -812,7 +794,6 @@ model Invoice {
   // Le mapper transforme l'enum métier en valeur normative.
   vatAccountingMode VatAccountingMode?
 
-
   // ==========================================================================
   // DEVISES
   // ==========================================================================
@@ -829,7 +810,6 @@ model Invoice {
   // FE BT-111 — Montant de TVA dans la devise de comptabilité.
   // Principalement utile lorsque currency != EUR.
   vatAmountAccountingCurrency Decimal? @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // RÉFÉRENCES COMMERCIALES
@@ -865,7 +845,6 @@ model Invoice {
   // WM — Snapshot du titre du WorkOrder.
   workOrderTitle String?
 
-
   // ==========================================================================
   // FACTURE RECTIFICATIVE
   // ==========================================================================
@@ -876,7 +855,7 @@ model Invoice {
   // Une CORRECTIVE doit viser exactement une facture précédente.
   correctedInvoiceId String?
 
-  correctedInvoice Invoice? @relation("InvoiceCorrection",fields: [correctedInvoiceId],references: [id],onDelete: Restrict)
+  correctedInvoice Invoice? @relation("InvoiceCorrection", fields: [correctedInvoiceId], references: [id], onDelete: Restrict)
 
   // WM — Permet de retrouver la ou les tentatives de correction de cette facture.
   correctingInvoices Invoice[] @relation("InvoiceCorrection")
@@ -889,7 +868,6 @@ model Invoice {
 
   // FE BT-26 — Snapshot de la date de la facture directement rectifiée.
   correctedInvoiceIssueDate DateTime?
-
 
   // ==========================================================================
   // FACTURES ANTÉRIEURES
@@ -908,7 +886,6 @@ model Invoice {
   // WM — Relation inverse :
   // factures qui citent cette facture dans leur historique.
   referencedBy InvoiceReference[] @relation("InvoiceReferenceTarget")
-
 
   // ==========================================================================
   // SNAPSHOT DU VENDEUR
@@ -940,10 +917,10 @@ model Invoice {
   tenantRegistrationMention String?
 
   //ASSURANCE
-  tenantInsuranceName String?
+  tenantInsuranceName         String?
   tenantInsurancePolicyNumber String?
 
-  tenantInsurerName String?
+  tenantInsurerName    String?
   tenantInsurerAddress String?
 
   tenantInsuranceGeographicCoverage String?
@@ -981,7 +958,6 @@ model Invoice {
   // FE BT-43 — Email du contact vendeur.
   // À ne pas confondre avec tenantElectronicAddress.
   tenantEmail String?
-
 
   // ==========================================================================
   // SNAPSHOT DE L'ACHETEUR
@@ -1035,7 +1011,6 @@ model Invoice {
   // FE BT-58 — Email du contact acheteur.
   customerEmail String?
 
-
   // ==========================================================================
   // LIVRAISON / PRESTATION / PÉRIODE FACTURÉE
   // ==========================================================================
@@ -1076,14 +1051,13 @@ model Invoice {
   // WM — Snapshot temporel du WorkOrder.
   // Peut servir à préremplir les données ci-dessus mais ne les remplace pas.
   workOrderStartDate DateTime?
-  workOrderEndDate DateTime?
+  workOrderEndDate   DateTime?
 
   // WM — Adresse métier du WorkOrder.
   // Ne doit pas être automatiquement considérée comme l'adresse de livraison FE.
-  workOrderAddress String?
+  workOrderAddress    String?
   workOrderPostalCode String?
-  workOrderCity String?
-
+  workOrderCity       String?
 
   // ==========================================================================
   // TOTAUX DU DOCUMENT
@@ -1133,7 +1107,6 @@ model Invoice {
   // taxInclusiveAmount - prepaidAmount + roundingAmount
   amountDue Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // ÉTAT ACTUEL DES RÈGLEMENTS — WORKERMATE
   // ==========================================================================
@@ -1154,7 +1127,6 @@ model Invoice {
 
   // WM — Encaissements réellement affectés à cette facture.
   payments Payment[]
-
 
   // ==========================================================================
   // INSTRUCTIONS DE PAIEMENT DU DOCUMENT
@@ -1182,7 +1154,6 @@ model Invoice {
 
   // FE BT-86 — Identifiant du prestataire bancaire, typiquement BIC.
   paymentBic String?
-
 
   // ==========================================================================
   // REMISES / CHARGES / TVA / NOTES
@@ -1219,7 +1190,6 @@ model Invoice {
   // Ne doivent jamais apparaître sur le PDF ou dans la facture électronique.
   internalNotes String?
 
-
   // ==========================================================================
   // LIGNES
   // ==========================================================================
@@ -1230,15 +1200,14 @@ model Invoice {
   // BT-146..150, BT-151..154, etc.
   items InvoiceItem[]
 
-
   // ==========================================================================
   // DOCUMENTS GÉNÉRÉS
   // ==========================================================================
 
   // WM — Fichier PDF lisible généré pour cette facture.
   // Le futur Factur-X peut également utiliser ce PDF comme partie visuelle.
-  pdfFileId String?
-
+  pdfFileId       String?
+  emailDeliveries EmailDelivery[]
 
   // ==========================================================================
   // FACTURATION ÉLECTRONIQUE / PLATEFORME AGRÉÉE
@@ -1265,7 +1234,6 @@ model Invoice {
   //
   attachments InvoiceAttachment[]
 
-
   // ==========================================================================
   // FACTURE RECCURENTE
   // ==========================================================================
@@ -1275,7 +1243,6 @@ model Invoice {
 
   recurringInvoice RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
 
-
   // ==========================================================================
   // MÉTADONNÉES WORKERMATE
   // ==========================================================================
@@ -1283,13 +1250,11 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // Occurrence exacte représentée par cette facture.
   //
   // Exemple :
   // facture mensuelle d'octobre -> 2026-10-01
   recurrenceDate DateTime? @db.Date
-
 
   // ==========================================================================
   // CONTRAINTES / INDEX
@@ -1298,18 +1263,14 @@ model Invoice {
   // Numérotation propre à chaque entreprise.
   // Plusieurs DRAFT peuvent avoir number = null.
   @@unique([tenantId, number])
-  
   @@unique([recurringInvoiceId, recurrenceDate])
-
   @@index([tenantId, issueDate])
   @@index([tenantId, status])
   @@index([tenantId, paymentStatus])
-
   @@index([customerId, issueDate])
   @@index([projectId, issueDate])
   @@index([workOrderId, issueDate])
   @@index([quoteId])
-
   @@index([correctedInvoiceId])
 }
 
@@ -1323,7 +1284,7 @@ model InvoiceAttachment {
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   fileId String
 
@@ -1345,6 +1306,73 @@ model InvoiceAttachment {
   @@index([invoiceId])
 }
 
+model StoredFile {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  storageKey String   @unique
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  sha256     String
+  createdAt  DateTime @default(now())
+
+  emailDeliveries EmailDelivery[]
+
+  @@index([tenantId, createdAt])
+}
+
+model EmailDelivery {
+  id String @id @default(cuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  quoteId String?
+  quote   Quote?  @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  fileId String?
+  file   StoredFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  documentType      EmailDocumentType
+  kind              EmailDeliveryKind   @default(MANUAL)
+  dedupeKey         String?             @unique
+  reminderStage     Int?
+  recipient         String
+  subject           String
+  status            EmailDeliveryStatus @default(PENDING)
+  providerMessageId String?
+  errorMessage      String?
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([quoteId, createdAt])
+  @@index([invoiceId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum EmailDocumentType {
+  QUOTE
+  INVOICE
+}
+
+enum EmailDeliveryKind {
+  MANUAL
+  REMINDER
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model InvoiceReference {
   // ==========================================================================
   // FACTURE QUI FAIT LA RÉFÉRENCE
@@ -1352,8 +1380,7 @@ model InvoiceReference {
 
   invoiceId String
 
-  invoice Invoice @relation("InvoiceReferenceSource",fields: [invoiceId],references: [id],onDelete: Cascade)
-
+  invoice Invoice @relation("InvoiceReferenceSource", fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // FACTURE RÉFÉRENCÉE
@@ -1361,8 +1388,7 @@ model InvoiceReference {
 
   referencedInvoiceId String
 
-  referencedInvoice Invoice @relation("InvoiceReferenceTarget",fields: [referencedInvoiceId],references: [id],onDelete: Restrict)
-
+  referencedInvoice Invoice @relation("InvoiceReferenceTarget", fields: [referencedInvoiceId], references: [id], onDelete: Restrict)
 
   // ==========================================================================
   // SNAPSHOT DOCUMENTAIRE
@@ -1400,7 +1426,7 @@ model InvoiceNote {
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // WM — Ordre d'affichage des notes.
   position Int @default(0)
@@ -1427,8 +1453,7 @@ model InvoiceItem {
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
-
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION DE LA LIGNE
@@ -1459,7 +1484,6 @@ model InvoiceItem {
   // compteur, équipement, objet contractuel, référence spécifique...
   objectIdentifier String?
 
-
   // ==========================================================================
   // TYPE WORKERMATE
   // ==========================================================================
@@ -1469,7 +1493,6 @@ model InvoiceItem {
   // Exemples : MATERIAL, LABOR, EQUIPMENT, SERVICE...
   // Ce champ ne doit pas être confondu avec une catégorie normalisée FE.
   type LineItemType
-
 
   // ==========================================================================
   // QUANTITÉ
@@ -1500,7 +1523,6 @@ model InvoiceItem {
   // Ne remplace jamais BT-130 lors de l'export.
   unitLabel String?
 
-
   // ==========================================================================
   // MONTANT NET DE LIGNE
   // ==========================================================================
@@ -1515,7 +1537,6 @@ model InvoiceItem {
   // C'est le montant qui participe à Invoice.lineNetTotal / BT-106.
   subtotal Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // RÉFÉRENCES ACHETEUR
   // ==========================================================================
@@ -1525,7 +1546,6 @@ model InvoiceItem {
 
   // FE BT-133 — Référence comptable fournie par l'acheteur pour cette ligne.
   buyerAccountingReference String?
-
 
   // ==========================================================================
   // PÉRIODE DE LA LIGNE
@@ -1539,7 +1559,6 @@ model InvoiceItem {
 
   // FE BT-135 — Fin de la période concernée par cette ligne.
   billingPeriodEnd DateTime?
-
 
   // ==========================================================================
   // PRIX
@@ -1576,7 +1595,6 @@ model InvoiceItem {
   // Souvent identique à unitCode.
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // TVA DE LA LIGNE
   // ==========================================================================
@@ -1596,7 +1614,6 @@ model InvoiceItem {
 
   // EXT-FR-FE-179 — Code normalisé du motif d'exemption en ligne.
   vatExemptionReasonCode String?
-
 
   // ==========================================================================
   // DESCRIPTION DE L'ARTICLE / PRESTATION
@@ -1632,14 +1649,12 @@ model InvoiceItem {
   // FE BT-159 — Pays d'origine du produit, ISO 3166-1 alpha-2.
   countryOfOriginCode String?
 
-
   // ==========================================================================
   // SOUS-BLOCS
   // ==========================================================================
 
   // FE BG-27 / BG-28 — Remises et charges de ligne.
   adjustments InvoiceItemAdjustment[]
-
 
   // ==========================================================================
   // CONTRAINTES
@@ -1670,7 +1685,7 @@ model InvoiceItemAdjustment {
   id String @id @default(cuid())
 
   invoiceItemId String
-  invoiceItem InvoiceItem @relation(fields: [invoiceItemId],references: [id],onDelete: Cascade)
+  invoiceItem   InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
 
   // WM — Ordre d'affichage.
   position Int @default(0)
@@ -1680,7 +1695,6 @@ model InvoiceItemAdjustment {
   // ALLOWANCE -> BG-27
   // CHARGE    -> BG-28
   type InvoiceAdjustmentType
-
 
   // ==========================================================================
   // MONTANT
@@ -1709,7 +1723,6 @@ model InvoiceItemAdjustment {
   //
   // Pourcentage appliqué à baseAmount.
   percentage Decimal? @db.Decimal(9, 6)
-
 
   // ==========================================================================
   // MOTIF
@@ -1770,7 +1783,7 @@ model InvoiceVatBreakdown {
   id String @id @default(cuid())
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId],references: [id],onDelete: Cascade)
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // VENTILATION TVA — BG-23
@@ -1806,6 +1819,7 @@ model InvoiceVatBreakdown {
   @@index([invoiceId])
   @@index([invoiceId, vatCategory, vatRate])
 }
+
 // ============================================================================
 // FACTURATION RÉCURRENTE — ENUMS
 // ============================================================================
@@ -1822,14 +1836,12 @@ enum RecurringInvoiceStatus {
   ENDED
 }
 
-
 enum RecurrenceUnit {
   DAY
   WEEK
   MONTH
   YEAR
 }
-
 
 enum RecurringInvoiceGenerationMode {
   // Crée une Invoice en DRAFT.
@@ -1843,7 +1855,6 @@ enum RecurringInvoiceGenerationMode {
   // même si cette option n'est pas encore exposée dans l'interface V1.
   AUTO_ISSUE
 }
-
 
 enum RecurringInvoiceBillingPeriodMode {
   // Aucune période de facturation automatiquement renseignée.
@@ -1864,7 +1875,6 @@ enum RecurringInvoiceBillingPeriodMode {
   PREVIOUS_PERIOD
 }
 
-
 enum RecurringInvoiceSupplyDateMode {
   // Ne renseigne pas automatiquement Invoice.supplyDate.
   NONE
@@ -1879,7 +1889,6 @@ enum RecurringInvoiceSupplyDateMode {
   PERIOD_END
 }
 
-
 // ============================================================================
 // FACTURATION RÉCURRENTE
 // ============================================================================
@@ -1892,32 +1901,30 @@ model RecurringInvoice {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Utilisateur ayant créé la récurrence.
   createdById String?
-  createdBy User? @relation("RecurringInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
-
+  createdBy   User?   @relation("RecurringInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // CLIENT / CONTEXTE MÉTIER
   // ==========================================================================
 
   customerId String
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   // Une facturation récurrente peut éventuellement appartenir
   // à une affaire / un contrat suivi dans un Project.
   projectId String?
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   // Facultatif.
   //
   // À utiliser seulement lorsque toutes les occurrences concernent
   // réellement le même WorkOrder.
   workOrderId String?
-  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
-
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -1931,7 +1938,6 @@ model RecurringInvoice {
   name String
 
   status RecurringInvoiceStatus @default(ACTIVE)
-
 
   // ==========================================================================
   // RÈGLE DE RÉCURRENCE
@@ -1977,13 +1983,11 @@ model RecurringInvoice {
   // Nombre de factures effectivement générées avec succès.
   generatedCount Int @default(0)
 
-
   // ==========================================================================
   // MODE DE GÉNÉRATION
   // ==========================================================================
 
   generationMode RecurringInvoiceGenerationMode @default(DRAFT)
-
 
   // ==========================================================================
   // CADRE DE FACTURATION
@@ -2004,7 +2008,6 @@ model RecurringInvoice {
   // de la devise comptable.
   accountingCurrency String?
 
-
   // ==========================================================================
   // RÉFÉRENCES COMMERCIALES
   // ==========================================================================
@@ -2023,7 +2026,6 @@ model RecurringInvoice {
 
   salesOrderReference String?
 
-
   // ==========================================================================
   // PÉRIODE FACTURÉE / DATE DE PRESTATION
   // ==========================================================================
@@ -2036,7 +2038,6 @@ model RecurringInvoice {
 
   // Règle utilisée pour générer Invoice.supplyDate.
   supplyDateMode RecurringInvoiceSupplyDateMode @default(NONE)
-
 
   // ==========================================================================
   // CONDITIONS DE PAIEMENT
@@ -2062,7 +2063,6 @@ model RecurringInvoice {
 
   paymentMeansText String?
 
-
   // ==========================================================================
   // COMPTE DE PAIEMENT
   // ==========================================================================
@@ -2086,7 +2086,6 @@ model RecurringInvoice {
   // Ces valeurs sont récupérées depuis PaymentAccount lors de la génération,
   // puis snapshotées dans Invoice.
 
-
   // ==========================================================================
   // CONTENU DES FUTURES FACTURES
   // ==========================================================================
@@ -2099,7 +2098,6 @@ model RecurringInvoice {
   // Notes destinées à apparaître sur les factures générées.
   notes RecurringInvoiceNote[]
 
-
   // ==========================================================================
   // NOTES INTERNES
   // ==========================================================================
@@ -2109,7 +2107,6 @@ model RecurringInvoice {
   // Ne doit pas automatiquement être copiée dans Invoice.internalNotes.
   internalNotes String?
 
-
   // ==========================================================================
   // FACTURES GÉNÉRÉES
   // ==========================================================================
@@ -2117,14 +2114,12 @@ model RecurringInvoice {
   // Historique des vraies factures issues de cette récurrence.
   invoices Invoice[]
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // INDEX
@@ -2136,7 +2131,6 @@ model RecurringInvoice {
   // AND status = ACTIVE
   // AND nextOccurrenceDate <= aujourd'hui
   @@index([tenantId, status, nextOccurrenceDate])
-
   @@index([customerId])
   @@index([projectId])
   @@index([workOrderId])
@@ -2167,7 +2161,6 @@ enum RecurringInvoiceItemBillingPeriodMode {
   PREVIOUS_PERIOD
 }
 
-
 // ============================================================================
 // LIGNE D'UNE FACTURATION RÉCURRENTE
 // ============================================================================
@@ -2180,8 +2173,7 @@ model RecurringInvoiceItem {
   id String @id @default(cuid())
 
   recurringInvoiceId String
-  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
-
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION DE LA LIGNE
@@ -2206,13 +2198,11 @@ model RecurringInvoiceItem {
   // compteur, équipement sous contrat, abonnement...
   objectIdentifier String?
 
-
   // ==========================================================================
   // TYPE WORKERMATE
   // ==========================================================================
 
   type LineItemType
-
 
   // ==========================================================================
   // QUANTITÉ
@@ -2236,7 +2226,6 @@ model RecurringInvoiceItem {
   // "unité", "heure", "kg", "m".
   unitLabel String?
 
-
   // ==========================================================================
   // RÉFÉRENCES ACHETEUR
   // ==========================================================================
@@ -2249,7 +2238,6 @@ model RecurringInvoiceItem {
   // Référence comptable acheteur stable utilisée pour cette ligne.
   buyerAccountingReference String?
 
-
   // ==========================================================================
   // PÉRIODE DE FACTURATION
   // ==========================================================================
@@ -2259,7 +2247,6 @@ model RecurringInvoiceItem {
   //
   // Le générateur déterminera les dates réelles lors de chaque occurrence.
   billingPeriodMode RecurringInvoiceItemBillingPeriodMode @default(INHERIT)
-
 
   // ==========================================================================
   // PRIX
@@ -2284,7 +2271,6 @@ model RecurringInvoiceItem {
 
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // TVA
   // ==========================================================================
@@ -2298,7 +2284,6 @@ model RecurringInvoiceItem {
   vatExemptionReason String?
 
   vatExemptionReasonCode String?
-
 
   // ==========================================================================
   // DESCRIPTION DE L'ARTICLE / PRESTATION
@@ -2326,7 +2311,6 @@ model RecurringInvoiceItem {
   // Pays d'origine ISO 3166-1 alpha-2.
   countryOfOriginCode String?
 
-
   // ==========================================================================
   // SOUS-BLOCS
   // ==========================================================================
@@ -2334,14 +2318,12 @@ model RecurringInvoiceItem {
   // Remises et charges devant être reproduites sur chaque InvoiceItem généré.
   adjustments RecurringInvoiceItemAdjustment[]
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // CONTRAINTES
@@ -2368,7 +2350,6 @@ enum RecurringAdjustmentCalculationMode {
   // remise de 10 %.
   PERCENTAGE
 }
-
 
 // ============================================================================
 // AFFECTATION TVA D'UNE REMISE / CHARGE GLOBALE RÉCURRENTE
@@ -2405,8 +2386,7 @@ model RecurringInvoiceAdjustment {
 
   recurringInvoiceId String
 
-  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId],references: [id],onDelete: Cascade)
-
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -2418,7 +2398,6 @@ model RecurringInvoiceAdjustment {
   // ALLOWANCE = remise
   // CHARGE    = charge / frais
   type InvoiceAdjustmentType
-
 
   // ==========================================================================
   // MODE DE CALCUL
@@ -2440,7 +2419,6 @@ model RecurringInvoiceAdjustment {
   // Exemple :
   // 10.000000 = 10 %
   percentage Decimal? @db.Decimal(9, 6)
-
 
   // ==========================================================================
   // AFFECTATION TVA
@@ -2469,7 +2447,6 @@ model RecurringInvoiceAdjustment {
   // Peut rester null pour certaines catégories TVA.
   vatRate Decimal? @db.Decimal(5, 2)
 
-
   // ==========================================================================
   // MOTIF
   // ==========================================================================
@@ -2480,14 +2457,12 @@ model RecurringInvoiceAdjustment {
   // Code normalisé éventuel du motif.
   reasonCode String?
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // CONTRAINTES
@@ -2506,8 +2481,7 @@ model RecurringInvoiceItemAdjustment {
 
   recurringInvoiceItemId String
 
-  recurringInvoiceItem RecurringInvoiceItem @relation(fields: [recurringInvoiceItemId],references: [id],onDelete: Cascade)
-
+  recurringInvoiceItem RecurringInvoiceItem @relation(fields: [recurringInvoiceItemId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -2519,7 +2493,6 @@ model RecurringInvoiceItemAdjustment {
   // ALLOWANCE = remise
   // CHARGE    = charge
   type InvoiceAdjustmentType
-
 
   // ==========================================================================
   // MODE DE CALCUL
@@ -2537,7 +2510,6 @@ model RecurringInvoiceItemAdjustment {
   // calculationMode = PERCENTAGE
   percentage Decimal? @db.Decimal(9, 6)
 
-
   // ==========================================================================
   // MOTIF
   // ==========================================================================
@@ -2548,14 +2520,12 @@ model RecurringInvoiceItemAdjustment {
   // Code éventuel du motif.
   reasonCode String?
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // CONTRAINTES
@@ -2574,8 +2544,7 @@ model RecurringInvoiceNote {
 
   recurringInvoiceId String
 
-  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId],references: [id],onDelete: Cascade)
-
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // CONTENU
@@ -2592,14 +2561,12 @@ model RecurringInvoiceNote {
   // Texte qui sera copié vers InvoiceNote.text.
   text String
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // CONTRAINTES
@@ -2617,17 +2584,16 @@ model Quote {
   // ==========================================================================
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Restrict)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   customerId String
-  customer Customer @relation(fields: [customerId],references: [id],onDelete: Restrict)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   workOrderId String?
-  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   projectId String?
-  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
-
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // IDENTIFICATION DU DEVIS
@@ -2643,7 +2609,7 @@ model Quote {
   // Nature / périmètre détaillé des travaux proposés.
   description String?
 
-  issueDate DateTime
+  issueDate  DateTime
   validUntil DateTime?
 
   status QuoteStatus @default(DRAFT)
@@ -2652,57 +2618,53 @@ model Quote {
   acceptedAt DateTime?
   rejectedAt DateTime?
 
-
   // ==========================================================================
   // RÉFÉRENCES MÉTIER — SNAPSHOTS
   // ==========================================================================
 
   projectReference String?
-  projectTitle String?
+  projectTitle     String?
 
   workOrderReference String?
-  workOrderTitle String?
-
+  workOrderTitle     String?
 
   // ==========================================================================
   // SNAPSHOT ENTREPRISE
   // ==========================================================================
 
-  tenantLegalName String
+  tenantLegalName   String
   tenantTradingName String?
 
-  tenantLegalForm String?
-  tenantShareCapital Decimal? @db.Decimal(19, 2)
+  tenantLegalForm           String?
+  tenantShareCapital        Decimal? @db.Decimal(19, 2)
   tenantRegistrationMention String?
 
   tenantSirenNumber String
   tenantSiretNumber String?
-  tenantVatNumber String?
+  tenantVatNumber   String?
 
-  tenantStreet1 String
-  tenantStreet2 String?
-  tenantPostalCode String
-  tenantCity String
-  tenantCountryCode String @default("FR")
+  tenantStreet1     String
+  tenantStreet2     String?
+  tenantPostalCode  String
+  tenantCity        String
+  tenantCountryCode String  @default("FR")
 
-  tenantEmail String?
+  tenantEmail       String?
   tenantPhoneNumber String?
 
   // Peut être utile notamment lorsqu'un acompte doit être versé.
   tenantIban String?
-  tenantBic String?
-
+  tenantBic  String?
 
   // ==========================================================================
   // ASSURANCE PROFESSIONNELLE — SNAPSHOT
   // ==========================================================================
 
   // À renseigner uniquement pour les activités concernées.
-  tenantInsurancePolicyNumber String?
-  tenantInsurerName String?
-  tenantInsurerAddress String?
+  tenantInsurancePolicyNumber       String?
+  tenantInsurerName                 String?
+  tenantInsurerAddress              String?
   tenantInsuranceGeographicCoverage String?
-
 
   // ==========================================================================
   // SNAPSHOT CLIENT
@@ -2714,41 +2676,39 @@ model Quote {
   customerName String
 
   customerFirstName String?
-  customerLastName String?
-  customerCompany String?
+  customerLastName  String?
+  customerCompany   String?
 
   customerSirenNumber String?
   customerSiretNumber String?
-  customerVatNumber String?
+  customerVatNumber   String?
 
-  customerStreet1 String
-  customerStreet2 String?
-  customerPostalCode String
-  customerCity String
-  customerCountryCode String @default("FR")
+  customerStreet1     String
+  customerStreet2     String?
+  customerPostalCode  String
+  customerCity        String
+  customerCountryCode String  @default("FR")
 
-  customerEmail String?
+  customerEmail       String?
   customerPhoneNumber String?
-
 
   // ==========================================================================
   // LIEU / PÉRIODE DES TRAVAUX — SNAPSHOT
   // ==========================================================================
 
   workOrderStartDate DateTime?
-  workOrderEndDate DateTime?
+  workOrderEndDate   DateTime?
 
   // On peut conserver la relation pour naviguer dans Workermate...
   workOrderAddressId String?
-  workOrderAddress Address? @relation(fields: [workOrderAddressId],references: [id],onDelete: SetNull)
+  workOrderAddress   Address? @relation(fields: [workOrderAddressId], references: [id], onDelete: SetNull)
 
   // ...mais le devis émis doit conserver son propre snapshot.
-  workOrderStreet1 String?
-  workOrderStreet2 String?
-  workOrderPostalCode String?
-  workOrderCity String?
+  workOrderStreet1     String?
+  workOrderStreet2     String?
+  workOrderPostalCode  String?
+  workOrderCity        String?
   workOrderCountryCode String?
-
 
   // ==========================================================================
   // DEVIS PAYANT / GRATUIT
@@ -2757,7 +2717,6 @@ model Quote {
   // 0 = devis gratuit.
   // Montant facturé pour l'établissement du devis si celui-ci est payant.
   quotePreparationFee Decimal @default(0) @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // MONTANTS
@@ -2781,7 +2740,6 @@ model Quote {
 
   taxInclusiveAmount Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // ACOMPTE DEMANDÉ
   // ==========================================================================
@@ -2799,7 +2757,6 @@ model Quote {
   // Important : ce n'est PAS un paiement reçu.
   depositAmount Decimal? @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // CONDITIONS / MENTIONS
   // ==========================================================================
@@ -2815,7 +2772,6 @@ model Quote {
 
   customerKeepsReplacedParts Boolean?
 
-
   // ==========================================================================
   // SOUS-MODÈLES
   // ==========================================================================
@@ -2830,13 +2786,12 @@ model Quote {
 
   invoices Invoice[]
 
-
   // ==========================================================================
   // DOCUMENT
   // ==========================================================================
 
-  pdfFileId String?
-
+  pdfFileId       String?
+  emailDeliveries EmailDelivery[]
 
   // ==========================================================================
   // MÉTADONNÉES
@@ -2846,7 +2801,6 @@ model Quote {
   updatedAt DateTime @updatedAt
 
   @@unique([tenantId, number])
-
   @@index([tenantId, issueDate])
   @@index([tenantId, status])
   @@index([customerId, issueDate])
@@ -2858,8 +2812,7 @@ model QuoteItem {
   id String @id @default(cuid())
 
   quoteId String
-  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
-
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION / AFFICHAGE
@@ -2873,9 +2826,8 @@ model QuoteItem {
   // Snapshot éventuel de la référence CatalogItem.
   sellerItemIdentifier String?
 
-  title String
+  title       String
   description String?
-
 
   // ==========================================================================
   // QUANTITÉ / UNITÉ
@@ -2892,7 +2844,6 @@ model QuoteItem {
   // Affichage humain : "unité", "heure", "kg", "m"...
   unitLabel String?
 
-
   // ==========================================================================
   // PRIX
   // ==========================================================================
@@ -2908,7 +2859,6 @@ model QuoteItem {
   // Montant net HT de la ligne après remises/charges de ligne.
   subtotal Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // TVA
   // ==========================================================================
@@ -2917,7 +2867,6 @@ model QuoteItem {
   vatCategory VatCategory
 
   vatRate Decimal? @db.Decimal(5, 2)
-
 
   // ==========================================================================
   // REMISES / CHARGES DE LIGNE
@@ -2933,17 +2882,17 @@ model QuoteItemAdjustment {
   id String @id @default(cuid())
 
   quoteItemId String
-  quoteItem QuoteItem @relation(fields: [quoteItemId],references: [id],onDelete: Cascade)
+  quoteItem   QuoteItem @relation(fields: [quoteItemId], references: [id], onDelete: Cascade)
 
   position Int @default(0)
 
   type InvoiceAdjustmentType
 
-  amount Decimal @db.Decimal(19, 2)
+  amount     Decimal  @db.Decimal(19, 2)
   baseAmount Decimal? @db.Decimal(19, 2)
   percentage Decimal? @db.Decimal(9, 6)
 
-  reason String?
+  reason     String?
   reasonCode String?
 
   @@unique([quoteItemId, position])
@@ -2954,20 +2903,20 @@ model QuoteAdjustment {
   id String @id @default(cuid())
 
   quoteId String
-  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   position Int @default(0)
 
   type InvoiceAdjustmentType
 
-  amount Decimal @db.Decimal(19, 2)
+  amount     Decimal  @db.Decimal(19, 2)
   baseAmount Decimal? @db.Decimal(19, 2)
   percentage Decimal? @db.Decimal(9, 6)
 
   vatCategory VatCategory
-  vatRate Decimal? @db.Decimal(5, 2)
+  vatRate     Decimal?    @db.Decimal(5, 2)
 
-  reason String?
+  reason     String?
   reasonCode String?
 
   @@unique([quoteId, position])
@@ -2978,15 +2927,15 @@ model QuoteVatBreakdown {
   id String @id @default(cuid())
 
   quoteId String
-  quote Quote @relation(fields: [quoteId],references: [id],onDelete: Cascade)
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   taxableAmount Decimal @db.Decimal(19, 2)
-  vatAmount Decimal @db.Decimal(19, 2)
+  vatAmount     Decimal @db.Decimal(19, 2)
 
   vatCategory VatCategory
-  vatRate Decimal? @db.Decimal(5, 2)
+  vatRate     Decimal?    @db.Decimal(5, 2)
 
-  exemptionReason String?
+  exemptionReason     String?
   exemptionReasonCode String?
 
   @@index([quoteId])
@@ -2995,15 +2944,13 @@ model QuoteVatBreakdown {
 model CatalogItem {
   id String @id @default(cuid())
 
-
   // ==========================================================================
   // PROPRIÉTAIRE
   // ==========================================================================
 
   tenantId String
 
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -3029,7 +2976,6 @@ model CatalogItem {
   // Permet de désactiver une entrée sans la supprimer,
   // afin de préserver l'historique et les relations existantes.
   isActive Boolean @default(true)
-
 
   // ==========================================================================
   // QUANTITÉ / UNITÉ PAR DÉFAUT
@@ -3061,7 +3007,6 @@ model CatalogItem {
   // Libellé humain :
   // unité, heure, kg, m...
   unitLabel String?
-
 
   // ==========================================================================
   // PRIX DE VENTE
@@ -3101,7 +3046,6 @@ model CatalogItem {
   // Peut devenir InvoiceItem.baseQuantityUnitCode.
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // TVA DE VENTE
   // ==========================================================================
@@ -3118,7 +3062,6 @@ model CatalogItem {
   // Nullable car certaines catégories TVA n'utilisent
   // pas de taux classique.
   vatRate Decimal? @db.Decimal(5, 2)
-
 
   // ==========================================================================
   // COÛT / RENTABILITÉ
@@ -3172,7 +3115,6 @@ model CatalogItem {
   // Ce champ peut servir à préremplir une estimation d'achat.
   purchaseVatRate Decimal? @db.Decimal(5, 2)
 
-
   // ==========================================================================
   // STOCK
   // ==========================================================================
@@ -3195,7 +3137,6 @@ model CatalogItem {
   // Nullable lorsque l'article n'est pas suivi en stock.
   stockItem StockItem?
 
-
   // ==========================================================================
   // ACHATS
   // ==========================================================================
@@ -3207,7 +3148,6 @@ model CatalogItem {
   // modifier CatalogItem ne modifie jamais un achat passé.
   purchaseItems PurchaseItem[]
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
@@ -3216,13 +3156,11 @@ model CatalogItem {
 
   updatedAt DateTime @updatedAt
 
-
   // ==========================================================================
   // CONTRAINTES / INDEXES
   // ==========================================================================
 
   @@unique([tenantId, reference])
-
   @@index([tenantId])
   @@index([tenantId, isActive])
   @@index([tenantId, trackStock])
@@ -3232,24 +3170,24 @@ model Project {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  reference String
-  title String
+  reference   String
+  title       String
   description String?
-  status ProjectStatus @default(OPEN)
-  notes String?
+  status      ProjectStatus @default(OPEN)
+  notes       String?
 
   customers ProjectCustomer[]
 
-  quotes Quote[]
-  workOrders WorkOrder[]
-  invoices Invoice[]
+  quotes            Quote[]
+  workOrders        WorkOrder[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  calendarEvents CalendarEvent[]
-  workLogs WorkLog[]
-  purchaseItems PurchaseItem[]
-  companyExpenses CompanyExpense[]
+  calendarEvents    CalendarEvent[]
+  workLogs          WorkLog[]
+  purchaseItems     PurchaseItem[]
+  companyExpenses   CompanyExpense[]
 
   archivedAt DateTime?
 
@@ -3262,10 +3200,10 @@ model Project {
 
 model ProjectCustomer {
   projectId String
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   customerId String
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   isPrimary Boolean @default(false)
 
@@ -3279,29 +3217,29 @@ model WorkLog {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   projectId String?
-  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   workOrderId String
-  workOrder WorkOrder @relation(fields: [workOrderId], references: [id])
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
 
   // Qui a créé le compte rendu.
   createdById String?
-  createdBy User? @relation("WorkLogCreator",fields: [createdById],references: [id],onDelete: SetNull)
+  createdBy   User?   @relation("WorkLogCreator", fields: [createdById], references: [id], onDelete: SetNull)
 
   // Possibilitée de rattacher à un événement de planning.
   calendarEventId String?
-  calendarEvent CalendarEvent? @relation(fields: [calendarEventId],references: [id],onDelete: SetNull)
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
 
   date DateTime
 
-  title String?
+  title       String?
   description String?
 
   timePlannedMinutes Int?
-  timeSpentMinutes Int?
+  timeSpentMinutes   Int?
 
   //WorkLogEquipment
   //WorkLogMaterial
@@ -3320,14 +3258,14 @@ model WorkLogItem {
   id String @id @default(cuid())
 
   workLogId String
-  workLog WorkLog @relation(fields: [workLogId],references: [id],onDelete: Cascade)
+  workLog   WorkLog @relation(fields: [workLogId], references: [id], onDelete: Cascade)
 
   // Ligne prévue à l'origine de cette consommation, si elle existe.
   //
   // Très utile pour comparer prévu / réel.
   workOrderItemId String?
-  workOrderItem WorkOrderItem? @relation(fields: [workOrderItemId],references: [id],onDelete: SetNull)
-  stockMovements StockMovement[]
+  workOrderItem   WorkOrderItem?  @relation(fields: [workOrderItemId], references: [id], onDelete: SetNull)
+  stockMovements  StockMovement[]
 
   // ==========================================================================
   // IDENTIFICATION
@@ -3340,7 +3278,7 @@ model WorkLogItem {
   // Snapshot de CatalogItem.reference / WorkOrderItem.reference.
   reference String?
 
-  title String
+  title       String
   description String?
 
   // ==========================================================================
@@ -3396,17 +3334,17 @@ model Notification {
   id String @id @default(cuid())
 
   tenantId String?
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   recipientId String
-  recipient User @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipient   User   @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   senderId String?
-  sender User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+  sender   User?   @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
 
   type NotificationType
 
-  title String?
+  title   String?
   message String
 
   actions NotificationAction[]
@@ -3435,10 +3373,10 @@ model NotificationAction {
   id String @id @default(cuid())
 
   notificationId String
-  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   label String
-  type NotificationActionType
+  type  NotificationActionType
 
   targetId String?
 
@@ -3457,20 +3395,20 @@ model MembershipRequest {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   message String?
 
   status MembershipRequestStatus @default(PENDING)
 
-  createdAt DateTime @default(now())
+  createdAt   DateTime  @default(now())
   respondedAt DateTime?
 
   respondedById String?
-  respondedBy User? @relation("MembershipRequestResponder", fields: [respondedById], references: [id])
+  respondedBy   User?   @relation("MembershipRequestResponder", fields: [respondedById], references: [id])
 
   @@unique([tenantId, userId])
   @@index([tenantId, status])
@@ -3482,18 +3420,19 @@ enum MembershipRequestStatus {
   REJECTED
   CANCELLED
 }
+
 model MembershipInvitation {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   invitedById String
-  invitedBy User @relation("MembershipInvitationSender", fields: [invitedById], references: [id])
+  invitedBy   User   @relation("MembershipInvitationSender", fields: [invitedById], references: [id])
 
   // Si l'utilisateur existe déjà
   invitedUserId String?
-  invitedUser User? @relation("MembershipInvitationRecipient",fields: [invitedUserId],references: [id],onDelete: SetNull)
+  invitedUser   User?   @relation("MembershipInvitationRecipient", fields: [invitedUserId], references: [id], onDelete: SetNull)
 
   // Toujours conservé car l'invitation peut viser quelqu'un sans compte
   email String
@@ -3502,7 +3441,7 @@ model MembershipInvitation {
 
   status MembershipInvitationStatus @default(PENDING)
 
-  tokenHash String @unique
+  tokenHash String   @unique
   expiresAt DateTime
 
   acceptedAt DateTime?
@@ -3531,27 +3470,27 @@ model Payment {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   invoiceId String
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
   customerId String?
-  customer Customer? @relation(fields: [customerId], references: [id])
-  
-  bankTransactionId String? 
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId],references: [id],onDelete: SetNull)
+  customer   Customer? @relation(fields: [customerId], references: [id])
 
-  amount Decimal @db.Decimal(12, 2)
+  bankTransactionId String?
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  amount Decimal  @db.Decimal(12, 2)
   paidAt DateTime
 
-  method PaymentMethod?
+  method    PaymentMethod?
   reference String?
-  notes String?
+  notes     String?
 
   status PaymentStatus @default(RECORDED)
 
-  cancelledAt DateTime?
+  cancelledAt        DateTime?
   cancellationReason String?
 
   createdAt DateTime @default(now())
@@ -3565,18 +3504,18 @@ model CompanyExpense {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   paymentAccountId String?
-  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  paymentAccount   PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
 
   bankTransactionId String?
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
 
   projectId String?
-  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  label String
+  label    String
   category CompanyExpenseCategory
 
   currency String @default("EUR")
@@ -3598,25 +3537,26 @@ model CompanyExpense {
   paidAt DateTime?
 
   recurrenceTemplateId String?
-  recurrenceTemplate CompanyExpense? @relation("CompanyExpenseOccurrences", fields: [recurrenceTemplateId], references: [id], onDelete: SetNull)
-  occurrences CompanyExpense[] @relation("CompanyExpenseOccurrences")
-  occurrenceDate DateTime?
-  recurrenceUnit CompanyExpenseRecurrenceUnit?
-  recurrenceInterval Int?
-  recurrenceStartDate DateTime?
-  recurrenceEndDate DateTime?
-  nextDueDate DateTime?
-  lastGeneratedAt DateTime?
+  recurrenceTemplate   CompanyExpense?               @relation("CompanyExpenseOccurrences", fields: [recurrenceTemplateId], references: [id], onDelete: SetNull)
+  occurrences          CompanyExpense[]              @relation("CompanyExpenseOccurrences")
+  occurrenceDate       DateTime?
+  recurrenceUnit       CompanyExpenseRecurrenceUnit?
+  recurrenceInterval   Int?
+  recurrenceStartDate  DateTime?
+  recurrenceEndDate    DateTime?
+  nextDueDate          DateTime?
+  lastGeneratedAt      DateTime?
 
   createdAt DateTime @default(now())
 
+  @@unique([recurrenceTemplateId, occurrenceDate])
   @@index([tenantId, dueDate])
   @@index([tenantId, nextDueDate])
-  @@unique([recurrenceTemplateId, occurrenceDate])
   @@index([paymentAccountId])
   @@index([bankTransactionId])
 }
-enum CompanyExpenseCategory{
+
+enum CompanyExpenseCategory {
   SOCIAL_COST
   RENT
   INSURANCE
@@ -3632,6 +3572,7 @@ enum CompanyExpenseRecurrenceUnit {
   MONTHLY
   YEARLY
 }
+
 model EmployeeCost {
   id String @id @default(cuid())
 
@@ -3641,40 +3582,40 @@ model EmployeeCost {
 
   label String
 
-  monthlyCost Decimal @db.Decimal(12,2)
+  monthlyCost Decimal @db.Decimal(12, 2)
 
   startDate DateTime
-  endDate DateTime?
+  endDate   DateTime?
 }
 
 model BankTransaction {
   id String @id @default(cuid())
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   paymentAccountId String
-  paymentAccount PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  paymentAccount   PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
 
-  amount Decimal @db.Decimal(12, 2)
-  direction BankTransactionDirection @default(CREDIT)
-  currency String @default("EUR")
+  amount          Decimal                  @db.Decimal(12, 2)
+  direction       BankTransactionDirection @default(CREDIT)
+  currency        String                   @default("EUR")
   transactionDate DateTime
 
-  label String?
+  label     String?
   reference String?
 
   // identifiant fourni par la banque / agrégateur
-  externalId String?
-  transactionType BankTransactionType @default(STANDARD)
-  transferId String?
-  transfer TreasuryTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  externalId       String?
+  transactionType  BankTransactionType     @default(STANDARD)
+  transferId       String?
+  transfer         TreasuryTransfer?       @relation(fields: [transferId], references: [id], onDelete: SetNull)
   reconciliationId String?
-  reconciliation TreasuryReconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
+  reconciliation   TreasuryReconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
 
-  payments Payment[]
+  payments        Payment[]
   companyExpenses CompanyExpense[]
-  purchases Purchase[]
+  purchases       Purchase[]
 
   createdAt DateTime @default(now())
 
@@ -3709,55 +3650,55 @@ enum TreasuryAlertSeverity {
 }
 
 model TreasuryReconciliation {
-  id String @id @default(cuid())
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  paymentAccountId String
-  paymentAccount PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
-  openingBalance Decimal @db.Decimal(12, 2)
-  calculatedBalance Decimal @db.Decimal(12, 2)
-  actualBalance Decimal @db.Decimal(12, 2)
-  difference Decimal @db.Decimal(12, 2)
-  reconciledAt DateTime @default(now())
+  id                         String                       @id @default(cuid())
+  tenantId                   String
+  tenant                     Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentAccountId           String
+  paymentAccount             PaymentAccount               @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  openingBalance             Decimal                      @db.Decimal(12, 2)
+  calculatedBalance          Decimal                      @db.Decimal(12, 2)
+  actualBalance              Decimal                      @db.Decimal(12, 2)
+  difference                 Decimal                      @db.Decimal(12, 2)
+  reconciledAt               DateTime                     @default(now())
   previousReconciliationDate DateTime?
-  status TreasuryReconciliationStatus
-  notes String?
-  transactions BankTransaction[]
-  createdAt DateTime @default(now())
+  status                     TreasuryReconciliationStatus
+  notes                      String?
+  transactions               BankTransaction[]
+  createdAt                  DateTime                     @default(now())
 
   @@index([tenantId, paymentAccountId, reconciledAt])
 }
 
 model TreasuryTransfer {
-  id String @id @default(cuid())
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   fromAccountId String
-  fromAccount PaymentAccount @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Restrict)
-  toAccountId String
-  toAccount PaymentAccount @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
-  amount Decimal @db.Decimal(12, 2)
-  currency String
-  transferDate DateTime
-  label String?
-  transactions BankTransaction[]
-  createdAt DateTime @default(now())
+  fromAccount   PaymentAccount    @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccountId   String
+  toAccount     PaymentAccount    @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
+  amount        Decimal           @db.Decimal(12, 2)
+  currency      String
+  transferDate  DateTime
+  label         String?
+  transactions  BankTransaction[]
+  createdAt     DateTime          @default(now())
 
   @@index([tenantId, transferDate])
 }
 
 model TreasuryAlert {
-  id String @id @default(cuid())
-  tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id               String                @id @default(cuid())
+  tenantId         String
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   paymentAccountId String?
-  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: Cascade)
-  severity TreasuryAlertSeverity
-  code String
-  title String
-  message String
-  resolvedAt DateTime?
-  createdAt DateTime @default(now())
+  paymentAccount   PaymentAccount?       @relation(fields: [paymentAccountId], references: [id], onDelete: Cascade)
+  severity         TreasuryAlertSeverity
+  code             String
+  title            String
+  message          String
+  resolvedAt       DateTime?
+  createdAt        DateTime              @default(now())
 
   @@index([tenantId, resolvedAt, createdAt])
 }
@@ -3776,8 +3717,7 @@ model Purchase {
   // ==========================================================================
 
   tenantId String
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // FOURNISSEUR — FACULTATIF
@@ -3786,7 +3726,7 @@ model Purchase {
   // L'utilisateur peut enregistrer un achat sans créer de Supplier.
   supplierId String?
 
-  supplier Supplier? @relation(fields: [supplierId],references: [id],onDelete: SetNull)
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   // Permet éventuellement de simplement saisir :
   // "Point.P", "Leroy Merlin", etc.
@@ -3794,7 +3734,6 @@ model Purchase {
   // Si supplierId est renseigné, le backend peut automatiquement
   // renseigner cette valeur à partir du Supplier.
   supplierName String?
-
 
   // ==========================================================================
   // IDENTIFICATION
@@ -3810,7 +3749,6 @@ model Purchase {
   status PurchaseStatus @default(CONFIRMED)
 
   currency String @default("EUR")
-
 
   // ==========================================================================
   // MONTANTS
@@ -3843,7 +3781,6 @@ model Purchase {
   // 120 € TTC sans droit à déduction            -> 120 €
   effectiveCostAmount Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // TRÉSORERIE
   // ==========================================================================
@@ -3856,7 +3793,7 @@ model Purchase {
 
   paymentAccountId String?
 
-  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId],references: [id],onDelete: SetNull)
+  paymentAccount PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
 
   // Rapprochement bancaire facultatif.
   //
@@ -3865,15 +3802,13 @@ model Purchase {
   // on remplacera cette relation par un modèle d'allocation.
   bankTransactionId String?
 
-  bankTransaction BankTransaction? @relation(fields: [bankTransactionId],references: [id],onDelete: SetNull)
-
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // CONTENU
   // ==========================================================================
 
   items PurchaseItem[]
-
 
   // ==========================================================================
   // AUTRES
@@ -3883,7 +3818,6 @@ model Purchase {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
 
   // ==========================================================================
   // INDEXES
@@ -3901,8 +3835,7 @@ model PurchaseItem {
 
   purchaseId String
 
-  purchase Purchase @relation(fields: [purchaseId],references: [id],onDelete: Cascade)
-
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -3921,14 +3854,13 @@ model PurchaseItem {
   // au niveau métier.
   catalogItemId String?
 
-  catalogItem CatalogItem? @relation(fields: [catalogItemId],references: [id],onDelete: SetNull)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
 
   type LineItemType
 
   // Snapshot : ne dépend pas d'une modification future du CatalogItem.
-  title String
+  title       String
   description String?
-
 
   // ==========================================================================
   // QUANTITÉ / UNITÉ
@@ -3948,7 +3880,6 @@ model PurchaseItem {
 
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // PRIX FOURNISSEUR
   // ==========================================================================
@@ -3962,7 +3893,6 @@ model PurchaseItem {
 
   // Montant HT total de la ligne.
   taxExclusiveAmount Decimal? @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // TVA D'ACHAT
@@ -3989,7 +3919,6 @@ model PurchaseItem {
   // Montant réellement payé / dû au fournisseur pour cette ligne.
   taxInclusiveAmount Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // COÛT ÉCONOMIQUE / STOCK
   // ==========================================================================
@@ -4015,7 +3944,6 @@ model PurchaseItem {
   // C'est ce coût qui alimente le StockItem.averageUnitCost.
   effectiveUnitCost Decimal @db.Decimal(19, 6)
 
-
   // ==========================================================================
   // AFFECTATION MÉTIER FACULTATIVE
   // ==========================================================================
@@ -4025,12 +3953,11 @@ model PurchaseItem {
   // par le projet.
   projectId String?
 
-  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   workOrderId String?
 
-  workOrder WorkOrder? @relation(fields: [workOrderId],references: [id],onDelete: SetNull)
-
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // STOCK
@@ -4040,7 +3967,6 @@ model PurchaseItem {
   // achat initial, correction, annulation partielle...
   stockMovements StockMovement[]
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
@@ -4048,13 +3974,11 @@ model PurchaseItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // ==========================================================================
   // CONTRAINTES
   // ==========================================================================
 
   @@unique([purchaseId, position])
-
   @@index([purchaseId])
   @@index([catalogItemId])
   @@index([projectId])
@@ -4088,7 +4012,6 @@ enum SupplierInvoiceSettlementStatus {
   SETTLED
 }
 
-
 // ============================================================================
 // SUPPLIER
 // ============================================================================
@@ -4096,15 +4019,13 @@ enum SupplierInvoiceSettlementStatus {
 model Supplier {
   id String @id @default(cuid())
 
-
   // ==========================================================================
   // PROPRIÉTAIRE
   // ==========================================================================
 
   tenantId String
 
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -4121,7 +4042,6 @@ model Supplier {
   // Raison sociale officielle si différente du nom affiché.
   legalName String?
 
-
   // ==========================================================================
   // IDENTIFIANTS LÉGAUX
   // ==========================================================================
@@ -4130,7 +4050,6 @@ model Supplier {
   siretNumber String?
 
   vatNumber String?
-
 
   // ==========================================================================
   // CONTACT
@@ -4142,7 +4061,6 @@ model Supplier {
   phone String?
 
   website String?
-
 
   // ==========================================================================
   // ADRESSE
@@ -4157,10 +4075,9 @@ model Supplier {
   street2 String?
 
   postalCode String?
-  city String?
+  city       String?
 
   countryCode String @default("FR")
-
 
   // ==========================================================================
   // AUTRES
@@ -4178,19 +4095,16 @@ model Supplier {
   // On archive un fournisseur utilisé historiquement au lieu de le supprimer.
   archivedAt DateTime?
 
-
   // ==========================================================================
   // CONTRAINTES / INDEXES
   // ==========================================================================
 
   @@unique([tenantId, reference])
-
   // Évite notamment de créer plusieurs fois le même établissement
   // lorsque son SIRET est connu.
   //
   // PostgreSQL accepte plusieurs NULL dans cette contrainte.
   @@unique([tenantId, siretNumber])
-
   @@index([tenantId, name])
   @@index([tenantId, archivedAt])
 }
@@ -4199,7 +4113,7 @@ model SupplierInvoiceVatBreakdown {
   id String @id @default(cuid())
 
   supplierInvoiceId String
-  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId],references: [id],onDelete: Cascade)
+  supplierInvoice   SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
 
   vatCategory VatCategory @default(STANDARD)
 
@@ -4222,15 +4136,13 @@ model SupplierInvoiceVatBreakdown {
 model SupplierInvoice {
   id String @id @default(cuid())
 
-
   // ==========================================================================
   // PROPRIÉTAIRE
   // ==========================================================================
 
   tenantId String
 
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // FOURNISSEUR
@@ -4241,8 +4153,7 @@ model SupplierInvoice {
 
   supplierId String
 
-  supplier Supplier @relation(fields: [supplierId],references: [id],onDelete: Restrict)
-
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
 
   // ==========================================================================
   // DOCUMENT
@@ -4264,7 +4175,6 @@ model SupplierInvoice {
 
   currency String @default("EUR")
 
-
   // ==========================================================================
   // SNAPSHOT FOURNISSEUR
   // ==========================================================================
@@ -4275,12 +4185,12 @@ model SupplierInvoice {
   // Elles permettent de conserver l'historique même si la fiche
   // fournisseur est modifiée plusieurs années plus tard.
 
-  supplierName String
+  supplierName      String
   supplierLegalName String?
 
   supplierSirenNumber String?
   supplierSiretNumber String?
-  supplierVatNumber String?
+  supplierVatNumber   String?
 
   supplierEmail String?
 
@@ -4288,10 +4198,9 @@ model SupplierInvoice {
   supplierStreet2 String?
 
   supplierPostalCode String?
-  supplierCity String?
+  supplierCity       String?
 
   supplierCountryCode String @default("FR")
-
 
   // ==========================================================================
   // TOTAUX DU DOCUMENT
@@ -4320,7 +4229,6 @@ model SupplierInvoice {
   // Total TTC du document.
   taxInclusiveAmount Decimal @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // TVA DÉDUCTIBLE
   // ==========================================================================
@@ -4337,7 +4245,6 @@ model SupplierInvoice {
   //
   // Les 20 € restants font partie du coût économique réel.
   deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // RÈGLEMENT
@@ -4358,7 +4265,6 @@ model SupplierInvoice {
   openAmount Decimal @db.Decimal(19, 2)
 
   settlementStatus SupplierInvoiceSettlementStatus @default(UNSETTLED)
-
 
   // ==========================================================================
   // CONTENU
@@ -4381,7 +4287,6 @@ model SupplierInvoice {
   // Information Workermate qui ne fait pas partie du document.
   internalNotes String?
 
-
   // ==========================================================================
   // MÉTADONNÉES
   // ==========================================================================
@@ -4389,22 +4294,18 @@ model SupplierInvoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // ==========================================================================
   // CONTRAINTES / INDEXES
   // ==========================================================================
 
   // Évite d'importer deux fois la même facture du même fournisseur.
   @@unique([tenantId, supplierId, supplierInvoiceNumber])
-
   @@index([tenantId, issueDate])
   @@index([tenantId, dueDate])
   @@index([tenantId, status])
   @@index([tenantId, settlementStatus])
-
   @@index([supplierId, issueDate])
 }
-
 
 // ============================================================================
 // SUPPLIER INVOICE ITEM
@@ -4415,8 +4316,7 @@ model SupplierInvoiceItem {
 
   supplierInvoiceId String
 
-  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId],references: [id],onDelete: Cascade)
-
+  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // IDENTIFICATION
@@ -4437,12 +4337,11 @@ model SupplierInvoiceItem {
   // l'artisan de classifier chaque ligne.
   type LineItemType?
 
-  title String
+  title       String
   description String?
 
   // Référence article utilisée par le fournisseur.
   sellerItemIdentifier String?
-
 
   // ==========================================================================
   // QUANTITÉ / UNITÉ
@@ -4463,7 +4362,6 @@ model SupplierInvoiceItem {
 
   baseQuantityUnitCode String?
 
-
   // ==========================================================================
   // PRIX
   // ==========================================================================
@@ -4476,7 +4374,6 @@ model SupplierInvoiceItem {
 
   // Montant net HT réel de la ligne.
   taxExclusiveAmount Decimal @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // TVA
@@ -4495,12 +4392,11 @@ model SupplierInvoiceItem {
   // de calculer correctement la TVA déductible.
   deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
 
-  vatExemptionReason String?
+  vatExemptionReason     String?
   vatExemptionReasonCode String?
 
   // Montant TTC de la ligne.
   taxInclusiveAmount Decimal @db.Decimal(19, 2)
-
 
   // ==========================================================================
   // MÉTADONNÉES
@@ -4509,16 +4405,13 @@ model SupplierInvoiceItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // ==========================================================================
   // CONTRAINTES / INDEXES
   // ==========================================================================
 
   @@unique([supplierInvoiceId, position])
-
   // PostgreSQL autorise plusieurs lineIdentifier NULL.
   @@unique([supplierInvoiceId, lineIdentifier])
-
   @@index([supplierInvoiceId])
 }
 
@@ -4565,7 +4458,6 @@ enum StockMovementReason {
   REVERSAL
 }
 
-
 // ============================================================================
 // STOCK MOVEMENT
 // ============================================================================
@@ -4573,15 +4465,13 @@ enum StockMovementReason {
 model StockMovement {
   id String @id @default(cuid())
 
-
   // ==========================================================================
   // PROPRIÉTAIRE
   // ==========================================================================
 
   tenantId String
 
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // STOCK
@@ -4589,8 +4479,7 @@ model StockMovement {
 
   stockItemId String
 
-  stockItem StockItem @relation(fields: [stockItemId],references: [id],onDelete: Restrict)
-
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
 
   // ==========================================================================
   // MOUVEMENT
@@ -4624,7 +4513,6 @@ model StockMovement {
   // son unité de stock ne devrait normalement plus pouvoir être modifiée.
   unitCode String
 
-
   // ==========================================================================
   // VALORISATION
   // ==========================================================================
@@ -4652,7 +4540,6 @@ model StockMovement {
   // Arrondi monétaire effectué par le backend.
   totalCost Decimal? @db.Decimal(19, 2)
 
-
   // ==========================================================================
   // ORIGINE : ACHAT
   // ==========================================================================
@@ -4665,8 +4552,7 @@ model StockMovement {
   // être rattaché à l'achat d'origine.
   purchaseItemId String?
 
-  purchaseItem PurchaseItem? @relation(fields: [purchaseItemId],references: [id],onDelete: SetNull)
-
+  purchaseItem PurchaseItem? @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // ORIGINE : CONSOMMATION CHANTIER
@@ -4680,8 +4566,7 @@ model StockMovement {
   // au WorkLog est remis en stock.
   workLogItemId String?
 
-  workLogItem WorkLogItem? @relation(fields: [workLogItemId],references: [id],onDelete: SetNull)
-
+  workLogItem WorkLogItem? @relation(fields: [workLogItemId], references: [id], onDelete: SetNull)
 
   // ==========================================================================
   // ANNULATION / CORRECTION
@@ -4707,10 +4592,9 @@ model StockMovement {
 
   reversedMovementId String? @unique
 
-  reversedMovement StockMovement? @relation("StockMovementReversal",fields: [reversedMovementId],references: [id],onDelete: SetNull)
+  reversedMovement StockMovement? @relation("StockMovementReversal", fields: [reversedMovementId], references: [id], onDelete: SetNull)
 
   reversalMovement StockMovement? @relation("StockMovementReversal")
-
 
   // ==========================================================================
   // INFORMATIONS COMPLÉMENTAIRES
@@ -4731,19 +4615,14 @@ model StockMovement {
 
   createdAt DateTime @default(now())
 
-
   // ==========================================================================
   // INDEXES
   // ==========================================================================
 
   @@index([tenantId, occurredAt])
-
   @@index([stockItemId, occurredAt])
-
   @@index([purchaseItemId])
-
   @@index([workLogItemId])
-
   @@index([reversedMovementId])
 }
 
@@ -4754,15 +4633,13 @@ model StockMovement {
 model StockItem {
   id String @id @default(cuid())
 
-
   // ==========================================================================
   // PROPRIÉTAIRE
   // ==========================================================================
 
   tenantId String
 
-  tenant Tenant @relation(fields: [tenantId],references: [id],onDelete: Cascade)
-
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // ==========================================================================
   // ARTICLE
@@ -4779,8 +4656,7 @@ model StockItem {
   // CatalogItem + StockLocation -> StockItem.
   catalogItemId String @unique
 
-  catalogItem CatalogItem @relation(fields: [catalogItemId],references: [id],onDelete: Restrict)
-
+  catalogItem CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
 
   // ==========================================================================
   // QUANTITÉ DISPONIBLE
@@ -4808,7 +4684,6 @@ model StockItem {
   // lorsqu'un achat n'a simplement pas encore été renseigné.
   quantityOnHand Decimal @default(0) @db.Decimal(19, 6)
 
-
   // ==========================================================================
   // VALORISATION
   // ==========================================================================
@@ -4831,14 +4706,12 @@ model StockItem {
   // Nullable lorsqu'aucun coût n'est encore connu.
   averageUnitCost Decimal? @db.Decimal(19, 6)
 
-
   // ==========================================================================
   // MOUVEMENTS
   // ==========================================================================
 
   // Journal complet expliquant comment on est arrivé à l'état courant.
   movements StockMovement[]
-
 
   // ==========================================================================
   // MÉTADONNÉES
@@ -4847,14 +4720,12 @@ model StockItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // ==========================================================================
   // CONTRAINTES / INDEXES
   // ==========================================================================
 
   // Un seul stock courant par article et par entreprise en V1.
   @@unique([tenantId, catalogItemId])
-
   @@index([tenantId])
 }
 
@@ -4879,7 +4750,6 @@ enum LineItemType {
   TRAVEL
   SERVICE
   OTHER
-
 }
 
 enum DocumentType {
@@ -4904,10 +4774,10 @@ enum PaymentMethod {
 }
 
 enum InvoicePdpStatus {
-    NOT_SENT
-    SENT
-    ACCEPTED
-    REJECTED
+  NOT_SENT
+  SENT
+  ACCEPTED
+  REJECTED
 }
 
 enum QuoteStatus {

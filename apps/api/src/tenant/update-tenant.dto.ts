@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
 
 enum VatLiabilityRegimeDto {
@@ -79,6 +79,25 @@ export class UpdateTenantDto {
   @IsNumber()
   @Min(0)
   defaultVatRate?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  emailRemindersEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  emailReminderDelayDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  emailReminderRepeatDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  emailReminderMaxAttempts?: number;
 
   @IsOptional()
   @IsEnum(VatLiabilityRegimeDto)

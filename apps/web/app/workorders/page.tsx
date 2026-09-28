@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiClient } from '../api-client';
+import { useAuth } from '../auth.context';
 import { ProtectedRoute } from '../protected-route';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
 import WorkOrdersList, { type WorkOrder } from '../components/WorkOrdersList';
@@ -39,12 +41,47 @@ export function createEmptyWorkOrder(): WorkOrder {
 
 export default function WorkOrdersPage() {
   const searchParams = useSearchParams();
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddWorkOrderForm, setShowAddWorkOrderForm] = useState(false);
   const [workOrderFormWasOpened, setWorkOrderFormWasOpened] = useState(false);
+  const queryClient = useQueryClient();
+  const workOrdersQueryKey = ['work-orders', activeTenant?.tenantId];
+  const dashboardQueryKey = ['dashboard', activeTenant?.tenantId];
+  const projectsQueryKey = ['projects', activeTenant?.tenantId];
+  const workOrdersQuery = useQuery({
+    queryKey: workOrdersQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/workOrders');
+      if (!response.ok) throw new Error('Erreur lors de la récupération des chantiers');
+      const data = await response.json() as WorkOrder[];
+      return data.map((workOrder) => ({
+        ...workOrder,
+        startDate: workOrder.startDate ?? workOrder.plannedStartDate,
+        endDate: workOrder.endDate ?? workOrder.plannedEndDate,
+      }));
+    },
+  });
+  const workOrders = workOrdersQuery.data ?? [];
+  const loading = workOrdersQuery.isPending;
+  const deleteWorkOrderMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/workOrders/${id}`);
+      if (!response.ok) throw new Error('La suppression du chantier a échoué.');
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData<WorkOrder[]>(workOrdersQueryKey, (currentWorkOrders) => currentWorkOrders?.filter((workOrder) => workOrder.id !== id));
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+        queryClient.invalidateQueries({ queryKey: projectsQueryKey }),
+      ]);
+      setError('');
+    },
+    onError: () => setError('La suppression du chantier a échoué. Vérifiez votre connexion et réessayez.'),
+  });
 
   function updateCreateUrl(open: boolean, replace = false) {
     const url = new URL(window.location.href);
@@ -93,39 +130,6 @@ export default function WorkOrdersPage() {
   //   };
   // }
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadWorkOrders() {
-      try {
-        const res = await api.get('/workOrders');
-        if (!res.ok) throw new Error('Erreur');
-        const data = await res.json();
-        if (!cancelled) {
-          setWorkOrders(data.map((workOrder: WorkOrder) => ({
-            ...workOrder,
-            startDate: workOrder.startDate ?? workOrder.plannedStartDate,
-            endDate: workOrder.endDate ?? workOrder.plannedEndDate,
-          })));
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Erreur lors de la récupération des chantiers');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadWorkOrders();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-  
   // async function handleAddWorkOrder(e: React.FormEvent) {
   //   e.preventDefault();
   //   try {
@@ -147,15 +151,7 @@ export default function WorkOrdersPage() {
   // }
 
   async function handleDelete(id: string) {
-    try {
-      const res = await api.delete(`/workOrders/${id}`);
-      if (!res.ok) throw new Error('Erreur');
-      setWorkOrders((currentWorkOrders) => currentWorkOrders.filter((workOrder) => workOrder.id !== id));
-      setError('');
-    } catch {
-      setError('La suppression du chantier a échoué. Vérifiez votre connexion et réessayez.');
-      throw new Error('Work order deletion failed');
-    }
+    await deleteWorkOrderMutation.mutateAsync(id);
   }
 
   return (
@@ -176,7 +172,7 @@ export default function WorkOrdersPage() {
           </button>
         </div>
 
-        {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+        {(error || workOrdersQuery.isError) && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error || 'Erreur lors de la récupération des chantiers'}</div>}
 
         {workOrderFormWasOpened &&
         <button
@@ -187,11 +183,11 @@ export default function WorkOrdersPage() {
         </button>
         }
         {workOrderFormWasOpened &&
-        <AddWorkOrderForm show={showAddWorkOrderForm} onCreated={(data)=> {setWorkOrders((currentWorkOrders) => [{
+        <AddWorkOrderForm show={showAddWorkOrderForm} onCreated={(data)=> {queryClient.setQueryData<WorkOrder[]>(workOrdersQueryKey, (currentWorkOrders) => [{
           ...data,
           startDate: data.startDate ?? data.plannedStartDate,
           endDate: data.endDate ?? data.plannedEndDate,
-        }, ...currentWorkOrders]); updateCreateUrl(false, true);}} />
+        }, ...(currentWorkOrders ?? [])]); void Promise.all([queryClient.invalidateQueries({ queryKey: dashboardQueryKey }), queryClient.invalidateQueries({ queryKey: projectsQueryKey })]); updateCreateUrl(false, true);}} />
         }
         {/* <form onSubmit={handleAddWorkOrder} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>

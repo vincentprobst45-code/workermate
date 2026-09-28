@@ -179,7 +179,7 @@ export default function ProjectDetailsWorkOrders({ project, onRequestAssociate, 
 				<p className="text-sm text-slate-500">Aucun chantier ne correspond à ce filtre.</p>
 			)}
 			{!loading && !error && visibleWorkOrders.length > 0 && (
-				<div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
+				<div className="space-y-3">
 					{visibleWorkOrders.map((workOrder) => (
 						<article key={workOrder.id} className={cardClass}>
 							<div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">

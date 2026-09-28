@@ -69,7 +69,7 @@ export default function ProjectDetailsContainer({ project, onClose }: ProjectDet
 
 	return (
 		<div className="flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-			<div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+			<div className="border-b border-slate-200 px-3 py-3 sm:px-6 sm:py-4">
 				<div className="flex items-center gap-3">
 				<div className="min-w-0">
 					<div className="flex flex-wrap items-center gap-2">
@@ -89,7 +89,7 @@ export default function ProjectDetailsContainer({ project, onClose }: ProjectDet
 				)}
 				</div>
 			</div>
-			<div className="flex overflow-x-auto border-b border-slate-200 px-3" role="tablist" aria-label="Détails du projet">
+			<div className="flex overflow-x-auto border-b border-slate-200 px-2 [scrollbar-width:none] sm:px-3 [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Détails du projet">
 				{tabs.map((tab) => (
 					<button
 						key={tab.id}
@@ -105,7 +105,7 @@ export default function ProjectDetailsContainer({ project, onClose }: ProjectDet
 					</button>
 				))}
 			</div>
-			<div id={`project-panel-${activeTab}`} className="bg-slate-50 p-5 sm:p-6" role="tabpanel" aria-labelledby={`project-tab-${activeTab}`}>{content}</div>
+			<div id={`project-panel-${activeTab}`} className="bg-slate-50 p-3 sm:p-6" role="tabpanel" aria-labelledby={`project-tab-${activeTab}`}>{content}</div>
 			<ProjectAssociationModals
 				project={project}
 				kind={associationModal?.kind ?? null}

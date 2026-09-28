@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProtectedRoute } from '../protected-route';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import AddTenantForm from '../components/AddTenantForm';
 import EmployeesList from '../components/EmployeesList';
@@ -9,32 +11,24 @@ import TenantDetails, { type TenantProfile } from '../components/TenantDetails';
 import UpdateTenantForm from '../components/UpdateTenantForm';
 
 export default function TenantPage() {
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [tenant, setTenant] = useState<TenantProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showCreateTenantForm, setShowCreateTenantForm] = useState(false);
   const [showUpdateTenantForm, setShowUpdateTenantForm] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTenant() {
-      try {
-        const response = await api.get('/tenants/current');
-        if (!response.ok) throw new Error('Erreur');
-        const data = await response.json() as TenantProfile;
-        if (!cancelled) setTenant(data);
-      } catch {
-        if (!cancelled) setError('Impossible de charger les informations de l’entreprise.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void loadTenant();
-    return () => { cancelled = true; };
-  }, [api]);
+  const queryClient = useQueryClient();
+  const tenantQueryKey = ['tenant-current', activeTenant?.tenantId];
+  const tenantQuery = useQuery({
+    queryKey: tenantQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/tenants/current');
+      if (!response.ok) throw new Error('Impossible de charger les informations de l’entreprise.');
+      return await response.json() as TenantProfile;
+    },
+  });
+  const tenant = tenantQuery.data ?? null;
+  const loading = tenantQuery.isPending;
+  const error = tenantQuery.error?.message ?? '';
 
   return (
     <ProtectedRoute>
@@ -57,7 +51,7 @@ export default function TenantPage() {
         {!loading && error && <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
         {!loading && !error && tenant && <TenantDetails tenant={tenant} onEdit={() => setShowUpdateTenantForm(true)} />}
 
-        {showUpdateTenantForm && tenant && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4 sm:p-6" role="presentation" onClick={() => setShowUpdateTenantForm(false)}><div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="update-tenant-title" onClick={(event) => event.stopPropagation()}><UpdateTenantForm tenant={tenant} onCancel={() => setShowUpdateTenantForm(false)} onSaved={(updatedTenant) => { setTenant(updatedTenant); setShowUpdateTenantForm(false); }} /></div></div>}
+        {showUpdateTenantForm && tenant && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4 sm:p-6" role="presentation" onClick={() => setShowUpdateTenantForm(false)}><div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="update-tenant-title" onClick={(event) => event.stopPropagation()}><UpdateTenantForm tenant={tenant} onCancel={() => setShowUpdateTenantForm(false)} onSaved={(updatedTenant) => { queryClient.setQueryData(tenantQueryKey, updatedTenant); setShowUpdateTenantForm(false); }} /></div></div>}
 
         <div className="mt-6"><EmployeesList /></div>
       </main>

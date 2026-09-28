@@ -103,7 +103,7 @@ export class InvoiceService {
       }
 
       if (!invoice) throw new BadRequestException('Impossible de créer la facture d’acompte.');
-      await tx.payment.create({ data: { tenantId, invoiceId: invoice.id, customerId: quote.customerId, amount, paidAt, method: dto.method as PaymentMethod } });
+      await tx.payment.create({ data: { tenantId, invoiceId: invoice.id, customerId: quote.customerId, amount, paidAt, method: dto.method } });
       const paidAmount = this.roundMoney(alreadyReceived + amount);
       await tx.invoice.update({ where: { id: invoice.id }, data: { paidAmount, paymentStatus: paidAmount >= requested ? 'PAID' : 'PARTIALLY_PAID' } });
       await tx.quote.update({ where: { id: quote.id }, data: { status: 'ACCEPTED', acceptedAt: quote.acceptedAt ?? paidAt } });

@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDownCircle, ArrowUpCircle, History } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 
 type StockMovementReason = 'OPENING_BALANCE' | 'PURCHASE' | 'CONSUMPTION' | 'SUPPLIER_RETURN' | 'RETURN_TO_STOCK' | 'ADJUSTMENT' | 'REVERSAL';
@@ -51,30 +53,21 @@ function formatDate(value: string): string {
 }
 
 export default function StockMovementsList() {
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [direction, setDirection] = useState<DirectionFilter>('all');
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const response = await api.get('/stock/movements');
-        if (!response.ok) throw new Error();
-        const data = await response.json();
-        if (!cancelled) setMovements(data);
-      } catch {
-        if (!cancelled) setError('Impossible de charger l’historique des mouvements.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [api]);
+  const movementsQuery = useQuery({
+    queryKey: ['stock-movements', activeTenant?.tenantId],
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/stock/movements');
+      if (!response.ok) throw new Error('Impossible de charger l’historique des mouvements.');
+      return await response.json() as StockMovement[];
+    },
+  });
+  const movements = useMemo(() => movementsQuery.data ?? [], [movementsQuery.data]);
+  const loading = movementsQuery.isPending;
+  const error = movementsQuery.error?.message ?? '';
 
   const filteredMovements = useMemo(
     () => direction === 'all' ? movements : movements.filter((movement) => movement.direction === direction),
@@ -161,7 +154,7 @@ export default function StockMovementsList() {
       {!loading && !error && movements.length > 0 && !filteredMovements.length && (
         <p className="p-6 text-center text-sm text-stone-500">Aucun mouvement pour ce filtre.</p>
       )}
-      {error && <p className="p-6 text-sm text-red-600">{error}</p>}
+      {error && <div className="flex items-center justify-between gap-3 p-6"><p className="text-sm text-red-600">{error}</p><button type="button" onClick={() => { void movementsQuery.refetch(); }} className="text-sm font-semibold text-blue-700 underline">Réessayer</button></div>}
     </div>
   );
 }

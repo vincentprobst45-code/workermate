@@ -2,6 +2,7 @@
 'use client';
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "./auth.context";
+import QueryProvider from "./query-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,9 +41,9 @@ export default function RootLayout({
 
 import { getSession } from "./lib/auth";
 import { AuthProvider } from "./auth.context";
+import QueryProvider from "./query-provider";
 import "./globals.css";
-import Header from "./components/Header";
-import VerticalHeader from "./components/VerticalHeader";
+import AppShell from "./components/AppShell";
 
 export default async function RootLayout({
   children,
@@ -55,11 +56,9 @@ export default async function RootLayout({
     <html lang="fr">
       <body>
         <AuthProvider session={session}>
-          <Header />
-          <div className="flex min-h-[calc(100vh)] items-stretch">
-            <VerticalHeader />
-            <main className="min-w-0 flex-1">{children}</main>
-          </div>
+          <QueryProvider>
+            <AppShell>{children}</AppShell>
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

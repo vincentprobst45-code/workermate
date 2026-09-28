@@ -30,6 +30,7 @@ import { SupplierModule } from './supplier/supplier.module';
 import { SupplierInvoiceModule } from './supplier-invoice/supplier-invoice.module';
 import { PurchaseModule } from './purchase/purchase.module';
 import { StockModule } from './stock/stock.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { StockModule } from './stock/stock.module';
     SupplierInvoiceModule,
     PurchaseModule,
     StockModule,
+    EmailModule,
   ],
   controllers: [AppController, AuthController],
   providers: [AppService, AuthService],

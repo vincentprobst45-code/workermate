@@ -1,7 +1,7 @@
 import type { ProjectStatus, WorkOrderStatus } from '@prisma/client';
 
 // Shared visual language for the project details modal, aligned with the projects list page.
-export const cardClass = 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5';
+export const cardClass = 'rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-5';
 export const sectionTitleClass = 'text-sm font-semibold text-slate-900';
 export const btnPrimary = 'rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700';
 export const btnGhost =

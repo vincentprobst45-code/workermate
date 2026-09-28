@@ -1,6 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
 import AddCustomerForm from '../components/AddCustomerForm';
@@ -8,14 +10,42 @@ import CustomersList, { type Customer } from '../components/CustomersList';
 
 export default function CustomersPage() {
   const searchParams = useSearchParams();
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
   const [customerFormWasOpened, setCustomerFormWasOpened] = useState(false);
   const [customerBeingEdited, setCustomerBeingEdited] = useState<Customer | null>(null);
+  const queryClient = useQueryClient();
+  const customersQueryKey = ['customers', activeTenant?.tenantId];
+  const customersQuery = useQuery({
+    queryKey: customersQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/customers');
+      if (!response.ok) throw new Error('Erreur lors de la récupération des clients');
+      return await response.json() as Customer[];
+    },
+  });
+  const customers = customersQuery.data ?? [];
+  const loading = customersQuery.isPending;
+
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/customers/${id}`);
+      if (!response.ok) throw new Error('La suppression du client a échoué.');
+      return id;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: customersQueryKey });
+      setError('');
+      setSuccess('Client supprimé avec succès');
+    },
+    onError: () => {
+      setError('La suppression du client a échoué. Vérifiez votre connexion et réessayez.');
+    },
+  });
 
   function updateCreateUrl(open: boolean, replace = false) {
     const url = new URL(window.location.href);
@@ -43,45 +73,8 @@ export default function CustomersPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const res = await api.delete(`/customers/${id}`);
-      if (!res.ok) throw new Error('Erreur');
-      setCustomers((currentCustomers) => currentCustomers.filter((customer) => customer.id !== id));
-      setError('');
-      setSuccess('Client supprimé avec succès');
-    } catch {
-      setError('La suppression du client a échoué. Vérifiez votre connexion et réessayez.');
-      throw new Error('Customer deletion failed');
-    }
+    await deleteCustomerMutation.mutateAsync(id);
   }
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadCustomers = async () => {
-      try {
-        const res = await api.get('/customers');
-        if (!res.ok) throw new Error('Erreur');
-        const data = await res.json();
-        if (!cancelled) {
-          setCustomers(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Erreur lors de la récupération des clients');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadCustomers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
 
   return (
     <ProtectedRoute>
@@ -101,7 +94,7 @@ export default function CustomersPage() {
           </button>
         </div>
 
-        {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+        {(error || customersQuery.isError) && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error || 'Erreur lors de la récupération des clients'}</div>}
         {success && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{success}</div>}
 
         {customerFormWasOpened &&
@@ -122,9 +115,12 @@ export default function CustomersPage() {
             key={customerBeingEdited?.id ?? 'new-customer'}
             show={showAddCustomerForm}
             initialCustomer={customerBeingEdited}
-            onCreated={(data) => setCustomers((currentCustomers) => [data, ...currentCustomers])}
+            onCreated={() => {
+              void queryClient.invalidateQueries({ queryKey: customersQueryKey });
+              setSuccess('Client créé avec succès');
+            }}
             onUpdated={(data) => {
-              setCustomers((currentCustomers) => currentCustomers.map((customer) => customer.id === data.id ? data : customer));
+              queryClient.setQueryData<Customer[]>(customersQueryKey, (currentCustomers) => currentCustomers?.map((customer) => customer.id === data.id ? data : customer));
               setCustomerBeingEdited(null);
               setSuccess('Client modifié avec succès');
               clearCustomerUrl();

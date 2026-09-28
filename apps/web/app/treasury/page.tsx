@@ -1,8 +1,10 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProtectedRoute } from '../protected-route';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import AddBankAccountForm, { type PaymentAccount } from '../components/AddBankAccountForm';
 import AddBankTransactionForm, { type BankTransaction } from '../components/AddBankTransactionForm';
@@ -15,6 +17,16 @@ interface TreasuryAlert { code: string; title: string; message: string; }
 interface Reconciliation { id: string; paymentAccountId: string; calculatedBalance: number | string; actualBalance: number | string; difference: number | string; reconciledAt: string; previousReconciliationDate?: string | null; paymentAccount?: { name: string; currency: string }; }
 interface Transfer { id: string; amount: number | string; currency: string; transferDate: string; fromAccount?: { name: string }; toAccount?: { name: string }; }
 type PaymentTiming = 'GENERATION' | 'DUE_DATE' | 'ARBITRARY_DAYS';
+type TreasuryData = {
+  accounts: PaymentAccount[];
+  expenses: CompanyExpense[];
+  transactions: BankTransaction[];
+  alerts: TreasuryAlert[];
+  reconciliations: Reconciliation[];
+  transfers: Transfer[];
+  forecastPoints: ForecastPoint[];
+  forecastReason: string;
+};
 
 function formatMoney(value: number | string, currency = 'EUR') {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(Number(value || 0));
@@ -27,14 +39,8 @@ function formatDate(value?: string | null) {
 }
 
 export default function TreasuryPage() {
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
-  const [expenses, setExpenses] = useState<CompanyExpense[]>([]);
-  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
-  const [alerts, setAlerts] = useState<TreasuryAlert[]>([]);
-  const [reconciliations, setReconciliations] = useState<Reconciliation[]>([]);
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState<'account' | 'expense' | 'transaction' | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<PaymentAccount | null>(null);
@@ -47,46 +53,51 @@ export default function TreasuryPage() {
   const [reconciliationAccountId, setReconciliationAccountId] = useState('');
   const [actualBalance, setActualBalance] = useState('');
   const [transferForm, setTransferForm] = useState({ fromAccountId: '', toAccountId: '', amount: '' });
-  const [forecastPoints, setForecastPoints] = useState<ForecastPoint[]>([]);
   const [forecastHorizon, setForecastHorizon] = useState('90');
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>('DUE_DATE');
   const [paymentDelayDays, setPaymentDelayDays] = useState('0');
-  const [forecastReason, setForecastReason] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const responses = await Promise.all([
-          api.get('/payment-accounts'), api.get('/company-expenses'), api.get('/bank-transactions'),
-          api.get('/treasury/alerts'), api.get('/treasury/reconciliations'), api.get('/treasury/transfers'),
-          api.get(`/treasury/forecast?horizonDays=${forecastHorizon}&paymentTiming=${paymentTiming}&paymentDelayDays=${paymentDelayDays}`),
-        ]);
-        if (responses.slice(0, 3).some((response) => !response.ok)) throw new Error('load');
-        if (!cancelled) {
-          setAccounts(await responses[0].json());
-          setExpenses(await responses[1].json());
-          setTransactions(await responses[2].json());
-          if (responses[3].ok) setAlerts(await responses[3].json());
-          if (responses[4].ok) setReconciliations(await responses[4].json());
-          if (responses[5].ok) setTransfers(await responses[5].json());
-          if (responses[6].ok) {
-            const forecast = await responses[6].json();
-            setForecastPoints(forecast.points || []);
-            setForecastReason(forecast.diagnostics?.message || '');
-          } else {
-            const responseBody = await responses[6].json().catch(() => null) as { message?: string | string[] } | null;
-            const message = Array.isArray(responseBody?.message) ? responseBody.message.join(' ') : responseBody?.message;
-            setForecastPoints([]);
-            setForecastReason(message || `Le serveur a refusé la projection (${responses[6].status}).`);
-          }
-        }
-      } catch { if (!cancelled) setError('Impossible de charger les données de trésorerie.'); }
-      finally { if (!cancelled) setLoading(false); }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [api, forecastHorizon, paymentTiming, paymentDelayDays]);
+  const queryClient = useQueryClient();
+  const treasuryQueryKey = ['treasury', activeTenant?.tenantId, forecastHorizon, paymentTiming, paymentDelayDays];
+  const financeDashboardQueryKey = ['dashboard-finance', activeTenant?.tenantId];
+  const treasuryQuery = useQuery({
+    queryKey: treasuryQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const responses = await Promise.all([
+        api.get('/payment-accounts'), api.get('/company-expenses'), api.get('/bank-transactions'),
+        api.get('/treasury/alerts'), api.get('/treasury/reconciliations'), api.get('/treasury/transfers'),
+        api.get(`/treasury/forecast?horizonDays=${forecastHorizon}&paymentTiming=${paymentTiming}&paymentDelayDays=${paymentDelayDays}`),
+      ]);
+      if (responses.slice(0, 3).some((response) => !response.ok)) throw new Error('Impossible de charger les données de trésorerie.');
+      const forecast = responses[6].ok ? await responses[6].json() : null;
+      let forecastReason = '';
+      if (!responses[6].ok) {
+        const responseBody = await responses[6].json().catch(() => null) as { message?: string | string[] } | null;
+        forecastReason = Array.isArray(responseBody?.message) ? responseBody.message.join(' ') : responseBody?.message || `Le serveur a refusé la projection (${responses[6].status}).`;
+      }
+      return {
+        accounts: await responses[0].json() as PaymentAccount[],
+        expenses: await responses[1].json() as CompanyExpense[],
+        transactions: await responses[2].json() as BankTransaction[],
+        alerts: responses[3].ok ? await responses[3].json() as TreasuryAlert[] : [],
+        reconciliations: responses[4].ok ? await responses[4].json() as Reconciliation[] : [],
+        transfers: responses[5].ok ? await responses[5].json() as Transfer[] : [],
+        forecastPoints: (forecast?.points || []) as ForecastPoint[],
+        forecastReason: forecast?.diagnostics?.message || forecastReason,
+      };
+    },
+  });
+  const treasuryData = treasuryQuery.data;
+  const accounts = treasuryData?.accounts ?? [];
+  const expenses = treasuryData?.expenses ?? [];
+  const transactions = treasuryData?.transactions ?? [];
+  const alerts = treasuryData?.alerts ?? [];
+  const reconciliations = treasuryData?.reconciliations ?? [];
+  const transfers = treasuryData?.transfers ?? [];
+  const forecastPoints = treasuryData?.forecastPoints ?? [];
+  const forecastReason = treasuryData?.forecastReason ?? '';
+  const loading = treasuryQuery.isPending;
+  const queryError = treasuryQuery.error?.message ?? '';
 
   const activeAccounts = accounts.filter((account) => !account.archivedAt);
   const accountBalances = activeAccounts.map((account) => {
@@ -104,7 +115,8 @@ export default function TreasuryPage() {
   async function deleteAccount(account: PaymentAccount) {
     const response = await api.delete(`/payment-accounts/${account.id}`);
     if (!response.ok) throw new Error('delete');
-    setAccounts((current) => current.map((item) => item.id === account.id ? { ...item, archivedAt: new Date().toISOString() } : item));
+    queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, accounts: current.accounts.map((item) => item.id === account.id ? { ...item, archivedAt: new Date().toISOString() } : item) } : current);
+    void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey });
   }
 
   function exportTransactions() {
@@ -120,7 +132,7 @@ export default function TreasuryPage() {
     const response = await api.post('/treasury/reconciliations', { paymentAccountId: reconciliationAccountId, actualBalance: Number(actualBalance) });
     if (!response.ok) { setError('Impossible d’enregistrer le rapprochement.'); return; }
     const reconciliation = await response.json() as Reconciliation;
-    setReconciliations((current) => [reconciliation, ...current]);
+    queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, reconciliations: [reconciliation, ...current.reconciliations] } : current);
     setShowReconciliation(false); setActualBalance('');
   }
 
@@ -130,18 +142,19 @@ export default function TreasuryPage() {
     const response = await api.post('/treasury/transfers', { ...transferForm, amount: Number(transferForm.amount), currency: account?.currency });
     if (!response.ok) { setError('Impossible d’enregistrer le virement.'); return; }
     const transfer = await response.json() as Transfer;
-    setTransfers((current) => [transfer, ...current]);
+    queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, transfers: [transfer, ...current.transfers] } : current);
+    void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey });
     setShowTransfer(false);
   }
 
   return <ProtectedRoute><main className="mx-auto max-w-7xl px-5 py-8 sm:px-6">
     <header className="mb-8 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Pilotage financier</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Trésorerie</h1><p className="mt-1 text-sm text-slate-500">Soldes, mouvements, rapprochements et prévisions.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingAccount(undefined); setForm(form === 'account' ? null : 'account'); }} className="rounded-lg border border-indigo-600 px-3 py-2 text-sm font-semibold text-indigo-700">Ajouter un compte</button><button type="button" onClick={() => setForm(form === 'expense' ? null : 'expense')} className="rounded-lg border border-amber-600 px-3 py-2 text-sm font-semibold text-amber-700">Ajouter une dépense</button><button type="button" onClick={() => setForm(form === 'transaction' ? null : 'transaction')} className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white">Ajouter une transaction</button><button type="button" onClick={() => setShowTransfer((value) => !value)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-700">Virement interne</button><button type="button" onClick={() => setShowReconciliation((value) => !value)} className="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-semibold text-emerald-700">Rapprocher</button></div></header>
-    {form === 'account' && <div className="mb-6"><AddBankAccountForm initialAccount={editingAccount} onCancel={() => setForm(null)} onCreated={(account) => { setAccounts((current) => [...current, account]); setForm(null); }} onUpdated={(account) => { setAccounts((current) => current.map((item) => item.id === account.id ? account : item)); setForm(null); }} /></div>}
-    {form === 'expense' && <div className="mb-6"><AddCompanyExpenseForm paymentAccounts={activeAccounts} onCancel={() => setForm(null)} onCreated={(expense) => { setExpenses((current) => [expense, ...current]); setForm(null); }} /></div>}
-    {form === 'transaction' && <div className="mb-6"><AddBankTransactionForm paymentAccounts={activeAccounts} onCancel={() => setForm(null)} onCreated={(transaction) => { setTransactions((current) => [transaction, ...current]); setForm(null); }} /></div>}
+    {form === 'account' && <div className="mb-6"><AddBankAccountForm initialAccount={editingAccount} onCancel={() => setForm(null)} onCreated={(account) => { queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, accounts: [...current.accounts, account] } : current); void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey }); setForm(null); }} onUpdated={(account) => { queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, accounts: current.accounts.map((item) => item.id === account.id ? account : item) } : current); void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey }); setForm(null); }} /></div>}
+    {form === 'expense' && <div className="mb-6"><AddCompanyExpenseForm paymentAccounts={activeAccounts} onCancel={() => setForm(null)} onCreated={(expense) => { queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, expenses: [expense, ...current.expenses] } : current); void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey }); setForm(null); }} /></div>}
+    {form === 'transaction' && <div className="mb-6"><AddBankTransactionForm paymentAccounts={activeAccounts} onCancel={() => setForm(null)} onCreated={(transaction) => { queryClient.setQueryData<TreasuryData>(treasuryQueryKey, (current) => current ? { ...current, transactions: [transaction, ...current.transactions] } : current); void queryClient.invalidateQueries({ queryKey: financeDashboardQueryKey }); setForm(null); }} /></div>}
     {showReconciliation && <form onSubmit={submitReconciliation} className="mb-6 grid gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:grid-cols-3"><label className="text-sm font-medium">Compte<select required className="mt-1 w-full rounded-lg border px-3 py-2" value={reconciliationAccountId} onChange={(event) => setReconciliationAccountId(event.target.value)}><option value="">Choisir</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label className="text-sm font-medium">Solde réel<input required type="number" step="0.01" className="mt-1 w-full rounded-lg border px-3 py-2" value={actualBalance} onChange={(event) => setActualBalance(event.target.value)} /></label><button className="self-end rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white">Enregistrer</button></form>}
     {showTransfer && <form onSubmit={submitTransfer} className="mb-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-4"><label className="text-sm font-medium">Depuis<select required className="mt-1 w-full rounded-lg border px-3 py-2" value={transferForm.fromAccountId} onChange={(event) => setTransferForm({ ...transferForm, fromAccountId: event.target.value })}><option value="">Choisir</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label className="text-sm font-medium">Vers<select required className="mt-1 w-full rounded-lg border px-3 py-2" value={transferForm.toAccountId} onChange={(event) => setTransferForm({ ...transferForm, toAccountId: event.target.value })}><option value="">Choisir</option>{activeAccounts.filter((account) => account.id !== transferForm.fromAccountId).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label className="text-sm font-medium">Montant<input required type="number" min="0.01" step="0.01" className="mt-1 w-full rounded-lg border px-3 py-2" value={transferForm.amount} onChange={(event) => setTransferForm({ ...transferForm, amount: event.target.value })} /></label><button className="self-end rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Enregistrer</button></form>}
-    {error && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+    {(error || queryError) && <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error || queryError}</div>}
     {loading ? <div className="h-64 animate-pulse rounded-2xl bg-slate-100" /> : <>
       {alerts.length > 0 && <section className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5"><h2 className="font-bold text-red-900">Alertes trésorerie</h2><div className="mt-3 grid gap-3 md:grid-cols-2">{alerts.map((alert) => <div key={alert.code} className="rounded-xl bg-white p-3"><p className="font-semibold">{alert.title}</p><p className="text-sm text-slate-600">{alert.message}</p></div>)}</div></section>}
       <section className="mb-8 grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">Comptes actifs</p><p className="mt-2 text-2xl font-bold">{activeAccounts.length}</p></div><div className="rounded-2xl border border-sky-200 bg-sky-50 p-5"><p className="text-sm text-sky-700">Soldes bancaires</p>{Object.entries(balancesByCurrency).map(([currency, value]) => <p key={currency} className="mt-2 text-2xl font-bold text-sky-900">{formatMoney(value, currency)}</p>)}</div><div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="text-sm text-amber-700">Dépenses à payer</p><p className="mt-2 text-2xl font-bold text-amber-900">{formatMoney(dueExpenses)}</p></div></section>

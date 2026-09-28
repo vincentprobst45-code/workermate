@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import SupplierInvoiceDetails from './SupplierInvoiceDetails';
 
@@ -69,16 +71,26 @@ function isOverdue(invoice: SupplierInvoice, today: number) {
 }
 
 export default function SupplierInvoicesList({ refreshKey = 0, initialInvoiceId, initialInvoiceMode = 'view', syncUrl = false }: { refreshKey?: number; initialInvoiceId?: string; initialInvoiceMode?: 'view' | 'edit'; syncUrl?: boolean }) {
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [invoices, setInvoices] = useState<SupplierInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVERDUE' | SupplierInvoice['settlementStatus']>('ALL');
-  const [retryKey, setRetryKey] = useState(0);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoice | null>(null);
   const [today] = useState(() => Date.now());
   const appliedInitialInvoiceId = useRef<string | null>(null);
+  const supplierInvoicesQueryKey = ['supplier-invoices', activeTenant?.tenantId, refreshKey];
+  const supplierInvoicesQuery = useQuery({
+    queryKey: supplierInvoicesQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/supplier-invoices');
+      if (!response.ok) throw new Error('Impossible de charger les factures fournisseurs.');
+      return await response.json() as SupplierInvoice[];
+    },
+  });
+  const invoices = useMemo(() => supplierInvoicesQuery.data ?? [], [supplierInvoicesQuery.data]);
+  const loading = supplierInvoicesQuery.isPending;
+  const error = supplierInvoicesQuery.error?.message ?? '';
 
   const updateInvoiceUrl = useCallback((invoiceId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
     if (!syncUrl) return;
@@ -126,20 +138,6 @@ export default function SupplierInvoicesList({ refreshKey = 0, initialInvoiceId,
     appliedInitialInvoiceId.current = selectedInvoice.id;
   }, [selectedInvoice, syncUrl, updateInvoiceUrl]);
 
-  useEffect(() => {
-    let cancelled = false;
-    api.get('/supplier-invoices').then(async (response) => {
-      if (!response.ok) throw new Error();
-      const data: SupplierInvoice[] = await response.json();
-      if (!cancelled) { setInvoices(data); setError(''); }
-    }).catch(() => {
-      if (!cancelled) setError('Impossible de charger les factures fournisseurs.');
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [api, refreshKey, retryKey]);
-
   const filtered = useMemo(() => invoices.filter((invoice) => {
     const normalized = query.trim().toLowerCase();
     const matchesQuery = !normalized || invoice.supplierInvoiceNumber.toLowerCase().includes(normalized) || invoice.supplier.name.toLowerCase().includes(normalized);
@@ -163,9 +161,9 @@ export default function SupplierInvoicesList({ refreshKey = 0, initialInvoiceId,
     <div className="grid gap-3 border-b border-stone-100 p-5 sm:grid-cols-3"><div><p className="text-xs font-semibold uppercase text-stone-500">Total TTC</p><p className="mt-1 font-bold text-stone-900">{formatAmount(summary.total)}</p></div><div><p className="text-xs font-semibold uppercase text-amber-700">Reste à régler</p><p className="mt-1 font-bold text-amber-900">{formatAmount(summary.open)}</p></div><div><p className="text-xs font-semibold uppercase text-red-700">En retard</p><p className="mt-1 font-bold text-red-900">{formatAmount(summary.overdue)} · {summary.overdueCount}</p></div></div>
     {loading && <div className="p-5 text-sm text-stone-500">Chargement des factures...</div>}
     {loading && invoices.length > 0 && <div className="border-t border-stone-100 px-5 py-2 text-xs text-stone-500">Actualisation en cours…</div>}
-    {error && <div className="flex items-center justify-between gap-4 p-5"><p className="text-sm text-red-600">{error}</p><button type="button" onClick={() => { setLoading(true); setRetryKey((value) => value + 1); }} className="text-sm font-semibold text-red-700 underline">Réessayer</button></div>}
+    {error && <div className="flex items-center justify-between gap-4 p-5"><p className="text-sm text-red-600">{error}</p><button type="button" onClick={() => { void supplierInvoicesQuery.refetch(); }} className="text-sm font-semibold text-red-700 underline">Réessayer</button></div>}
     {!loading && !error && !filtered.length && <div className="p-5 text-sm text-stone-500"><p>{query || statusFilter !== 'ALL' ? 'Aucune facture ne correspond aux filtres.' : 'Aucune facture fournisseur enregistrée.'}</p>{(query || statusFilter !== 'ALL') && <button type="button" onClick={() => { setQuery(''); setStatusFilter('ALL'); }} className="mt-2 font-semibold text-blue-700 underline">Réinitialiser les filtres</button>}</div>}
     {!error && filtered.length > 0 && <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-stone-100 text-xs uppercase tracking-wide text-stone-500"><tr><th className="px-5 py-3">Document</th><th className="px-5 py-3">Fournisseur</th><th className="px-5 py-3">Statut</th><th className="px-5 py-3 text-right">TTC</th><th className="px-5 py-3 text-right">Ouvert</th><th className="px-5 py-3 text-right">Échéance</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-stone-100">{filtered.map((invoice) => <tr key={invoice.id} className={isOverdue(invoice, today) ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-stone-50'}><td className="px-5 py-3"><p className="font-semibold text-stone-900">{invoice.supplierInvoiceNumber}</p><p className="text-xs text-stone-500">{formatDate(invoice.issueDate)} · {invoice.items.length} ligne{invoice.items.length === 1 ? '' : 's'}</p></td><td className="px-5 py-3 text-stone-700">{invoice.supplier.name}</td><td className="px-5 py-3"><span className="font-medium text-stone-700">{statusLabels[invoice.status]}</span><p className={isOverdue(invoice, today) ? 'text-xs font-semibold text-red-700' : 'text-xs text-stone-500'}>{isOverdue(invoice, today) ? 'En retard' : settlementLabels[invoice.settlementStatus]}</p></td><td className="px-5 py-3 text-right font-semibold text-stone-900">{formatAmount(invoice.taxInclusiveAmount)}</td><td className="px-5 py-3 text-right text-stone-600">{formatAmount(invoice.openAmount)}</td><td className={isOverdue(invoice, today) ? 'px-5 py-3 text-right font-semibold text-red-700' : 'px-5 py-3 text-right text-stone-600'}>{invoice.dueDate ? formatDate(invoice.dueDate) : 'Non renseignée'}</td><td className="px-5 py-3 text-right"><button type="button" onClick={() => setSelectedInvoice(invoice)} className="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={`Ouvrir la facture ${invoice.supplierInvoiceNumber}`}>Ouvrir</button></td></tr>)}</tbody></table></div>}
-    {selectedInvoice && <SupplierInvoiceDetails invoice={selectedInvoice} initialEditing={initialInvoiceMode === 'edit'} onEdit={() => updateInvoiceUrl(selectedInvoice.id, 'edit')} onClose={() => { setSelectedInvoice(null); updateInvoiceUrl(undefined, 'view', true); }} onUpdated={() => { setSelectedInvoice(null); setLoading(true); setRetryKey((value) => value + 1); updateInvoiceUrl(undefined, 'view', true); }} />}
+    {selectedInvoice && <SupplierInvoiceDetails invoice={selectedInvoice} initialEditing={initialInvoiceMode === 'edit'} onEdit={() => updateInvoiceUrl(selectedInvoice.id, 'edit')} onClose={() => { setSelectedInvoice(null); updateInvoiceUrl(undefined, 'view', true); }} onUpdated={() => { setSelectedInvoice(null); void supplierInvoicesQuery.refetch(); updateInvoiceUrl(undefined, 'view', true); }} />}
   </section>;
 }

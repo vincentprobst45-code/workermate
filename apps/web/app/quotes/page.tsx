@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import AddQuoteForm from '../components/AddQuoteForm';
 import QuotesList, { type Quote } from '../components/QuotesList';
@@ -11,15 +13,43 @@ import { ProtectedRoute } from '../protected-route';
 
 export default function QuotesPage() {
 	const searchParams = useSearchParams();
+	const { activeTenant } = useAuth();
 	const api = useApiClient();
-	const [quotes, setQuotes] = useState<Quote[]>([]);
-	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [success, setSuccess] = useState('');
 	const [showAddQuoteForm, setShowAddQuoteForm] = useState(false);
 	const [quoteFormWasOpened, setQuoteFormWasOpened] = useState(false);
 	const [showDepositQuotes, setShowDepositQuotes] = useState(false);
 	const [depositQuote, setDepositQuote] = useState<DepositQuote | null>(null);
+	const queryClient = useQueryClient();
+	const quotesQueryKey = ['quotes', activeTenant?.tenantId];
+	const dashboardQueryKey = ['dashboard', activeTenant?.tenantId];
+	const invoicesQueryKey = ['invoices', activeTenant?.tenantId];
+	const quotesQuery = useQuery({
+		queryKey: quotesQueryKey,
+		enabled: Boolean(activeTenant?.tenantId),
+		queryFn: async () => {
+			const response = await api.get('/quotes');
+			if (!response.ok) throw new Error('Erreur lors de la récupération des devis');
+			return await response.json() as Quote[];
+		},
+	});
+	const quotes = quotesQuery.data ?? [];
+	const loading = quotesQuery.isPending;
+	const deleteQuoteMutation = useMutation({
+		mutationFn: async (id: string) => {
+			const response = await api.delete(`/quotes/${id}`);
+			if (!response.ok) throw new Error('La suppression du devis a échoué.');
+			return id;
+		},
+		onSuccess: (id) => {
+			queryClient.setQueryData<Quote[]>(quotesQueryKey, (currentQuotes) => currentQuotes?.filter((quote) => quote.id !== id));
+			void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
+			setError('');
+			setSuccess('Devis supprimé avec succès');
+		},
+		onError: () => setError('La suppression du devis a échoué. Vérifiez votre connexion et réessayez.'),
+	});
 
 	function updateCreateUrl(open: boolean, replace = false) {
 		const url = new URL(window.location.href);
@@ -40,52 +70,20 @@ export default function QuotesPage() {
 	}, []);
 
 	async function handleDelete(id: string) {
-		try {
-			const res = await api.delete(`/quotes/${id}`);
-			if (!res.ok) {
-				throw new Error('Erreur');
-			}
-
-			setQuotes((currentQuotes) => currentQuotes.filter((quote) => quote.id !== id));
-			setError('');
-			setSuccess('Devis supprime avec succes');
-		} catch {
-			setError('La suppression du devis a échoué. Vérifiez votre connexion et réessayez.');
-			throw new Error('Quote deletion failed');
-		}
+		await deleteQuoteMutation.mutateAsync(id);
 	}
 
-	useEffect(() => {
-		let cancelled = false;
-
-		const loadQuotes = async () => {
-			try {
-				const res = await api.get('/quotes');
-				if (!res.ok) {
-					throw new Error('Erreur');
-				}
-
-				const data = await res.json();
-				if (!cancelled) {
-					setQuotes(data);
-				}
-			} catch {
-				if (!cancelled) {
-					setError('Erreur lors de la recuperation des devis');
-				}
-			} finally {
-				if (!cancelled) {
-					setLoading(false);
-				}
-			}
-		};
-
-		void loadQuotes();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [api]);
+	async function handleSendEmail(id: string) {
+		setError('');
+		setSuccess('');
+		try {
+			const response = await api.post(`/quotes/${id}/send-email`);
+			if (!response.ok) throw new Error('Erreur lors de l’envoi du devis.');
+			setSuccess('Devis envoyé par email.');
+		} catch {
+			setError('Impossible d’envoyer le devis. Vérifiez l’email du client et la configuration Resend.');
+		}
+	}
 
 	return (
 		<ProtectedRoute>
@@ -104,11 +102,11 @@ export default function QuotesPage() {
 					</div>
 				</div>
 
-				{error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+				{(error || quotesQuery.isError) && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error || 'Erreur lors de la récupération des devis'}</div>}
 				{success && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{success}</div>}
 
 				{showDepositQuotes && <QuotesRequiringDeposit onClose={() => setShowDepositQuotes(false)} onSelect={(quote) => { setDepositQuote(quote); setShowDepositQuotes(false); }} />}
-				{depositQuote && <AddDepositForm quote={depositQuote} onClose={() => setDepositQuote(null)} onSaved={() => { setDepositQuote(null); setSuccess('Acompte enregistré et paiement associé à la facture d’acompte.'); }} />}
+				{depositQuote && <AddDepositForm quote={depositQuote} onClose={() => setDepositQuote(null)} onSaved={() => { void Promise.all([queryClient.invalidateQueries({ queryKey: quotesQueryKey }), queryClient.invalidateQueries({ queryKey: invoicesQueryKey }), queryClient.invalidateQueries({ queryKey: dashboardQueryKey })]); setDepositQuote(null); setSuccess('Acompte enregistré et paiement associé à la facture d’acompte.'); }} />}
 
 				{quoteFormWasOpened && (
 					<button
@@ -139,7 +137,8 @@ export default function QuotesPage() {
 						<AddQuoteForm
 							show={showAddQuoteForm}
 							onCreated={(data) => {
-								setQuotes((currentQuotes) => [data, ...currentQuotes]);
+								queryClient.setQueryData<Quote[]>(quotesQueryKey, (currentQuotes) => [data, ...(currentQuotes ?? [])]);
+								void queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
 								setError('');
 								setSuccess('Devis ajoute avec succes');
 								updateCreateUrl(false, true);
@@ -155,7 +154,7 @@ export default function QuotesPage() {
 						<p className="text-sm text-slate-500">Chargement des devis...</p>
 					</div>
 				) : (
-										<QuotesList quotes={quotes} onDelete={handleDelete} initialQuoteId={searchParams.get('quote') || undefined} initialQuoteMode={searchParams.get('edit') === '1' ? 'edit' : 'view'} syncUrl />
+										<QuotesList quotes={quotes} onDelete={handleDelete} onSendEmail={handleSendEmail} initialQuoteId={searchParams.get('quote') || undefined} initialQuoteMode={searchParams.get('edit') === '1' ? 'edit' : 'view'} syncUrl />
 				)}
 			</main>
 		</ProtectedRoute>

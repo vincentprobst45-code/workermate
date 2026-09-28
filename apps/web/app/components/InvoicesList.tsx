@@ -6,6 +6,7 @@ import NewInvoice from './NewInvoice';
 import AddInvoiceForm from './AddInvoiceForm';
 import type { Payment } from './AddPaymentForm';
 import InvoicePaymentsList from './InvoicePaymentsList';
+import { useApiClient } from '../api-client';
 
 export interface InvoiceItem {
   id: string;
@@ -143,12 +144,22 @@ interface InvoicesListProps {
   invoices: Invoice[];
   onDelete: ((id: string) => void | Promise<void>) | null;
   onDisassociate?: ((id: string) => void | Promise<void>) | null;
+  onSendEmail?: ((id: string) => void | Promise<void>) | null;
   onUpdated?: ((invoice: Invoice) => void) | null;
   onCorrect?: ((invoice: Invoice, kind: 'CREDIT_NOTE' | 'CORRECTIVE') => void | Promise<void>) | null;
   handleSelectedInvoice?: ((invoice: Invoice) => void | Promise<void>) | null;
   initialInvoiceId?: string;
   initialInvoiceMode?: 'view' | 'edit';
   syncUrl?: boolean;
+}
+
+interface EmailHistoryEntry {
+  id: string;
+  recipient: string;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  sentAt?: string | null;
+  createdAt: string;
+  errorMessage?: string | null;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -198,6 +209,7 @@ export default function InvoicesList({
   invoices,
   onDelete,
   onDisassociate = null,
+  onSendEmail = null,
   onUpdated = null,
   onCorrect = null,
   handleSelectedInvoice = null,
@@ -213,6 +225,34 @@ export default function InvoicesList({
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
   const openedInvoiceIdRef = useRef<string | null>(null);
+  const api = useApiClient();
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryEntry[]>([]);
+  const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
+  const [emailHistoryError, setEmailHistoryError] = useState(false);
+
+  useEffect(() => {
+    if (!showInvoiceDetails || !selectedInvoice) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setEmailHistoryLoading(true);
+        setEmailHistoryError(false);
+      }
+    });
+    void api.get(`/invoices/${selectedInvoice.id}/email-history`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('history');
+        const entries = await response.json() as EmailHistoryEntry[];
+        if (!cancelled) setEmailHistory(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setEmailHistoryError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setEmailHistoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [api, selectedInvoice, showInvoiceDetails]);
 
   const updateInvoiceUrl = (invoiceId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
     if (!syncUrl) return;
@@ -518,6 +558,13 @@ export default function InvoicesList({
               <h3 className="inline-block text-2xl">
                 <strong>Details facture</strong>
               </h3>
+                {onSendEmail && <button
+                type="button"
+                  className="ml-auto mr-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                onClick={() => void onSendEmail(selectedInvoice.id)}
+              >
+                Envoyer par email
+              </button>}
                 <button
                 type="button"
                   className="ml-auto mr-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
@@ -542,6 +589,24 @@ export default function InvoicesList({
             </div>
                 <NewInvoice invoice={selectedInvoice} />
                 <InvoicePaymentsList invoice={selectedInvoice} onChanged={updateSelectedInvoice} />
+            <section className="mt-6 border-t border-slate-200 pt-4">
+              <h4 className="font-semibold text-slate-900">Historique des envois</h4>
+              {emailHistoryLoading && <p className="mt-2 text-sm text-slate-500">Chargement...</p>}
+              {emailHistoryError && <p className="mt-2 text-sm text-red-600">Historique indisponible.</p>}
+              {!emailHistoryLoading && !emailHistoryError && emailHistory.length === 0 && <p className="mt-2 text-sm text-slate-500">Aucun envoi enregistré.</p>}
+              <div className="mt-2 space-y-2">
+                {emailHistory.map((entry) => (
+                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                    <span>{entry.recipient}</span>
+                    <span className={entry.status === 'SENT' ? 'font-semibold text-emerald-700' : entry.status === 'FAILED' ? 'font-semibold text-red-700' : 'font-semibold text-amber-700'}>
+                      {entry.status === 'SENT' ? 'Envoyé' : entry.status === 'FAILED' ? 'Échec' : 'En cours'}
+                    </span>
+                    <time dateTime={entry.sentAt ?? entry.createdAt} className="text-slate-500">{formatDate(entry.sentAt ?? entry.createdAt)}</time>
+                    {entry.errorMessage && <span className="basis-full text-xs text-red-600">{entry.errorMessage}</span>}
+                  </div>
+                ))}
+              </div>
+            </section>
             <p>id : {selectedInvoice.id}</p>
             <p>numero : {selectedInvoice.number}</p>
             <p>statut : {selectedInvoice.status}</p>

@@ -138,7 +138,7 @@ const legend = [
 
 export default function BigCalendar() {
   const api = useApiClient();
-  const initialDate = savedDate();
+  const initialDate = new Date();
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -257,7 +257,7 @@ export default function BigCalendar() {
 
   return (
     <section className="calendar-shell" aria-labelledby="calendar-title" aria-busy={loading}>
-      <CalendarToolbar dateLabel={periodLabel(date, view)} view={view} loading={loading} onToday={goToToday} onPrevious={() => navigate(-1)} onNext={() => navigate(1)} onViewChange={setView} onAdd={() => setShowAddEventModal(true)} onSettings={() => setShowSettingsModal(true)} onChooseDate={() => setShowDateSelector(true)} />
+      <CalendarToolbar dateLabel={isHydrated ? periodLabel(date, view) : ''} view={view} loading={loading} onToday={goToToday} onPrevious={() => navigate(-1)} onNext={() => navigate(1)} onViewChange={setView} onAdd={() => setShowAddEventModal(true)} onSettings={() => setShowSettingsModal(true)} onChooseDate={() => setShowDateSelector(true)} />
 
       <div className="calendar-legend" aria-label="Légende des types d’événements">
         {legend.map(({ label, type, tone, icon: Icon }) => <button key={label} type="button" aria-pressed={visibleTypes.has(type)} className={`calendar-legend__item calendar-legend__item--${tone}${visibleTypes.has(type) ? '' : ' is-muted'}`} onClick={() => toggleLegend(type)}><Icon aria-hidden="true" /> {label}</button>)}

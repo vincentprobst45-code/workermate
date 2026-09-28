@@ -303,7 +303,7 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
       {error && <div className={alertError}>{error}</div>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 font-semibold text-zinc-700">
@@ -373,6 +373,44 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
           </table>
         </div>
       )}
+
+      {!loading && !error && (
+        <ul className="space-y-2 md:hidden">
+          {budgetRows.map((row, index) => {
+            const isMarginSectionStart = row.isMargin && index === 6;
+            const isCostsSectionStart = index === 3;
+
+            return (
+              <li key={row.label}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBudgetRow(row)}
+                  className={`w-full rounded-xl border p-3 text-left transition-colors hover:bg-zinc-50/80 ${
+                    row.isMargin ? 'border-zinc-300 bg-zinc-50/50' : 'border-slate-200 bg-white'
+                  } ${isMarginSectionStart || isCostsSectionStart ? 'border-t-2 border-t-zinc-300' : ''}`}
+                >
+                  <p className={`text-sm ${row.isMargin ? 'font-semibold text-zinc-900' : 'text-zinc-700'}`}>{row.label}</p>
+                  <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <dt className="text-zinc-400">HT</dt>
+                      <dd className={`font-medium ${row.isMargin && row.ht < 0 ? 'text-red-600' : row.isMargin && row.ht > 0 ? 'text-emerald-700' : 'text-zinc-900'}`}>{formatCurrency(row.ht)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-400">TVA</dt>
+                      <dd className="font-medium text-zinc-600">{formatCurrency(row.tva)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-400">TTC</dt>
+                      <dd className={`font-medium ${row.isMargin && row.ttc < 0 ? 'text-red-600' : row.isMargin && row.ttc > 0 ? 'text-emerald-700' : 'text-zinc-900'}`}>{formatCurrency(row.ttc)}</dd>
+                    </div>
+                  </dl>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
 
       {selectedBudgetRow && (
         <div

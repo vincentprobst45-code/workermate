@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useAuth } from './auth.context'
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Building2, FolderPlus, UserRoundPlus } from 'lucide-react'
 import { useApiClient } from './api-client'
 import BigCalendar from './components/BigCalendar'
@@ -42,26 +43,13 @@ const pendingQuoteStatuses = new Set(['DRAFT', 'SENT', 'PENDING']);
 
 export default function Home() {
   const { activeTenant, user } = useAuth()
-  const [calendarEvents, setCalendarEvents] = useState<HomeCalendarEvent[]>([])
-  const [homeData, setHomeData] = useState<HomeData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [retryKey, setRetryKey] = useState(0)
   const [showStandaloneMenu, setShowStandaloneMenu] = useState(false)
-  const [profitabilityProjects, setProfitabilityProjects] = useState<ProjectProfitability[]>([])
-  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([])
-  const [financeTransactions, setFinanceTransactions] = useState<FinanceTransaction[]>([])
-  const [financeExpenses, setFinanceExpenses] = useState<FinanceExpense[]>([])
-  const [financeLoading, setFinanceLoading] = useState(true)
   const standaloneMenuRef = useRef<HTMLDivElement>(null)
   const api = useApiClient()
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadDashboard() {
-      setLoading(true)
-      setError('')
+  const dashboardQuery = useQuery({
+    queryKey: ['dashboard', activeTenant?.tenantId],
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
       const [customersResponse, projectsResponse, workOrdersResponse, quotesResponse, invoicesResponse, eventsResponse] = await Promise.all([
         api.get('/customers'),
         api.get('/projects'),
@@ -70,60 +58,50 @@ export default function Home() {
         api.get('/invoices'),
         api.get(`/calendarevents?start=${encodeURIComponent(new Date().toISOString())}`),
       ])
-
-      if (cancelled) return
-
       const collectionResponses = [customersResponse, projectsResponse, workOrdersResponse, quotesResponse, invoicesResponse]
       if (collectionResponses.some((response) => !response.ok)) {
-        setError('Impossible de charger les indicateurs d’activité. Réessayez dans un instant.')
-      } else {
-        const [customers, projects, workOrders, quotes, invoices] = await Promise.all(collectionResponses.map((response) => response.json()))
-        setHomeData({ customers, projects, workOrders, quotes, invoices })
+        throw new Error('Impossible de charger les indicateurs d’activité. Réessayez dans un instant.')
       }
-
       if (!eventsResponse.ok) {
-        setError((current) => current || 'Impossible de charger les événements du jour.')
-      } else {
-        setCalendarEvents(await eventsResponse.json() as HomeCalendarEvent[])
+        throw new Error('Impossible de charger les événements du jour.')
       }
-      setLoading(false)
-    }
-
-    void loadDashboard().catch(() => {
-      if (!cancelled) {
-        setError('Le tableau de bord est momentanément indisponible. Réessayez.')
-        setLoading(false)
+      const [customers, projects, workOrders, quotes, invoices] = await Promise.all(collectionResponses.map((response) => response.json()))
+      return {
+        homeData: { customers, projects, workOrders, quotes, invoices } as HomeData,
+        calendarEvents: await eventsResponse.json() as HomeCalendarEvent[],
       }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [api, activeTenant?.tenantId, retryKey])
-
-  useEffect(() => {
-    let cancelled = false
-    async function loadFinancialSummary() {
-      setFinanceLoading(true)
-      try {
-        const responses = await Promise.all([
-          api.get('/projects/profitability'),
-          api.get('/payment-accounts'),
-          api.get('/bank-transactions'),
-          api.get('/company-expenses'),
-        ])
-        if (cancelled) return
-        if (responses[0].ok) setProfitabilityProjects(await responses[0].json() as ProjectProfitability[])
-        if (responses[1].ok) setFinanceAccounts(await responses[1].json() as FinanceAccount[])
-        if (responses[2].ok) setFinanceTransactions(await responses[2].json() as FinanceTransaction[])
-        if (responses[3].ok) setFinanceExpenses(await responses[3].json() as FinanceExpense[])
-      } finally {
-        if (!cancelled) setFinanceLoading(false)
+    },
+  })
+  const financeQuery = useQuery({
+    queryKey: ['dashboard-finance', activeTenant?.tenantId],
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const responses = await Promise.all([
+        api.get('/projects/profitability'),
+        api.get('/payment-accounts'),
+        api.get('/bank-transactions'),
+        api.get('/company-expenses'),
+      ])
+      if (responses.some((response) => !response.ok)) {
+        throw new Error('Impossible de charger la synthèse financière.')
       }
-    }
-    void loadFinancialSummary().catch(() => undefined)
-    return () => { cancelled = true }
-  }, [api, activeTenant?.tenantId, retryKey])
+      return {
+        profitabilityProjects: await responses[0].json() as ProjectProfitability[],
+        financeAccounts: await responses[1].json() as FinanceAccount[],
+        financeTransactions: await responses[2].json() as FinanceTransaction[],
+        financeExpenses: await responses[3].json() as FinanceExpense[],
+      }
+    },
+  })
+  const homeData = dashboardQuery.data?.homeData ?? null
+  const calendarEvents = dashboardQuery.data?.calendarEvents ?? []
+  const profitabilityProjects = financeQuery.data?.profitabilityProjects ?? []
+  const financeAccounts = financeQuery.data?.financeAccounts ?? []
+  const financeTransactions = financeQuery.data?.financeTransactions ?? []
+  const financeExpenses = financeQuery.data?.financeExpenses ?? []
+  const loading = dashboardQuery.isPending
+  const financeLoading = financeQuery.isPending
+  const error = dashboardQuery.error?.message || financeQuery.error?.message || ''
 
   useEffect(() => {
     if (!showStandaloneMenu) return undefined
@@ -178,7 +156,7 @@ export default function Home() {
           <div className="flex flex-wrap gap-3"><Link href="/projects?create=project" className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">Nouveau projet</Link><Link href="/projects" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Voir les projets</Link><div ref={standaloneMenuRef} className="relative"><button type="button" aria-expanded={showStandaloneMenu} onClick={() => setShowStandaloneMenu((current) => !current)} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">+ Créer sans projet</button>{showStandaloneMenu && <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl" role="menu"><p className="px-3 py-2 text-xs text-slate-500">Créer un élément autonome</p><StandaloneAction href="/customers" label="Un client" /><StandaloneAction href="/workorders" label="Un chantier" /><StandaloneAction href="/quotes" label="Un devis" /><StandaloneAction href="/invoices" label="Une facture" /><StandaloneAction href="/planning" label="Un événement" /></div>}</div></div>
         </section>
 
-        {error && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{error}</span><button type="button" className="font-semibold underline" onClick={() => setRetryKey((key) => key + 1)}>Réessayer</button></div>}
+        {error && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{error}</span><button type="button" className="font-semibold underline" onClick={() => { void Promise.all([dashboardQuery.refetch(), financeQuery.refetch()]) }}>Réessayer</button></div>}
 
         {isNewAccount ? (
           <WelcomeOnboarding businessName={activeTenant?.tenantName || 'votre entreprise'} />

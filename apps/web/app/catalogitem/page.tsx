@@ -2,22 +2,62 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProtectedRoute } from '../protected-route';
 import { useApiClient } from '../api-client';
+import { useAuth } from '../auth.context';
 import AddCatalogItemForm from '../components/AddCatalogItemForm';
 import CatalogItemList, { type CatalogItem } from '../components/CatalogItemList';
 
 export default function CatalogItemPage() {
   const searchParams = useSearchParams();
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showAddCatalogItemForm, setShowAddCatalogItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CatalogItem | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
+  const queryClient = useQueryClient();
+  const catalogItemsQueryKey = ['catalog-items', activeTenant?.tenantId];
+  const catalogItemsQuery = useQuery({
+    queryKey: catalogItemsQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/catalogitems');
+      if (!response.ok) throw new Error('Erreur lors de la récupération des articles catalogue');
+      return await response.json() as CatalogItem[];
+    },
+  });
+  const catalogItems = catalogItemsQuery.data ?? [];
+  const loading = catalogItemsQuery.isPending;
+  const deleteCatalogItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/catalogitems/${id}`);
+      if (!response.ok) throw new Error('Erreur lors de la suppression');
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData<CatalogItem[]>(catalogItemsQueryKey, (currentItems) => currentItems?.filter((item) => item.id !== id));
+      setError('');
+      setSuccess('Article catalogue supprimé avec succès');
+      setPendingDelete(null);
+    },
+    onError: () => setError('Erreur lors de la suppression'),
+  });
+  const toggleCatalogItemMutation = useMutation({
+    mutationFn: async (item: CatalogItem) => {
+      const response = await api.put(`/catalogitems/${item.id}`, { isActive: !item.isActive });
+      if (!response.ok) throw new Error('Erreur lors de la mise à jour du statut');
+      return await response.json() as CatalogItem;
+    },
+    onSuccess: (updatedItem) => {
+      queryClient.setQueryData<CatalogItem[]>(catalogItemsQueryKey, (currentItems) => currentItems?.map((item) => item.id === updatedItem.id ? updatedItem : item));
+      setSuccess(updatedItem.isActive ? 'Article réactivé avec succès' : 'Article désactivé avec succès');
+      setError('');
+    },
+    onError: () => setError('Erreur lors de la mise à jour du statut'),
+  });
   const initialItemId = searchParams.get('item');
 
   function updateCreateUrl(open: boolean, replace = false) {
@@ -44,62 +84,12 @@ export default function CatalogItemPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const response = await api.delete(`/catalogitems/${id}`);
-      if (!response.ok) throw new Error('Erreur');
-
-      setCatalogItems((currentItems) => currentItems.filter((item) => item.id !== id));
-      setError('');
-      setSuccess('Article catalogue supprimé avec succès');
-      setPendingDelete(null);
-    } catch {
-      setError('Erreur lors de la suppression');
-    }
+    await deleteCatalogItemMutation.mutateAsync(id);
   }
 
   async function handleToggleActive(item: CatalogItem) {
-    try {
-      const response = await api.put(`/catalogitems/${item.id}`, { isActive: !item.isActive });
-      if (!response.ok) throw new Error('Erreur');
-
-      const updatedItem: CatalogItem = await response.json();
-      setCatalogItems((currentItems) => currentItems.map((currentItem) => currentItem.id === updatedItem.id ? updatedItem : currentItem));
-      setSuccess(updatedItem.isActive ? 'Article réactivé avec succès' : 'Article désactivé avec succès');
-      setError('');
-    } catch {
-      setError('Erreur lors de la mise à jour du statut');
-    }
+    await toggleCatalogItemMutation.mutateAsync(item);
   }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadCatalogItems() {
-      try {
-        const response = await api.get('/catalogitems');
-        if (!response.ok) throw new Error('Erreur');
-
-        const data: CatalogItem[] = await response.json();
-        if (!cancelled) {
-          setCatalogItems(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Erreur lors de la récupération des articles catalogue');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadCatalogItems();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api, reloadToken]);
 
   useEffect(() => {
     if (!success) return undefined;
@@ -133,10 +123,10 @@ export default function CatalogItemPage() {
           </button>
         </div>
 
-        {error && (
+        {(error || catalogItemsQuery.isError) && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            <span>{error}</span>
-            <button type="button" onClick={() => { setError(''); setLoading(true); setReloadToken((token) => token + 1); }} className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">
+            <span>{error || 'Erreur lors de la récupération des articles catalogue'}</span>
+            <button type="button" onClick={() => { setError(''); void catalogItemsQuery.refetch(); }} className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">
               Réessayer
             </button>
           </div>
@@ -159,14 +149,14 @@ export default function CatalogItemPage() {
               updateCreateUrl(false, true);
             }}
             onCreated={(data) => {
-              setCatalogItems((currentItems) => [data, ...currentItems]);
+              queryClient.setQueryData<CatalogItem[]>(catalogItemsQueryKey, (currentItems) => [data, ...(currentItems ?? [])]);
               setError('');
               setSuccess('Article catalogue ajouté avec succès');
               setShowAddCatalogItemForm(false);
               clearItemUrl();
             }}
             onUpdated={(data) => {
-              setCatalogItems((currentItems) => currentItems.map((item) => item.id === data.id ? data : item));
+              queryClient.setQueryData<CatalogItem[]>(catalogItemsQueryKey, (currentItems) => currentItems?.map((item) => item.id === data.id ? data : item));
               setError('');
               setSuccess('Article catalogue mis à jour avec succès');
               setShowAddCatalogItemForm(false);

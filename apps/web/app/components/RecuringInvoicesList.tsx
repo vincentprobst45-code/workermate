@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 
 type RecurringInvoiceStatus = 'ACTIVE' | 'PAUSED' | 'ENDED';
@@ -60,48 +61,32 @@ function getSubtotal(invoice: RecurringInvoice) {
 }
 
 export default function RecuringInvoicesList({ refreshKey = 0 }: RecuringInvoicesListProps) {
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [recurringInvoices, setRecurringInvoices] = useState<RecurringInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRecurringInvoices() {
-      setLoading(true);
-      setError('');
-      try {
-        const response = await api.get('/recurring-invoices');
-        if (!response.ok) throw new Error('Erreur');
-        const data = await response.json();
-        if (!cancelled) setRecurringInvoices(data);
-      } catch {
-        if (!cancelled) setError('Impossible de charger les factures récurrentes.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void loadRecurringInvoices();
-    return () => { cancelled = true; };
-  }, [api, refreshKey]);
-
-  async function updateStatus(id: string, status: RecurringInvoiceStatus) {
-    setUpdatingId(id);
-    setError('');
-    try {
+  const queryClient = useQueryClient();
+  const recurringInvoicesQueryKey = ['recurring-invoices', activeTenant?.tenantId, refreshKey];
+  const recurringInvoicesQuery = useQuery({
+    queryKey: recurringInvoicesQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/recurring-invoices');
+      if (!response.ok) throw new Error('Impossible de charger les factures récurrentes.');
+      return await response.json() as RecurringInvoice[];
+    },
+  });
+  const recurringInvoices = recurringInvoicesQuery.data ?? [];
+  const loading = recurringInvoicesQuery.isPending;
+  const error = recurringInvoicesQuery.error?.message ?? '';
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: RecurringInvoiceStatus }) => {
       const response = await api.post(`/recurring-invoices/${id}/status/${status}`, {});
-      if (!response.ok) throw new Error('Erreur');
-      const updated = await response.json();
-      setRecurringInvoices((current) => current.map((invoice) => invoice.id === id ? { ...invoice, ...updated } : invoice));
-    } catch {
-      setError('Impossible de modifier le statut de la facture récurrente.');
-    } finally {
-      setUpdatingId(null);
-    }
-  }
+      if (!response.ok) throw new Error('Impossible de modifier le statut de la facture récurrente.');
+      return { id, updated: await response.json() as Partial<RecurringInvoice> };
+    },
+    onSuccess: ({ id, updated }) => {
+      queryClient.setQueryData<RecurringInvoice[]>(recurringInvoicesQueryKey, (current) => current?.map((invoice) => invoice.id === id ? { ...invoice, ...updated } : invoice));
+    },
+  });
 
   if (loading) {
     return <div className="mt-8 space-y-3" aria-label="Chargement des factures récurrentes" role="status"><div className="h-10 animate-pulse rounded-lg bg-slate-100" /><div className="h-24 animate-pulse rounded-2xl bg-slate-100" /><p className="text-sm text-slate-500">Chargement des factures récurrentes...</p></div>;
@@ -117,7 +102,7 @@ export default function RecuringInvoicesList({ refreshKey = 0 }: RecuringInvoice
         </div>
       </div>
 
-      {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"><span>{error}</span><button type="button" className="underline" onClick={() => { void recurringInvoicesQuery.refetch(); }}>Réessayer</button></div>}
 
       {recurringInvoices.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">Aucune facture récurrente configurée.</div>
@@ -127,12 +112,12 @@ export default function RecuringInvoicesList({ refreshKey = 0 }: RecuringInvoice
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] text-sm">
                 <thead><tr className="border-b border-slate-200 bg-slate-50"><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Nom</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Client</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Fréquence</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Prochaine échéance</th><th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Montant HT</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Statut</th><th className="px-4 py-3"><span className="sr-only">Actions</span></th></tr></thead>
-                <tbody className="divide-y divide-slate-100">{recurringInvoices.map((invoice) => <tr key={invoice.id}><td className="px-4 py-3 font-semibold text-slate-900">{invoice.name}</td><td className="px-4 py-3 text-slate-700">{getCustomerName(invoice.customer)}</td><td className="px-4 py-3 text-slate-600">Tous les {invoice.interval} {UNIT_LABELS[invoice.recurrenceUnit] || invoice.recurrenceUnit.toLowerCase()}{invoice.interval > 1 ? 's' : ''}</td><td className="px-4 py-3 text-slate-600">{formatDate(invoice.nextOccurrenceDate)}</td><td className="px-4 py-3 text-right font-semibold text-slate-900">{formatMoney(getSubtotal(invoice), invoice.currency)}</td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[invoice.status]}`}>{STATUS_LABELS[invoice.status]}</span></td><td className="px-4 py-3 text-right"><StatusActions invoice={invoice} updatingId={updatingId} onUpdate={updateStatus} /></td></tr>)}</tbody>
+                <tbody className="divide-y divide-slate-100">{recurringInvoices.map((invoice) => <tr key={invoice.id}><td className="px-4 py-3 font-semibold text-slate-900">{invoice.name}</td><td className="px-4 py-3 text-slate-700">{getCustomerName(invoice.customer)}</td><td className="px-4 py-3 text-slate-600">Tous les {invoice.interval} {UNIT_LABELS[invoice.recurrenceUnit] || invoice.recurrenceUnit.toLowerCase()}{invoice.interval > 1 ? 's' : ''}</td><td className="px-4 py-3 text-slate-600">{formatDate(invoice.nextOccurrenceDate)}</td><td className="px-4 py-3 text-right font-semibold text-slate-900">{formatMoney(getSubtotal(invoice), invoice.currency)}</td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[invoice.status]}`}>{STATUS_LABELS[invoice.status]}</span></td><td className="px-4 py-3 text-right"><StatusActions invoice={invoice} updatingId={updateStatusMutation.isPending ? updateStatusMutation.variables?.id ?? null : null} onUpdate={(id, status) => updateStatusMutation.mutate({ id, status })} /></td></tr>)}</tbody>
               </table>
             </div>
           </section>
 
-          <section className="grid gap-3 sm:hidden">{recurringInvoices.map((invoice) => <article key={invoice.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-semibold text-slate-900">{invoice.name}</h4><p className="mt-1 text-sm text-slate-600">{getCustomerName(invoice.customer)}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[invoice.status]}`}>{STATUS_LABELS[invoice.status]}</span></div><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-slate-500">Fréquence</dt><dd className="font-medium text-slate-800">Tous les {invoice.interval} {UNIT_LABELS[invoice.recurrenceUnit] || invoice.recurrenceUnit.toLowerCase()}{invoice.interval > 1 ? 's' : ''}</dd></div><div><dt className="text-slate-500">Prochaine échéance</dt><dd className="font-medium text-slate-800">{formatDate(invoice.nextOccurrenceDate)}</dd></div><div><dt className="text-slate-500">Montant HT</dt><dd className="font-semibold text-slate-900">{formatMoney(getSubtotal(invoice), invoice.currency)}</dd></div><div><dt className="text-slate-500">Compte</dt><dd className="truncate font-medium text-slate-800">{invoice.paymentAccount?.name || 'Compte principal'}</dd></div></dl><div className="mt-4 border-t border-slate-100 pt-3"><StatusActions invoice={invoice} updatingId={updatingId} onUpdate={updateStatus} /></div></article>)}</section>
+          <section className="grid gap-3 sm:hidden">{recurringInvoices.map((invoice) => <article key={invoice.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-semibold text-slate-900">{invoice.name}</h4><p className="mt-1 text-sm text-slate-600">{getCustomerName(invoice.customer)}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[invoice.status]}`}>{STATUS_LABELS[invoice.status]}</span></div><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-slate-500">Fréquence</dt><dd className="font-medium text-slate-800">Tous les {invoice.interval} {UNIT_LABELS[invoice.recurrenceUnit] || invoice.recurrenceUnit.toLowerCase()}{invoice.interval > 1 ? 's' : ''}</dd></div><div><dt className="text-slate-500">Prochaine échéance</dt><dd className="font-medium text-slate-800">{formatDate(invoice.nextOccurrenceDate)}</dd></div><div><dt className="text-slate-500">Montant HT</dt><dd className="font-semibold text-slate-900">{formatMoney(getSubtotal(invoice), invoice.currency)}</dd></div><div><dt className="text-slate-500">Compte</dt><dd className="truncate font-medium text-slate-800">{invoice.paymentAccount?.name || 'Compte principal'}</dd></div></dl><div className="mt-4 border-t border-slate-100 pt-3"><StatusActions invoice={invoice} updatingId={updateStatusMutation.isPending ? updateStatusMutation.variables?.id ?? null : null} onUpdate={(id, status) => updateStatusMutation.mutate({ id, status })} /></div></article>)}</section>
         </>
       )}
     </section>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QuoteStatus } from '@prisma/client';
 import { Search, X } from 'lucide-react';
+import { useApiClient } from '../api-client';
 import NewQuote from './NewQuote';
 import UpdateQuoteForm from './UpdateQuoteForm';
 
@@ -104,10 +105,20 @@ interface QuotesListProps {
   quotes: Quote[];
   onDelete: ((id: string) => void | Promise<void>) | null;
   onDisassociate?: ((id: string) => void | Promise<void>) | null;
+  onSendEmail?: ((id: string) => void | Promise<void>) | null;
   handleSelectedQuote?: ((quote: Quote) => void | Promise<void>) | null;
   initialQuoteId?: string;
   initialQuoteMode?: 'view' | 'edit';
   syncUrl?: boolean;
+}
+
+interface EmailHistoryEntry {
+  id: string;
+  recipient: string;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  sentAt?: string | null;
+  createdAt: string;
+  errorMessage?: string | null;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -154,7 +165,7 @@ function StatusBadge({ status }: { status: QuoteStatus }) {
 }
 
 
-export default function QuotesList({ quotes, onDelete, onDisassociate = null, handleSelectedQuote = null, initialQuoteId, initialQuoteMode = 'view', syncUrl = false }: QuotesListProps) {
+export default function QuotesList({ quotes, onDelete, onDisassociate = null, onSendEmail = null, handleSelectedQuote = null, initialQuoteId, initialQuoteMode = 'view', syncUrl = false }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [quoteBeingEdited, setQuoteBeingEdited] = useState<Quote | null>(null);
@@ -168,6 +179,34 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
   const [deletionError, setDeletionError] = useState('');
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const openedQuoteIdRef = useRef<string | null>(null);
+  const api = useApiClient();
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryEntry[]>([]);
+  const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
+  const [emailHistoryError, setEmailHistoryError] = useState(false);
+
+  useEffect(() => {
+    if (!showQuoteDetails || !selectedQuote) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setEmailHistoryLoading(true);
+        setEmailHistoryError(false);
+      }
+    });
+    void api.get(`/quotes/${selectedQuote.id}/email-history`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('history');
+        const entries = await response.json() as EmailHistoryEntry[];
+        if (!cancelled) setEmailHistory(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setEmailHistoryError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setEmailHistoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [api, selectedQuote, showQuoteDetails]);
 
   const updateQuoteUrl = (quoteId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
     if (!syncUrl) return;
@@ -530,6 +569,13 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
               </button>
             </div>
             <div className="mb-3 flex justify-end">
+              {onSendEmail && <button
+                type="button"
+                className="mr-2 rounded-md border border-indigo-600 bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                onClick={() => void onSendEmail(selectedQuote.id)}
+              >
+                Envoyer par email
+              </button>}
               <button
                 type="button"
                 className="rounded-md border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
@@ -543,6 +589,24 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
               </button>
             </div>
             <NewQuote quote={selectedQuote} />
+            <section className="mt-6 border-t border-slate-200 pt-4">
+              <h4 className="font-semibold text-slate-900">Historique des envois</h4>
+              {emailHistoryLoading && <p className="mt-2 text-sm text-slate-500">Chargement...</p>}
+              {emailHistoryError && <p className="mt-2 text-sm text-red-600">Historique indisponible.</p>}
+              {!emailHistoryLoading && !emailHistoryError && emailHistory.length === 0 && <p className="mt-2 text-sm text-slate-500">Aucun envoi enregistré.</p>}
+              <div className="mt-2 space-y-2">
+                {emailHistory.map((entry) => (
+                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                    <span>{entry.recipient}</span>
+                    <span className={entry.status === 'SENT' ? 'font-semibold text-emerald-700' : entry.status === 'FAILED' ? 'font-semibold text-red-700' : 'font-semibold text-amber-700'}>
+                      {entry.status === 'SENT' ? 'Envoyé' : entry.status === 'FAILED' ? 'Échec' : 'En cours'}
+                    </span>
+                    <time dateTime={entry.sentAt ?? entry.createdAt} className="text-slate-500">{formatDate(entry.sentAt ?? entry.createdAt)}</time>
+                    {entry.errorMessage && <span className="basis-full text-xs text-red-600">{entry.errorMessage}</span>}
+                  </div>
+                ))}
+              </div>
+            </section>
             <p>id : {selectedQuote.id}</p>
             <p>numero : {selectedQuote.number}</p>
             <p>statut : {selectedQuote.status}</p>

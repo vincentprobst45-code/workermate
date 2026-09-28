@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { InvoiceKind } from '@prisma/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth.context';
 import { useApiClient } from '../api-client';
 import AddInvoiceForm from '../components/AddInvoiceForm';
 import AddPaymentForm, { type Payment } from '../components/AddPaymentForm';
@@ -21,16 +23,49 @@ const invoiceKindOptions: Array<{ value: InvoiceKind; label: string }> = [
 
 export default function InvoicesPage() {
   const searchParams = useSearchParams();
+  const { activeTenant } = useAuth();
   const api = useApiClient();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
   const [isChoosingInvoiceKind, setIsChoosingInvoiceKind] = useState(false);
   const [selectedInvoiceKind, setSelectedInvoiceKind] = useState<InvoiceKind | null>(null);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [isCreatingRecurringInvoice, setIsCreatingRecurringInvoice] = useState(false);
   const [recurringInvoicesRefreshKey, setRecurringInvoicesRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
+  const invoicesQueryKey = ['invoices', activeTenant?.tenantId];
+  const dashboardQueryKey = ['dashboard', activeTenant?.tenantId];
+  const profitabilityQueryKey = ['projects-profitability', activeTenant?.tenantId];
+  const invoicesQuery = useQuery({
+    queryKey: invoicesQueryKey,
+    enabled: Boolean(activeTenant?.tenantId),
+    queryFn: async () => {
+      const response = await api.get('/invoices');
+      if (!response.ok) throw new Error('Erreur lors de la récupération des factures');
+      return await response.json() as Invoice[];
+    },
+  });
+  const invoices = invoicesQuery.data ?? [];
+  const loading = invoicesQuery.isPending;
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: async ({ id, hasPayments }: { id: string; hasPayments: boolean }) => {
+      const response = hasPayments
+        ? await api.post(`/invoices/${id}/delete-with-payments`)
+        : await api.delete(`/invoices/${id}`);
+      if (!response.ok) throw new Error('Erreur lors de la suppression');
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData<Invoice[]>(invoicesQueryKey, (currentInvoices) => currentInvoices?.filter((invoice) => invoice.id !== id));
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+        queryClient.invalidateQueries({ queryKey: profitabilityQueryKey }),
+      ]);
+      setError('');
+    },
+    onError: () => setError('Erreur lors de la suppression'),
+  });
 
   function updateCreateUrl(open: boolean, kind?: InvoiceKind, replace = false) {
     const url = new URL(window.location.href);
@@ -61,35 +96,6 @@ export default function InvoicesPage() {
     return () => window.removeEventListener('popstate', syncCreateForm);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadInvoices = async () => {
-      try {
-        const res = await api.get('/invoices');
-        if (!res.ok) throw new Error('Erreur');
-        const data = await res.json();
-        if (!cancelled) {
-          setInvoices(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Erreur lors de la récupération des factures');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadInvoices();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
   async function handleDelete(id: string) {
     const invoice = invoices.find((item) => item.id === id);
     if (!invoice) return;
@@ -98,15 +104,7 @@ export default function InvoicesPage() {
       ? 'Cette facture brouillon possède déjà des paiements. Tous ses paiements enregistrés seront supprimés dans la même opération. Voulez-vous continuer ?'
       : 'Confirmer la suppression de cette facture brouillon ?';
     if (!confirm(message)) return;
-    try {
-      const res = hasPayments
-        ? await api.post(`/invoices/${id}/delete-with-payments`)
-        : await api.delete(`/invoices/${id}`);
-      if (!res.ok) throw new Error('Erreur');
-      setInvoices((currentInvoices) => currentInvoices.filter((invoice) => invoice.id !== id));
-    } catch {
-      setError('Erreur lors de la suppression');
-    }
+    await deleteInvoiceMutation.mutateAsync({ id, hasPayments });
   }
 
   function handleCorrect(invoice: Invoice, kind: 'CREDIT_NOTE' | 'CORRECTIVE') {
@@ -114,6 +112,18 @@ export default function InvoicesPage() {
     setIsCreatingInvoice(true);
     updateCreateUrl(true, kind as InvoiceKind);
     setError(`Sélectionnez la facture source ${invoice.number} dans le formulaire pour créer ${kind === 'CREDIT_NOTE' ? 'un avoir' : 'une facture corrective'}.`);
+  }
+
+  async function handleSendEmail(id: string) {
+    setError('');
+    setSuccess('');
+    try {
+      const response = await api.post(`/invoices/${id}/send-email`);
+      if (!response.ok) throw new Error('Erreur lors de l’envoi de la facture.');
+      setSuccess('Facture envoyée par email.');
+    } catch {
+      setError('Impossible d’envoyer la facture. Vérifiez l’email du client et la configuration Resend.');
+    }
   }
 
   return (
@@ -192,9 +202,14 @@ export default function InvoicesPage() {
             <AddPaymentForm
               invoices={invoices}
               onCreated={(payment: Payment) => {
-                setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === payment.invoiceId
+                queryClient.setQueryData<Invoice[]>(invoicesQueryKey, (currentInvoices) => currentInvoices?.map((invoice) => invoice.id === payment.invoiceId
                   ? { ...invoice, payments: [payment, ...(invoice.payments ?? [])] }
                   : invoice));
+                void Promise.all([
+                  queryClient.invalidateQueries({ queryKey: invoicesQueryKey }),
+                  queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+                  queryClient.invalidateQueries({ queryKey: profitabilityQueryKey }),
+                ]);
                 setIsAddingPayment(false);
               }}
               onCancel={() => setIsAddingPayment(false)}
@@ -214,20 +229,26 @@ export default function InvoicesPage() {
           </div>
         )}
 
+        {success && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{success}</div>}
+
         {isCreatingInvoice && selectedInvoiceKind && (
           <div className="mb-8">
               <AddInvoiceForm
                 show={true}
                 invoiceKind={selectedInvoiceKind!}
                 onCreated={(invoice) => {
-                  setInvoices((current) => [invoice, ...current]);
+                  queryClient.setQueryData<Invoice[]>(invoicesQueryKey, (current) => [invoice, ...(current ?? [])]);
+                  void Promise.all([
+                    queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+                    queryClient.invalidateQueries({ queryKey: profitabilityQueryKey }),
+                  ]);
                   updateCreateUrl(false, undefined, true);
                 }}
               />
           </div>
         )}
 
-        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+        {(error || invoicesQuery.isError) && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error || 'Erreur lors de la récupération des factures'}</div>}
 
         {/* <form onSubmit={handleAddInvoice} className="mb-8 p-5 bg-white rounded-lg shadow">
           <h3 className="font-semibold mb-4">Ajouter une facture</h3>
@@ -274,9 +295,14 @@ export default function InvoicesPage() {
             initialInvoiceMode={searchParams.get('edit') === '1' ? 'edit' : 'view'}
             syncUrl
             onDelete={handleDelete}
+            onSendEmail={handleSendEmail}
             onCorrect={handleCorrect}
             onUpdated={(updatedInvoice) => {
-              setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === updatedInvoice.id ? updatedInvoice : invoice));
+              queryClient.setQueryData<Invoice[]>(invoicesQueryKey, (currentInvoices) => currentInvoices?.map((invoice) => invoice.id === updatedInvoice.id ? updatedInvoice : invoice));
+              void Promise.all([
+                queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
+                queryClient.invalidateQueries({ queryKey: profitabilityQueryKey }),
+              ]);
             }}
           />
         )}

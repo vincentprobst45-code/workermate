@@ -193,6 +193,10 @@ export class TenantService {
         tenantData.defaultInvoiceNotes !== undefined
           ? this.normalizeOptionalString(tenantData.defaultInvoiceNotes)
           : undefined,
+      emailRemindersEnabled: tenantData.emailRemindersEnabled,
+      emailReminderDelayDays: tenantData.emailReminderDelayDays,
+      emailReminderRepeatDays: tenantData.emailReminderRepeatDays,
+      emailReminderMaxAttempts: tenantData.emailReminderMaxAttempts,
       defaultVatRate:
         tenantData.defaultVatRate !== undefined
           ? tenantData.defaultVatRate
