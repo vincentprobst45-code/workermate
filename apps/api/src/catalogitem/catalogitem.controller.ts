@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -29,9 +30,24 @@ export class CatalogItemController {
   }
 
   @Get()
-  async findAll(@Req() req: AuthenticatedRequest) {
+  async findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('search') search?: string,
+    @Query('type') type?: string,
+    @Query('isActive') isActive?: string,
+    @Query('trackStock') trackStock?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     const tenantId = requireTenantContext(req).tenant.id;
-    return this.catalogItemService.findAll(tenantId);
+    return this.catalogItemService.findAll(tenantId, {
+      search,
+      type,
+      isActive: isActive === undefined ? undefined : isActive === 'true',
+      trackStock: trackStock === undefined ? undefined : trackStock === 'true',
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get(':id')

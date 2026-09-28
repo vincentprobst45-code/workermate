@@ -32,6 +32,14 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 	const [error, setError] = useState('');
 	const [showAddEventModal, setShowAddEventModal] = useState(false);
 	const [reloadVersion, setReloadVersion] = useState(0);
+	const [disassociatingEventId, setDisassociatingEventId] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!showAddEventModal) return;
+		function handleKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') setShowAddEventModal(false); }
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [showAddEventModal]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -68,6 +76,21 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 		};
 	}, [api, project.id, reloadVersion]);
 
+	async function disassociateEvent(eventId: string) {
+		if (!window.confirm('Retirer cet événement du projet ? L’événement ne sera pas supprimé.')) return;
+		setDisassociatingEventId(eventId);
+		setError('');
+		try {
+			const response = await api.delete(`/projects/${project.id}/calendar-events/${eventId}`);
+			if (!response.ok) throw new Error('Erreur');
+			setReloadVersion((current) => current + 1);
+		} catch {
+			setError('Impossible de désassocier l’événement du projet.');
+		} finally {
+			setDisassociatingEventId(null);
+		}
+	}
+
 	return (
 		<div className="space-y-4">
 			<div className={cardClass}>
@@ -96,6 +119,9 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 									<p className="mt-1 text-sm text-slate-500">Du {formatDate(event.startDate)} au {formatDate(event.endDate)}</p>
 									{event.description && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{event.description}</p>}
 									{event.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-500">Notes: {event.notes}</p>}
+									<button type="button" className={`${btnGhost} mt-3`} disabled={disassociatingEventId === event.id} onClick={() => void disassociateEvent(event.id)}>
+										{disassociatingEventId === event.id ? 'Retrait...' : 'Retirer du projet'}
+									</button>
 								</div>
 							</div>
 						</article>
@@ -110,10 +136,11 @@ export default function ProjectDetailsPlanning({ project }: ProjectDetailsPlanni
 				>
 					<div
 						className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+						role="dialog" aria-modal="true" aria-labelledby="add-event-title"
 						onClick={(event) => event.stopPropagation()}
 					>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-slate-900">Ajouter un évènement pour ce projet</h4>
+							<h4 id="add-event-title" className="text-lg font-semibold text-slate-900">Ajouter un évènement pour ce projet</h4>
 							<button type="button" className={btnGhost} onClick={() => setShowAddEventModal(false)}>
 								Fermer
 							</button>

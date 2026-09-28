@@ -169,11 +169,11 @@ export function useAuth() {
 'use client';
 
 import { createContext, useContext, useState } from 'react';
-import { Session } from './lib/auth.types';
+import { Session, TenantMembership } from './lib/auth.types';
 import { EMPTY_SESSION } from './lib/session';
 
 type AuthContextValue = Session & {
-  switchTenant: (tenantId: string) => Promise<void>;
+  switchTenant: (tenantId: string, availableTenants?: TenantMembership[]) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue>({
@@ -190,7 +190,7 @@ export function AuthProvider({
 }) {
     const [currentSession, setCurrentSession] = useState<Session>(session);
 
-    async function switchTenant(tenantId: string) {
+    async function switchTenant(tenantId: string, availableTenants?: TenantMembership[]) {
       const response = await fetch('http://localhost:4000/auth/switch-tenant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +211,12 @@ export function AuthProvider({
       }
 
       const nextSession = await response.json() as Session;
-      setCurrentSession(nextSession);
+      const nextTenants = nextSession.tenants.length > 1
+        ? nextSession.tenants
+        : availableTenants?.length
+          ? availableTenants
+          : currentSession.tenants;
+      setCurrentSession({ ...nextSession, tenants: nextTenants });
     }
 
     return (

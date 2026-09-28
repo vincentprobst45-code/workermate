@@ -1,0 +1,17 @@
+'use client'
+
+import Link from 'next/link'
+import { ArrowRight, CircleAlert, CircleCheck } from 'lucide-react'
+import type { ProjectProfitability } from './project-profitability.types'
+import { formatProfitabilityCurrency } from './ProjectProfitabilitySynthesisCollapse'
+
+export default function DashboardProjectsHealth({ projects }: { projects: ProjectProfitability[] }) {
+  const active = projects.filter(({ project }) => ['OPEN', 'IN_PROGRESS'].includes(project.status))
+  const health = active.map((item) => {
+    const { summary } = item
+    const risk = summary.realizedMargin < 0 || (summary.acceptedRevenue > 0 && summary.totalConsumed / summary.acceptedRevenue > Math.max(summary.progressPercent / 100 + 0.15, 0.8))
+    return { ...item, risk }
+  }).sort((first, second) => Number(second.risk) - Number(first.risk))
+
+  return <section className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="dashboard-projects-health-title"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">Rentabilité</p><h2 id="dashboard-projects-health-title" className="mt-1 text-lg font-semibold text-slate-900">Santé des projets</h2></div><Link href="/projects" className="text-sm font-semibold text-indigo-700 hover:underline">Voir les projets</Link></div>{health.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Projet</th><th className="px-3 py-2 text-right">Avancement</th><th className="px-3 py-2 text-right">CA accepté</th><th className="px-3 py-2 text-right">Coûts</th><th className="px-3 py-2 text-right">Marge</th><th className="px-3 py-2">État</th></tr></thead><tbody className="divide-y divide-slate-100">{health.slice(0, 8).map(({ project, summary, risk }) => <tr key={project.id} className="hover:bg-slate-50"><td className="px-3 py-3"><Link href={`/projects?project=${project.id}`} className="font-semibold text-indigo-700 hover:underline">{project.reference} · {project.title}</Link><span className="block text-xs text-slate-500">{project.customerName || 'Client non renseigné'}</span></td><td className="px-3 py-3 text-right">{Math.round(summary.progressPercent)} %</td><td className="px-3 py-3 text-right">{formatProfitabilityCurrency(summary.acceptedRevenue)}</td><td className="px-3 py-3 text-right">{formatProfitabilityCurrency(summary.totalConsumed)}</td><td className={`px-3 py-3 text-right font-semibold ${summary.realizedMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatProfitabilityCurrency(summary.realizedMargin)}</td><td className="px-3 py-3">{risk ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700"><CircleAlert className="h-4 w-4" aria-hidden="true" />À surveiller</span> : <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CircleCheck className="h-4 w-4" aria-hidden="true" />Normal</span>}</td></tr>)}</tbody></table></div> : <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">Aucun projet actif à surveiller.</div>}<div className="mt-3 flex items-center gap-1 text-xs text-slate-500"><ArrowRight className="h-3 w-3" aria-hidden="true" />Les projets à risque sont placés en tête de liste.</div></section>
+}

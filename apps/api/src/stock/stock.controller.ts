@@ -9,4 +9,14 @@ export class StockController {
   findAll(@Req() req: AuthenticatedRequest) {
     return this.prisma.stockItem.findMany({ where: { tenantId: requireTenantContext(req).tenant.id }, include: { catalogItem: true }, orderBy: { updatedAt: 'desc' } });
   }
+
+  @Get('movements')
+  findMovements(@Req() req: AuthenticatedRequest) {
+    return this.prisma.stockMovement.findMany({
+      where: { tenantId: requireTenantContext(req).tenant.id },
+      include: { stockItem: { include: { catalogItem: true } } },
+      orderBy: { occurredAt: 'desc' },
+      take: 100,
+    });
+  }
 }

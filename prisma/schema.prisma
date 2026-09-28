@@ -3249,6 +3249,7 @@ model Project {
   calendarEvents CalendarEvent[]
   workLogs WorkLog[]
   purchaseItems PurchaseItem[]
+  companyExpenses CompanyExpense[]
 
   archivedAt DateTime?
 
@@ -3521,6 +3522,11 @@ enum MembershipInvitationStatus {
   CANCELLED
 }
 
+enum PaymentStatus {
+  RECORDED
+  CANCELLED
+}
+
 model Payment {
   id String @id @default(cuid())
 
@@ -3543,6 +3549,11 @@ model Payment {
   reference String?
   notes String?
 
+  status PaymentStatus @default(RECORDED)
+
+  cancelledAt DateTime?
+  cancellationReason String?
+
   createdAt DateTime @default(now())
 
   @@index([invoiceId, paidAt])
@@ -3561,6 +3572,9 @@ model CompanyExpense {
 
   bankTransactionId String?
   bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project Project? @relation(fields: [projectId],references: [id],onDelete: SetNull)
 
   label String
   category CompanyExpenseCategory
@@ -3603,7 +3617,6 @@ model CompanyExpense {
   @@index([bankTransactionId])
 }
 enum CompanyExpenseCategory{
-  PURCHASE
   SOCIAL_COST
   RENT
   INSURANCE
@@ -4182,6 +4195,25 @@ model Supplier {
   @@index([tenantId, archivedAt])
 }
 
+model SupplierInvoiceVatBreakdown {
+  id String @id @default(cuid())
+
+  supplierInvoiceId String
+  supplierInvoice SupplierInvoice @relation(fields: [supplierInvoiceId],references: [id],onDelete: Cascade)
+
+  vatCategory VatCategory @default(STANDARD)
+
+  vatRate Decimal? @db.Decimal(5, 2)
+
+  taxableAmount Decimal @db.Decimal(19, 2)
+
+  vatAmount Decimal @db.Decimal(19, 2)
+
+  deductibleVatAmount Decimal @default(0) @db.Decimal(19, 2)
+
+  @@unique([supplierInvoiceId, vatCategory, vatRate])
+  @@index([supplierInvoiceId])
+}
 
 // ============================================================================
 // SUPPLIER INVOICE
@@ -4337,6 +4369,7 @@ model SupplierInvoice {
   // si l'utilisateur saisit uniquement les totaux.
   items SupplierInvoiceItem[]
 
+  vatBreakdowns SupplierInvoiceVatBreakdown[]
 
   // ==========================================================================
   // NOTES

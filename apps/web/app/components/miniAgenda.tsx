@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 export type MiniAgendaCalendarEvent = {
@@ -8,6 +9,8 @@ export type MiniAgendaCalendarEvent = {
 	title: string;
 	startDate: string;
 	endDate: string;
+	projectId?: string | null;
+	projectTitle?: string | null;
 	color?: string | null;
 	description?: string | null;
 };
@@ -16,9 +19,10 @@ type MiniAgendaProps = {
 	calendarEvents: MiniAgendaCalendarEvent[];
 	title?: string;
 	pageSize?: number;
+	loading?: boolean;
 };
 
-const DEFAULT_PAGE_SIZE = 5;
+const DEFAULT_PAGE_SIZE = 3;
 
 function formatEventDate(value: string): string {
 	const date = new Date(value);
@@ -44,6 +48,7 @@ export default function MiniAgenda({
 	calendarEvents,
 	title = 'Prochains événements',
 	pageSize = DEFAULT_PAGE_SIZE,
+	loading = false,
 }: MiniAgendaProps) {
 	const [currentPage, setCurrentPage] = useState(0);
 	const safePageSize = Math.max(1, pageSize);
@@ -68,19 +73,23 @@ export default function MiniAgenda({
 						{title}
 					</h2>
 				</div>
-				<div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700" aria-hidden="true">
-					<Clock3 size={17} />
+				<div className="flex items-center gap-2">
+					<Link href="/planning" className="text-xs font-semibold text-indigo-700 hover:text-indigo-900">Voir le planning</Link>
+					<Link href="/planning" className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 hover:bg-zinc-200" aria-label="Ajouter un événement" title="Ajouter un événement"><Clock3 size={17} /></Link>
 				</div>
 			</div>
 
-			{visibleEvents.length === 0 ? (
+			{loading ? (
+				<div className="space-y-2" role="status" aria-label="Chargement des événements"><div className="h-12 animate-pulse rounded-lg bg-zinc-100" /><div className="h-12 animate-pulse rounded-lg bg-zinc-100" /><p className="text-xs text-zinc-500">Chargement de l’agenda...</p></div>
+			) : visibleEvents.length === 0 ? (
 				<div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-600">
-					Aucun événement à venir.
+					<p>Aucun événement à venir.</p>
+					<Link href="/planning" className="mt-2 inline-block font-semibold text-indigo-700 underline underline-offset-2">Ajouter un événement</Link>
 				</div>
 			) : (
 				<div className="space-y-2">
 					{visibleEvents.map((event) => (
-						<article key={event.id} className="flex gap-3 rounded-lg border border-zinc-200 px-3 py-3">
+						<Link href="/planning" key={event.id} className="flex gap-3 rounded-lg border border-zinc-200 px-3 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/40">
 							<div
 								className="mt-1 h-10 w-1 shrink-0 rounded-full"
 								style={{ backgroundColor: event.color || '#18181b' }}
@@ -96,7 +105,7 @@ export default function MiniAgenda({
 									<p className="mt-1 truncate text-xs text-zinc-500">{event.description}</p>
 								)}
 							</div>
-						</article>
+						</Link>
 					))}
 				</div>
 			)}
@@ -113,9 +122,7 @@ export default function MiniAgenda({
 						<ChevronLeft size={15} />
 						Précédent
 					</button>
-					<span className="text-xs tabular-nums text-zinc-500">
-						Page {visiblePage + 1} / {pageCount}
-					</span>
+					<span className="text-xs tabular-nums text-zinc-500">{visiblePage * safePageSize + 1}-{Math.min((visiblePage + 1) * safePageSize, upcomingEvents.length)} sur {upcomingEvents.length}</span>
 					<button
 						type="button"
 						className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"

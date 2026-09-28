@@ -1,6 +1,6 @@
 'use client';
 
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, PaymentStatus } from '@prisma/client';
 import { type FormEvent, useState } from 'react';
 import { useApiClient } from '../api-client';
 
@@ -13,6 +13,9 @@ export interface Payment {
   method?: PaymentMethod | null;
   reference?: string | null;
   notes?: string | null;
+  status?: PaymentStatus;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
 }
 
 interface AddPaymentFormProps {

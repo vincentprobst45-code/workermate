@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InvoicePaymentStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { InvoicePaymentStatus, InvoiceStatus, PaymentMethod, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreatePaymentDto } from './create-payment.dto';
 
@@ -26,7 +26,7 @@ export class PaymentService {
   private async refreshInvoicePaymentState(tx: Prisma.TransactionClient, invoiceId: string) {
     const [invoice, aggregate] = await Promise.all([
       tx.invoice.findUnique({ where: { id: invoiceId }, select: { amountDue: true } }),
-      tx.payment.aggregate({ where: { invoiceId }, _sum: { amount: true } }),
+      tx.payment.aggregate({ where: { invoiceId, status: PaymentStatus.RECORDED }, _sum: { amount: true } }),
     ]);
 
     if (!invoice) {
@@ -89,16 +89,41 @@ export class PaymentService {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findFirst({
         where: { id, tenantId },
-        select: { id: true, invoiceId: true },
+        select: { id: true, invoiceId: true, invoice: { select: { status: true } } },
       });
 
       if (!payment) {
         throw new NotFoundException('Paiement introuvable pour ce tenant.');
       }
 
+      if (payment.invoice.status !== InvoiceStatus.DRAFT) {
+        throw new BadRequestException('Un paiement d’une facture émise doit être annulé, pas supprimé.');
+      }
+
       await tx.payment.delete({ where: { id: payment.id } });
       await this.refreshInvoicePaymentState(tx, payment.invoiceId);
       return { id: payment.id };
+    });
+  }
+
+  async cancel(tenantId: string, id: string, reason?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findFirst({
+        where: { id, tenantId },
+        select: { id: true, invoiceId: true, status: true, invoice: { select: { status: true } } },
+      });
+      if (!payment) throw new NotFoundException('Paiement introuvable pour ce tenant.');
+      if (payment.invoice.status === InvoiceStatus.DRAFT) {
+        throw new BadRequestException('Un paiement d’une facture brouillon doit être supprimé.');
+      }
+      if (payment.status === PaymentStatus.CANCELLED) return payment;
+
+      const cancelled = await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.CANCELLED, cancelledAt: new Date(), cancellationReason: reason?.trim() || 'Annulation manuelle' },
+      });
+      await this.refreshInvoicePaymentState(tx, payment.invoiceId);
+      return cancelled;
     });
   }
 }

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { CreateAddressDto } from '../address/create-address.dto';
@@ -193,6 +194,13 @@ export class CreateQuoteDto {
   @IsNumber()
   @Min(0)
   depositAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  depositRate?: number;
 
   @IsOptional()
   @IsString()

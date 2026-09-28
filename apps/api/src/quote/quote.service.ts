@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LineItemType, Prisma, VatCategory } from '@prisma/client';
+import { LineItemType, PaymentStatus, Prisma, VatCategory } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateCustomerDto } from '../customer/create-customer.dto';
 import { PrismaService } from '../prisma.service';
@@ -26,6 +26,8 @@ type CustomerRecord = {
   address: AddressRecord | null;
 };
 
+type DepositData = { depositRate: number | null; depositAmount: number | null };
+
 type QuoteWithRelations = Prisma.QuoteGetPayload<{
   include: {
     items: true;
@@ -35,6 +37,26 @@ type QuoteWithRelations = Prisma.QuoteGetPayload<{
 
 @Injectable()
 export class QuoteService {
+  private normalizeDeposit(dto: Partial<CreateQuoteDto>, total: number): DepositData {
+    const rate = dto.depositRate === undefined ? undefined : this.toNumber(dto.depositRate);
+    const amount = dto.depositAmount === undefined ? undefined : this.toNumber(dto.depositAmount);
+    if (rate !== undefined && (rate < 0 || rate > 100)) {
+      throw new BadRequestException('Le taux d’acompte doit être compris entre 0 et 100 %.');
+    }
+    if (rate !== undefined && amount !== undefined) {
+      throw new BadRequestException('Choisissez un taux ou un montant d’acompte, pas les deux.');
+    }
+    if (rate !== undefined) {
+      return { depositRate: rate, depositAmount: this.roundMoney(total * rate / 100) };
+    }
+    if (amount !== undefined) {
+      if (amount < 0 || amount > total) {
+        throw new BadRequestException('Le montant de l’acompte doit être compris entre 0 et le total TTC.');
+      }
+      return { depositRate: null, depositAmount: this.roundMoney(amount) };
+    }
+    return { depositRate: null, depositAmount: null };
+  }
   private static readonly QUOTE_NUMBER_RETRY_LIMIT = 3;
 
   constructor(private prisma: PrismaService) {}
@@ -371,7 +393,6 @@ export class QuoteService {
       const vatRate = this.toNumber(item.vatRate);
       const lineSubtotal = this.roundMoney(quantity * unitPrice);
       const lineVat = this.roundMoney(lineSubtotal * (vatRate / 100));
-      const total = this.roundMoney(lineSubtotal + lineVat);
 
       subtotal += lineSubtotal;
       vatAmount += lineVat;
@@ -483,8 +504,7 @@ export class QuoteService {
                 paymentTerms: this.normalizeOptionalString(dto.paymentTerms),
                 legalMentions: this.normalizeOptionalString(dto.legalMentions),
                 notes: this.normalizeOptionalString(dto.notes),
-                depositAmount:
-                  dto.depositAmount !== undefined ? this.toNumber(dto.depositAmount) : undefined,
+                ...this.normalizeDeposit(dto, total),
                 pdfFileId: this.normalizeOptionalString(dto.pdfFileId),
                 items: {
                   create: items,
@@ -531,6 +551,34 @@ export class QuoteService {
     });
 
     return quotes.map((quote) => this.serializeQuote(quote));
+  }
+
+  async findRequiringDeposit(tenantId: string) {
+    const quotes = await this.prisma.quote.findMany({
+      where: { tenantId, depositAmount: { gt: 0 } },
+      include: { invoices: { where: { kind: 'DEPOSIT' }, include: { payments: true } } },
+      orderBy: { issueDate: 'desc' },
+    });
+
+    return quotes.flatMap((quote) => {
+      const depositInvoice = quote.invoices[0];
+      const received = this.roundMoney(depositInvoice?.payments
+        .filter((payment) => payment.status === PaymentStatus.RECORDED)
+        .reduce((sum, payment) => sum + this.toNumber(payment.amount), 0) ?? 0);
+      const requested = this.toNumber(quote.depositAmount);
+      const remaining = this.roundMoney(requested - received);
+      return remaining > 0 ? [{
+        id: quote.id,
+        number: quote.number,
+        title: quote.title,
+        customerName: quote.customerName,
+        currency: quote.currency,
+        depositAmount: requested,
+        depositReceived: received,
+        depositRemaining: remaining,
+        depositInvoiceNumber: depositInvoice?.number ?? undefined,
+      }] : [];
+    });
   }
 
   async findOne(tenantId: string, id: string) {
@@ -588,18 +636,25 @@ export class QuoteService {
       : null;
     const existing = await this.prisma.quote.findFirst({
       where: { id, tenantId },
-      select: { id: true },
+      select: { id: true, taxInclusiveAmount: true },
     });
 
     if (!existing) {
       throw new NotFoundException('Devis introuvable pour ce tenant.');
     }
 
+    const total = recalculatedTotals
+      ? this.roundMoney(recalculatedTotals.subtotal + recalculatedTotals.vatAmount)
+      : this.toNumber(existing.taxInclusiveAmount);
+    const hasDepositUpdate = dto.depositRate !== undefined || dto.depositAmount !== undefined;
+    const deposit = hasDepositUpdate ? this.normalizeDeposit(dto, total) : null;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.quote.update({
         where: { id: existing.id },
         data: {
           ...quoteData,
+          ...(deposit ?? {}),
           tenantLegalName: dto.tenantName,
           ...(recalculatedTotals
             ? {

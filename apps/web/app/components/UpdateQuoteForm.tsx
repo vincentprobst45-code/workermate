@@ -11,7 +11,8 @@ export type UpdateQuoteFormProps = {
   onChange?: (quote: Quote) => void;
 };
 
-type EditableQuote = Quote & { items: QuoteItem[] };
+type DepositMode = 'NONE' | 'RATE' | 'AMOUNT';
+type EditableQuote = Quote & { items: QuoteItem[]; depositMode: DepositMode; depositRate: number; depositAmount: number };
 
 const quoteStatuses: Array<{ value: QuoteStatus; label: string }> = [
   { value: 'DRAFT', label: 'Brouillon' },
@@ -42,6 +43,11 @@ function toDateTimeLocal(value?: string): string {
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function createEmptyItem(position: number): QuoteItem {
@@ -88,8 +94,14 @@ function recomputeQuote(quote: EditableQuote): EditableQuote {
 }
 
 function normalizeQuote(quote: Quote): EditableQuote {
+  const depositRate = toNumber(quote.depositRate);
+  const depositAmount = toNumber(quote.depositAmount);
+
   return recomputeQuote({
     ...quote,
+    depositMode: quote.depositRate !== undefined && quote.depositRate !== null ? 'RATE' : depositAmount > 0 ? 'AMOUNT' : 'NONE',
+    depositRate,
+    depositAmount,
     issueDate: toDateTimeLocal(quote.issueDate),
     validUntil: toDateTimeLocal(quote.validUntil),
     workOrderStartDate: toDateTimeLocal(quote.workOrderStartDate),
@@ -165,7 +177,8 @@ export default function UpdateQuoteForm({ quote, onUpdated, onChange }: UpdateQu
         paymentTerms: form.paymentTerms,
         legalMentions: form.legalMentions,
         notes: form.notes,
-        depositAmount: form.depositAmount,
+        depositRate: form.depositMode === 'RATE' ? form.depositRate : undefined,
+        depositAmount: form.depositMode === 'AMOUNT' ? form.depositAmount : undefined,
         pdfFileId: form.pdfFileId,
         quoteItems: form.items.map((item, position) => ({
           ...item,
@@ -198,6 +211,7 @@ export default function UpdateQuoteForm({ quote, onUpdated, onChange }: UpdateQu
         <label className="flex flex-col gap-1 text-sm"><span>Référence chantier</span><input className={inputClass} value={form.workOrderReference || ''} onChange={(event) => updateForm({ workOrderReference: event.target.value })} /></label>
         <label className="flex flex-col gap-1 text-sm"><span>Titre chantier</span><input className={inputClass} value={form.workOrderTitle || ''} onChange={(event) => updateForm({ workOrderTitle: event.target.value })} /></label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2"><span>Notes</span><textarea className={`${inputClass} min-h-20`} value={form.notes || ''} onChange={(event) => updateForm({ notes: event.target.value })} /></label>
+        <div className="flex flex-col gap-1 text-sm sm:col-span-2"><span>Acompte</span><select className={inputClass} value={form.depositMode} onChange={(event) => updateForm({ depositMode: event.target.value as DepositMode })}><option value="NONE">Aucun acompte</option><option value="RATE">Pourcentage</option><option value="AMOUNT">Montant fixe</option></select>{form.depositMode === 'RATE' && <input type="number" min="0" max="100" step="0.01" className={inputClass} value={form.depositRate} onChange={(event) => updateForm({ depositRate: event.target.valueAsNumber || 0 })} />}{form.depositMode === 'AMOUNT' && <input type="number" min="0" max={form.total} step="0.01" className={inputClass} value={form.depositAmount} onChange={(event) => updateForm({ depositAmount: event.target.valueAsNumber || 0 })} />}<span className="text-xs text-zinc-500">Montant demandé : {(form.depositMode === 'RATE' ? form.total * form.depositRate / 100 : form.depositMode === 'AMOUNT' ? form.depositAmount : 0).toFixed(2)} {form.currency}</span></div>
       </div>
 
       <section className="space-y-3 border-t border-zinc-200 pt-4">

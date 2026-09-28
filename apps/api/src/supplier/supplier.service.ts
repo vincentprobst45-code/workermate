@@ -24,11 +24,12 @@ export class SupplierService {
     return supplier;
   }
 
-  create(tenantId: string, dto: CreateSupplierDto) {
+  async create(tenantId: string, dto: CreateSupplierDto) {
+    const supplierCount = await this.prisma.supplier.count({ where: { tenantId } });
     const data: Prisma.SupplierUncheckedCreateInput = {
       tenantId,
       name: dto.name.trim(),
-      reference: dto.reference?.trim() || undefined,
+      reference: `FOU-${String(supplierCount + 1).padStart(4, '0')}`,
       legalName: dto.legalName?.trim() || undefined,
       sirenNumber: dto.sirenNumber?.trim() || undefined,
       siretNumber: dto.siretNumber?.trim() || undefined,
@@ -44,7 +45,15 @@ export class SupplierService {
       countryCode: dto.countryCode?.trim().toUpperCase() || 'FR',
       notes: dto.notes?.trim() || undefined,
     };
-    return this.prisma.supplier.create({ data });
+    try {
+      return await this.prisma.supplier.create({ data });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const nextCount = await this.prisma.supplier.count({ where: { tenantId } });
+        return this.prisma.supplier.create({ data: { ...data, reference: `FOU-${String(nextCount + 1).padStart(4, '0')}` } });
+      }
+      throw error;
+    }
   }
 
   async remove(tenantId: string, id: string) {

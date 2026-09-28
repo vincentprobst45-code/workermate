@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { InvoiceKind, InvoicePdpStatus, InvoiceStatus, PaymentMethod } from '@prisma/client';
 import NewInvoice from './NewInvoice';
 import AddInvoiceForm from './AddInvoiceForm';
 import type { Payment } from './AddPaymentForm';
+import InvoicePaymentsList from './InvoicePaymentsList';
 
 export interface InvoiceItem {
   id: string;
@@ -129,6 +130,7 @@ export interface Invoice {
   lineNetTotal?: number;
   taxExclusiveAmount?: number;
   taxInclusiveAmount?: number;
+  paidAmount?: number;
   prepaidAmount?: number;
   amountDue?: number;
   internalNotes?: string;
@@ -142,7 +144,11 @@ interface InvoicesListProps {
   onDelete: ((id: string) => void | Promise<void>) | null;
   onDisassociate?: ((id: string) => void | Promise<void>) | null;
   onUpdated?: ((invoice: Invoice) => void) | null;
+  onCorrect?: ((invoice: Invoice, kind: 'CREDIT_NOTE' | 'CORRECTIVE') => void | Promise<void>) | null;
   handleSelectedInvoice?: ((invoice: Invoice) => void | Promise<void>) | null;
+  initialInvoiceId?: string;
+  initialInvoiceMode?: 'view' | 'edit';
+  syncUrl?: boolean;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -193,14 +199,84 @@ export default function InvoicesList({
   onDelete,
   onDisassociate = null,
   onUpdated = null,
+  onCorrect = null,
   handleSelectedInvoice = null,
+  initialInvoiceId,
+  initialInvoiceMode = 'view',
+  syncUrl = false,
 }: InvoicesListProps) {
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceBeingEdited, setInvoiceBeingEdited] = useState<Invoice | null>(null);
+  const [invoiceToCorrect, setInvoiceToCorrect] = useState<Invoice | null>(null);
   const [invoicesPerPage, setInvoicesPerPage] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortBy>('createdAtDesc');
+  const openedInvoiceIdRef = useRef<string | null>(null);
+
+  const updateInvoiceUrl = (invoiceId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
+    if (!syncUrl) return;
+    const url = new URL(window.location.href);
+    if (invoiceId) {
+      url.searchParams.set('invoice', invoiceId);
+      if (mode === 'edit') {
+        url.searchParams.set('edit', '1');
+      } else {
+        url.searchParams.delete('edit');
+      }
+    } else {
+      url.searchParams.delete('invoice');
+      url.searchParams.delete('edit');
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  };
+
+  useEffect(() => {
+    if (!syncUrl || !initialInvoiceId || showInvoiceDetails || invoiceBeingEdited || openedInvoiceIdRef.current === initialInvoiceId) return;
+    const invoice = invoices.find((item) => item.id === initialInvoiceId);
+    if (invoice) {
+      const timer = window.setTimeout(() => {
+        openedInvoiceIdRef.current = initialInvoiceId;
+        setSelectedInvoice(invoice);
+        if (initialInvoiceMode === 'edit') {
+          setInvoiceBeingEdited(invoice);
+        } else {
+          setShowInvoiceDetails(true);
+        }
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [initialInvoiceId, initialInvoiceMode, invoices, invoiceBeingEdited, showInvoiceDetails, syncUrl]);
+
+  useEffect(() => {
+    if (!syncUrl) return;
+
+    const handleHistoryChange = () => {
+      const url = new URL(window.location.href);
+      const invoiceId = url.searchParams.get('invoice');
+      const invoice = invoiceId ? invoices.find((item) => item.id === invoiceId) : null;
+
+      if (!invoice) {
+        setShowInvoiceDetails(false);
+        setInvoiceBeingEdited(null);
+        setSelectedInvoice(null);
+        return;
+      }
+
+      openedInvoiceIdRef.current = invoice.id;
+      setSelectedInvoice(invoice);
+      if (url.searchParams.get('edit') === '1') {
+        setShowInvoiceDetails(false);
+        setInvoiceBeingEdited(invoice);
+      } else {
+        setInvoiceBeingEdited(null);
+        setShowInvoiceDetails(true);
+      }
+    };
+
+    window.addEventListener('popstate', handleHistoryChange);
+    return () => window.removeEventListener('popstate', handleHistoryChange);
+  }, [invoices, syncUrl]);
 
   const sortedInvoices = [...invoices].sort((a, b) => {
     if (sortBy === 'createdAtDesc') {
@@ -227,10 +303,16 @@ export default function InvoicesList({
     } else {
       setShowInvoiceDetails(true);
       setSelectedInvoice(invoice);
+      updateInvoiceUrl(invoice.id);
     }
   };
 
-  const hasRowActions = Boolean(onDelete || onDisassociate);
+  const hasRowActions = Boolean(onDelete || onDisassociate || onCorrect);
+
+  const updateSelectedInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    onUpdated?.(invoice);
+  };
 
   return (
     <>
@@ -287,6 +369,7 @@ export default function InvoicesList({
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Émission</th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Statut</th>
                 <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Total TTC</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Paiements reçus</th>
                 {hasRowActions && <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
@@ -312,6 +395,9 @@ export default function InvoicesList({
                   <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
                     {formatMoney(invoice.taxInclusiveAmount ?? invoice.total, invoice.currency)}
                   </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                    {formatMoney(invoice.paidAmount ?? 0, invoice.currency)}
+                  </td>
                   {hasRowActions && (
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-3 text-xs font-medium">
@@ -320,9 +406,14 @@ export default function InvoicesList({
                             Désassocier
                           </button>
                         )}
-                        {onDelete && (
+                        {onDelete && invoice.status === InvoiceStatus.DRAFT && (
                           <button type="button" onClick={(event) => { event.stopPropagation(); void onDelete(invoice.id); }} className="text-red-600 hover:text-red-800">
                             Supprimer
+                          </button>
+                        )}
+                        {onCorrect && invoice.status === InvoiceStatus.ISSUED && (
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setInvoiceToCorrect(invoice); }} className="text-indigo-600 hover:text-indigo-800">
+                            Corriger
                           </button>
                         )}
                       </div>
@@ -362,12 +453,13 @@ export default function InvoicesList({
                 <p className="truncate text-sm text-slate-700">{getClientName(invoice)}</p>
                 <p className="text-xs text-slate-500">{formatDate(invoice.issueDate)}</p>
               </div>
-              <p className="shrink-0 text-base font-semibold text-slate-900">{formatMoney(invoice.taxInclusiveAmount ?? invoice.total, invoice.currency)}</p>
+                <div className="shrink-0 text-right"><p className="text-base font-semibold text-slate-900">{formatMoney(invoice.taxInclusiveAmount ?? invoice.total, invoice.currency)}</p><p className="text-xs text-slate-500">Reçu : {formatMoney(invoice.paidAmount ?? 0, invoice.currency)}</p></div>
             </div>
             {hasRowActions && (
               <div className="mt-3 flex justify-end gap-4 border-t border-slate-100 pt-3 text-xs font-medium">
                 {onDisassociate && <button type="button" onClick={(event) => { event.stopPropagation(); void onDisassociate(invoice.id); }} className="text-amber-600 hover:text-amber-800">Désassocier du projet</button>}
-                {onDelete && <button type="button" onClick={(event) => { event.stopPropagation(); void onDelete(invoice.id); }} className="text-red-600 hover:text-red-800">Supprimer</button>}
+                {onDelete && invoice.status === InvoiceStatus.DRAFT && <button type="button" onClick={(event) => { event.stopPropagation(); void onDelete(invoice.id); }} className="text-red-600 hover:text-red-800">Supprimer</button>}
+                {onCorrect && invoice.status === InvoiceStatus.ISSUED && <button type="button" onClick={(event) => { event.stopPropagation(); setInvoiceToCorrect(invoice); }} className="text-indigo-600 hover:text-indigo-800">Corriger</button>}
               </div>
             )}
           </div>
@@ -415,6 +507,7 @@ export default function InvoicesList({
           onClick={() => {
             setShowInvoiceDetails(false);
             setSelectedInvoice(null);
+            updateInvoiceUrl(undefined, 'view', true);
           }}
         >
           <div
@@ -430,6 +523,7 @@ export default function InvoicesList({
                   className="ml-auto mr-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
                 onClick={() => {
                   setInvoiceBeingEdited(selectedInvoice);
+                  updateInvoiceUrl(selectedInvoice.id, 'edit');
                 }}
               >
                 Modifier la facture
@@ -440,12 +534,14 @@ export default function InvoicesList({
                 onClick={() => {
                   setShowInvoiceDetails(false);
                   setSelectedInvoice(null);
+                  updateInvoiceUrl(undefined, 'view', true);
                 }}
               >
                 Fermer X
               </button>
             </div>
                 <NewInvoice invoice={selectedInvoice} />
+                <InvoicePaymentsList invoice={selectedInvoice} onChanged={updateSelectedInvoice} />
             <p>id : {selectedInvoice.id}</p>
             <p>numero : {selectedInvoice.number}</p>
             <p>statut : {selectedInvoice.status}</p>
@@ -495,7 +591,11 @@ export default function InvoicesList({
       {invoiceBeingEdited && (
         <div
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 sm:p-6"
-          onClick={() => setInvoiceBeingEdited(null)}
+          onClick={() => {
+            setInvoiceBeingEdited(null);
+            setShowInvoiceDetails(true);
+            updateInvoiceUrl(selectedInvoice?.id, 'view', true);
+          }}
         >
           <div
             className="flex w-full max-w-7xl flex-col gap-6 xl:flex-row xl:items-start"
@@ -503,7 +603,7 @@ export default function InvoicesList({
           >
             <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-5">
               <div className="mb-4 flex justify-end">
-                <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => setInvoiceBeingEdited(null)}>
+                <button type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => { setInvoiceBeingEdited(null); setShowInvoiceDetails(true); updateInvoiceUrl(selectedInvoice?.id, 'view', true); }}>
                   Fermer
                 </button>
               </div>
@@ -515,9 +615,25 @@ export default function InvoicesList({
                 onUpdated={(updatedInvoice) => {
                   setSelectedInvoice(updatedInvoice);
                   setInvoiceBeingEdited(null);
+                  setShowInvoiceDetails(true);
+                  updateInvoiceUrl(updatedInvoice.id, 'view', true);
                   onUpdated?.(updatedInvoice);
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoiceToCorrect && onCorrect && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Corriger la facture {invoiceToCorrect.number}</h3>
+            <p className="mt-3 text-sm text-slate-600">Une facture émise ne peut pas être supprimée. Vous pouvez créer un avoir pour l’annuler financièrement ou une facture corrective pour remplacer ses informations.</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setInvoiceToCorrect(null)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">Fermer</button>
+              <button type="button" onClick={() => { const invoice = invoiceToCorrect; setInvoiceToCorrect(null); void onCorrect(invoice, 'CREDIT_NOTE'); }} className="rounded-md border border-indigo-600 px-3 py-2 text-sm font-semibold text-indigo-700">Créer un avoir</button>
+              <button type="button" onClick={() => { const invoice = invoiceToCorrect; setInvoiceToCorrect(null); void onCorrect(invoice, 'CORRECTIVE'); }} className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">Créer une corrective</button>
             </div>
           </div>
         </div>

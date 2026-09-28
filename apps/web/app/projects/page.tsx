@@ -2,14 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useApiClient } from '../api-client';
-import AddProjectForm, { type Project } from '../components/AddProjectForm';
+import EasyAddProjectForm from '../components/EasyAddProjectForm';
+import { type Project } from '../components/AddProjectForm';
 import ProjectsList from '../components/ProjectsList';
 import ProjectDetailsContainer from '../components/projects/ProjectDetailsContainer';
+import ProjectsProfitabilityOverview from '../components/ProjectsProfitabilityOverview';
+import ProjectsProfitabilityTable from '../components/ProjectsProfitabilityTable';
+import type { ProjectProfitability } from '../components/project-profitability.types';
 import { ProtectedRoute } from '../protected-route';
 
 export default function ProjectsPage() {
+  const searchParams = useSearchParams();
   const api = useApiClient();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -18,6 +24,33 @@ export default function ProjectsPage() {
   const [success, setSuccess] = useState('');
   const [showAddProjectForm, setShowAddProjectForm] = useState(false);
   const [projectFormWasOpened, setProjectFormWasOpened] = useState(false);
+  const [profitabilityProjects, setProfitabilityProjects] = useState<ProjectProfitability[]>([]);
+  const [profitabilityLoading, setProfitabilityLoading] = useState(true);
+  const [profitabilityError, setProfitabilityError] = useState('');
+
+  function updateCreateUrl(open: boolean, replace = false) {
+    const url = new URL(window.location.href);
+    if (open) url.searchParams.set('create', 'project');
+    else url.searchParams.delete('create');
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  useEffect(() => {
+    function syncCreateFormFromUrl() {
+      const shouldOpen = new URLSearchParams(window.location.search).get('create') === 'project';
+      if (shouldOpen) {
+        setShowAddProjectForm(true);
+        setProjectFormWasOpened(true);
+      } else if (!window.location.search.includes('project=')) {
+        setShowAddProjectForm(false);
+        setProjectFormWasOpened(false);
+      }
+    }
+
+    syncCreateFormFromUrl();
+    window.addEventListener('popstate', syncCreateFormFromUrl);
+    return () => window.removeEventListener('popstate', syncCreateFormFromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +85,29 @@ export default function ProjectsPage() {
   }, [api]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfitability() {
+      try {
+        const response = await api.get('/projects/profitability');
+        if (!response.ok) throw new Error('Erreur');
+        const data = await response.json() as ProjectProfitability[];
+        if (!cancelled) {
+          setProfitabilityProjects(data);
+          setProfitabilityError('');
+        }
+      } catch {
+        if (!cancelled) setProfitabilityError('Erreur lors de la récupération de la rentabilité des projets.');
+      } finally {
+        if (!cancelled) setProfitabilityLoading(false);
+      }
+    }
+
+    void loadProfitability();
+    return () => { cancelled = true; };
+  }, [api]);
+
+  useEffect(() => {
     function syncSelectedProjectFromUrl() {
       const projectId = new URLSearchParams(window.location.search).get('project');
       setSelectedProject(projectId ? projects.find((project) => project.id === projectId) ?? null : null);
@@ -65,6 +121,7 @@ export default function ProjectsPage() {
   function closeSelectedProject() {
     const url = new URL(window.location.href);
     url.searchParams.delete('project');
+    url.searchParams.delete('tab');
     window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
     setSelectedProject(null);
   }
@@ -73,6 +130,7 @@ export default function ProjectsPage() {
     const url = new URL(window.location.href);
     if (project) {
       url.searchParams.set('project', project.id);
+      url.searchParams.delete('create');
     } else {
       url.searchParams.delete('project');
     }
@@ -165,6 +223,7 @@ export default function ProjectsPage() {
             onClick={() => {
               setShowAddProjectForm(!showAddProjectForm);
               setProjectFormWasOpened(true);
+              updateCreateUrl(!showAddProjectForm);
             }}
           >
             {showAddProjectForm ? 'Fermer le formulaire' : 'Nouveau projet'}
@@ -199,6 +258,7 @@ export default function ProjectsPage() {
                 onClick={() => {
                   setShowAddProjectForm(false);
                   setProjectFormWasOpened(false);
+                  updateCreateUrl(false, true);
                 }}
               >
                 Recommencer
@@ -208,10 +268,12 @@ export default function ProjectsPage() {
         )}
 
         {projectFormWasOpened && (
-          <AddProjectForm
+          <EasyAddProjectForm
             show={showAddProjectForm}
             onCreated={(data) => {
               setProjects((currentProjects) => [data, ...currentProjects]);
+              setShowAddProjectForm(false);
+              selectProject(data);
               setError('');
               setSuccess('Projet ajouté avec succès');
             }}
@@ -226,11 +288,22 @@ export default function ProjectsPage() {
             <p className="text-sm text-slate-500">Chargement des projets...</p>
           </div>
         ) : (
-          <ProjectsList
-            projects={projects}
-            onDelete={handleDelete}
-            handleSelectedProject={selectProject}
-          />
+          <>
+            <ProjectsList
+              projects={projects}
+              onDelete={handleDelete}
+              handleSelectedProject={selectProject}
+            />
+            <div className="mt-10 border-t border-slate-200 pt-8">
+              <div className="mb-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-700">Pilotage</p>
+                <h2 className="mt-1 text-xl font-bold text-slate-900">Tableau de bord de rentabilité</h2>
+              </div>
+              {profitabilityLoading && <p className="text-sm text-slate-500">Chargement de la rentabilité...</p>}
+              {profitabilityError && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{profitabilityError}</p>}
+              {!profitabilityLoading && !profitabilityError && <><ProjectsProfitabilityOverview projects={profitabilityProjects} /><ProjectsProfitabilityTable projects={profitabilityProjects} /></>}
+            </div>
+          </>
         )}
       </main>
     </ProtectedRoute>

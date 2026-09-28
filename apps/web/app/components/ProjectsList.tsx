@@ -14,6 +14,7 @@ interface ProjectsListProps {
   projects: Project[];
   onDelete: ((id: string) => void | Promise<void>) | null;
   handleSelectedProject?: ((project: Project | null) => void | Promise<void>) | null;
+  selectionMode?: boolean;
 }
 
 const focusRingClass = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2';
@@ -69,6 +70,7 @@ function getProjectUrl(projectId?: string): string {
     url.searchParams.set('project', projectId);
   } else {
     url.searchParams.delete('project');
+    url.searchParams.delete('tab');
   }
   return `${url.pathname}${url.search}${url.hash}`;
 }
@@ -94,7 +96,7 @@ function Pagination({ currentPage, totalPages, onChange }: { currentPage: number
   );
 }
 
-export default function ProjectsList({ projects, onDelete, handleSelectedProject = null }: ProjectsListProps) {
+export default function ProjectsList({ projects, onDelete, handleSelectedProject = null, selectionMode = false }: ProjectsListProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [projectsPerPage, setProjectsPerPage] = useState(5);
@@ -312,7 +314,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
                   key={project.id}
                   className="transition hover:bg-slate-50"
                 >
-                  <td className="px-4 py-3"><button type="button" onClick={() => openProject(project)} className={`${buttonClass} bg-indigo-600 text-xs text-white hover:bg-indigo-700`} aria-label={`Ouvrir le projet ${project.reference}`}>Ouvrir</button></td>
+                  <td className="px-4 py-3"><button type="button" onClick={() => openProject(project)} className={`${buttonClass} bg-indigo-600 text-xs text-white hover:bg-indigo-700`} aria-label={`${selectionMode ? 'Sélectionner' : 'Ouvrir'} le projet ${project.reference}`}>{selectionMode ? 'Sélectionner' : 'Ouvrir'}</button></td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{project.reference}</td>
                   <td className="max-w-[14rem] truncate px-4 py-3 text-slate-700">{project.title}</td>
                   <td className="max-w-[12rem] truncate px-4 py-3 text-slate-500">{formatCustomerNames(project)}</td>
@@ -373,7 +375,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
             <div className="mt-3 flex items-end justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
               <span>Créé le {formatDate(project.createdAt)}</span>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => openProject(project)} className={`${buttonClass} bg-indigo-600 text-xs text-white hover:bg-indigo-700`} aria-label={`Ouvrir le projet ${project.reference}`}>Ouvrir</button>
+                <button type="button" onClick={() => openProject(project)} className={`${buttonClass} bg-indigo-600 text-xs text-white hover:bg-indigo-700`} aria-label={`${selectionMode ? 'Sélectionner' : 'Ouvrir'} le projet ${project.reference}`}>{selectionMode ? 'Sélectionner' : 'Ouvrir'}</button>
                 {onDelete && (
                   <button
                   type="button"

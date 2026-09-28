@@ -191,6 +191,8 @@ export interface AddQuoteFormData {
   paymentTerms: string;
   legalMentions: string;
   notes: string;
+  depositMode: 'NONE' | 'RATE' | 'AMOUNT';
+  depositRate: number;
   depositAmount: number;
   quoteItems: AddQuoteItemFormData[];
 }
@@ -240,6 +242,7 @@ export interface CreateQuoteDto {
   paymentTerms?: string;
   legalMentions?: string;
   notes?: string;
+  depositRate?: number;
   depositAmount?: number;
   quoteItems: CreateQuoteItemPayload[];
 }
@@ -630,6 +633,8 @@ export function createEmptyQuote(
     paymentTerms: tenantDefaults?.defaultPaymentTerms || '',
     legalMentions: tenantDefaults?.defaultLegalMentions || '',
     notes: tenantDefaults?.defaultInvoiceNotes || '',
+    depositMode: 'NONE',
+    depositRate: 0,
     depositAmount: 0,
     quoteItems: [],
   };
@@ -653,6 +658,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
   const [doubleCheckShowWorkOrdersListTop, setDoubleCheckShowWorkOrdersListTop] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
   const [showWorkOrderAssociationList, setShowWorkOrderAssociationList] = useState(false);
+  const [showManualWorkOrderFields, setShowManualWorkOrderFields] = useState(false);
   const [workOrderSelectionMode, setWorkOrderSelectionMode] = useState<WorkOrderSelectionMode>('addLines');
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogItemsLoading, setCatalogItemsLoading] = useState(false);
@@ -903,7 +909,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
     setForm((currentForm) => ({
       ...currentForm,
       workOrderAddressMode: 'existing',
-      workOrderAddressId: selectedWorkOrder.addressId || '',
+      workOrderAddressId: workOrder.addressId || '',
     }));
     setAddressError('');
     setAddressSuccess('Adresse du chantier sélectionnée');
@@ -1102,6 +1108,19 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
         ? 'Formulaire rempli depuis le chantier.'
         : 'Lignes importées depuis le chantier.',
     );
+  }
+
+  function associateWorkOrder(workOrder: WorkOrder) {
+    setForm((currentForm) => ({
+      ...currentForm,
+      workOrderId: workOrder.id,
+      workOrderTitle: workOrder.title || '',
+      workOrderReference: workOrder.reference || '',
+      workOrderStartDate: workOrder.plannedStartDate ? toDatetimeLocal(new Date(workOrder.plannedStartDate)) : '',
+      workOrderEndDate: workOrder.plannedEndDate ? toDatetimeLocal(new Date(workOrder.plannedEndDate)) : '',
+    }));
+    setSelectedWorkOrder(workOrder);
+    setShowManualWorkOrderFields(false);
   }
 
   async function openCatalogItemSelector() {
@@ -1350,7 +1369,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       paymentTerms: trimToUndefined(form.paymentTerms),
       legalMentions: trimToUndefined(form.legalMentions),
       notes: trimToUndefined(form.notes),
-      depositAmount: form.depositAmount || undefined,
+      depositRate: form.depositMode === 'RATE' ? form.depositRate : undefined,
+      depositAmount: form.depositMode === 'AMOUNT' ? form.depositAmount : undefined,
       quoteItems: form.quoteItems.map((item) => ({
         type: item.type,
         position: item.position,
@@ -1524,65 +1544,17 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
               required
             />
           </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Référence chantier</span>
-            <input
-              className={inputClass}
-              placeholder="Reference chantier"
-              value={form.workOrderReference}
-              onChange={(event) =>
-                setForm({ ...form, workOrderReference: event.target.value })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Titre chantier</span>
-            <input
-              className={inputClass}
-              placeholder="Titre chantier"
-              value={form.workOrderTitle}
-              onChange={(event) => setForm({ ...form, workOrderTitle: event.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Début chantier</span>
-            <input
-              type="datetime-local"
-              className={inputClass}
-              value={form.workOrderStartDate}
-              onChange={(event) =>
-                setForm({ ...form, workOrderStartDate: event.target.value })
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Fin chantier</span>
-            <input
-              type="datetime-local"
-              className={inputClass}
-              value={form.workOrderEndDate}
-              onChange={(event) => setForm({ ...form, workOrderEndDate: event.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className={labelClass}>Acompte</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              placeholder="Acompte"
-              value={form.depositAmount}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  depositAmount: Number.isNaN(event.target.valueAsNumber)
-                    ? 0
-                    : event.target.valueAsNumber,
-                })
-              }
-            />
-          </label>
+          <div className="flex flex-col gap-1.5">
+            <span className={labelClass}>Acompte demandé</span>
+            <select className={inputClass} value={form.depositMode} onChange={(event) => setForm({ ...form, depositMode: event.target.value as AddQuoteFormData['depositMode'] })}>
+              <option value="NONE">Aucun acompte</option>
+              <option value="RATE">Pourcentage</option>
+              <option value="AMOUNT">Montant fixe</option>
+            </select>
+            {form.depositMode === 'RATE' && <input type="number" min="0" max="100" step="0.01" className={inputClass} placeholder="Pourcentage" value={form.depositRate} onChange={(event) => setForm({ ...form, depositRate: Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber })} />}
+            {form.depositMode === 'AMOUNT' && <input type="number" min="0" max={form.total} step="0.01" className={inputClass} placeholder="Montant TTC" value={form.depositAmount} onChange={(event) => setForm({ ...form, depositAmount: Number.isNaN(event.target.valueAsNumber) ? 0 : event.target.valueAsNumber })} />}
+            {form.depositMode !== 'NONE' && <span className="text-xs text-slate-500">Montant demandé : {((form.depositMode === 'RATE' ? form.total * form.depositRate / 100 : form.depositAmount) || 0).toFixed(2)} {form.currency || 'EUR'}</span>}
+          </div>
         </div>
       </section>
 
@@ -1602,15 +1574,36 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             Créer un chantier
           </button>
         </div>
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {form.workOrderId ? (
+            <p className="flex flex-wrap items-center gap-2">
+              <span>Chantier associé : <strong className="text-slate-900">{workOrders.find((workOrder) => workOrder.id === form.workOrderId)?.title || form.workOrderTitle || form.workOrderId}</strong></span>
+              <button type="button" className="font-medium text-red-600 hover:text-red-800" onClick={() => { setForm({ ...form, workOrderId: '' }); setSelectedWorkOrder(null); }}>
+                Retirer
+              </button>
+            </p>
+          ) : <p>Pas de chantier associé</p>}
+        </div>
         {form.workOrderId && (
           <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
-            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-800">
-              {workOrders.find((workOrder) => workOrder.id === form.workOrderId)?.title || form.workOrderId}
-            </span>
-            <button type="button" className="font-medium text-red-600 hover:text-red-800" onClick={() => setForm({ ...form, workOrderId: '' })}>
-              Retirer
+            <button type="button" className={`${btnSecondary} inline-flex items-center gap-1.5`} onClick={() => setShowManualWorkOrderFields((current) => !current)}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              {showManualWorkOrderFields ? 'Masquer les champs manuels' : 'Modifier manuellement'}
             </button>
           </p>
+        )}
+        {!form.workOrderId && (
+          <button type="button" className="mt-3 text-sm font-medium text-teal-700 hover:text-teal-900" onClick={() => setShowManualWorkOrderFields((current) => !current)}>
+            {showManualWorkOrderFields ? 'Masquer les champs manuels' : 'Renseigner manuellement les informations chantier'}
+          </button>
+        )}
+        {showManualWorkOrderFields && (
+          <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 p-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5"><span className={labelClass}>Référence chantier</span><input className={inputClass} placeholder="Référence chantier" value={form.workOrderReference} onChange={(event) => setForm({ ...form, workOrderReference: event.target.value })} /></label>
+            <label className="flex flex-col gap-1.5"><span className={labelClass}>Titre chantier</span><input className={inputClass} placeholder="Titre chantier" value={form.workOrderTitle} onChange={(event) => setForm({ ...form, workOrderTitle: event.target.value })} /></label>
+            <label className="flex flex-col gap-1.5"><span className={labelClass}>Début chantier</span><input type="datetime-local" className={inputClass} value={form.workOrderStartDate} onChange={(event) => setForm({ ...form, workOrderStartDate: event.target.value })} /></label>
+            <label className="flex flex-col gap-1.5"><span className={labelClass}>Fin chantier</span><input type="datetime-local" className={inputClass} value={form.workOrderEndDate} onChange={(event) => setForm({ ...form, workOrderEndDate: event.target.value })} /></label>
+          </div>
         )}
         {showWorkOrderAssociationList && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -1625,7 +1618,7 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
                 workOrders={workOrders}
                 onDelete={null}
                 handleSelectedWorkOrder={(workOrder) => {
-                  setForm({ ...form, workOrderId: workOrder.id });
+                  associateWorkOrder(workOrder);
                   setShowWorkOrderAssociationList(false);
                   setWorkOrdersError('');
                 }}
@@ -1678,6 +1671,17 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <Pencil className="h-4 w-4" aria-hidden="true" />
             Modifier manuellement
           </button>
+        </div>
+
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {form.customerMode === 'existing' && selectedCustomer ? (
+            <p className="flex flex-wrap items-center gap-2">
+              <span>Client associé : <strong className="text-slate-900">{formatCustomerLabel(selectedCustomer)}</strong></span>
+              <button type="button" className="font-medium text-red-600 hover:text-red-800" onClick={() => setForm({ ...form, customerMode: 'none', customerId: '' })}>
+                Retirer
+              </button>
+            </p>
+          ) : <p>Pas de client associé</p>}
         </div>
 
         {form.customerMode === 'existing' ? (
@@ -2232,8 +2236,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             <p className="mt-1 text-lg font-semibold">{form.total.toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Acompte</p>
-            <p className="mt-1 text-lg font-semibold text-amber-950">{form.depositAmount.toFixed(2)} {form.currency || 'EUR'}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Acompte demandé</p>
+            <p className="mt-1 text-lg font-semibold text-amber-950">{(form.depositMode === 'RATE' ? form.total * form.depositRate / 100 : form.depositMode === 'AMOUNT' ? form.depositAmount : 0).toFixed(2)} {form.currency || 'EUR'}</p>
           </div>
         </div>
       </section>

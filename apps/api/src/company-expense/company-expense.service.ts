@@ -38,12 +38,17 @@ export class CompanyExpenseService {
       const transaction = await this.prisma.bankTransaction.findFirst({ where: { id: dto.bankTransactionId, tenantId } });
       if (!transaction) throw new NotFoundException('Transaction bancaire introuvable.');
     }
+    if (dto.projectId) {
+      const project = await this.prisma.project.findFirst({ where: { id: dto.projectId, tenantId }, select: { id: true } });
+      if (!project) throw new NotFoundException('Projet introuvable.');
+    }
 
     return this.prisma.companyExpense.create({
       data: {
         tenant: { connect: { id: tenantId } },
         paymentAccount: dto.paymentAccountId ? { connect: { id: dto.paymentAccountId } } : undefined,
         bankTransaction: dto.bankTransactionId ? { connect: { id: dto.bankTransactionId } } : undefined,
+        project: dto.projectId ? { connect: { id: dto.projectId } } : undefined,
         label: dto.label.trim(),
         category: dto.category,
         taxExclusiveAmount: new Prisma.Decimal(taxExclusiveAmount.toFixed(2)),

@@ -19,6 +19,8 @@ type AddWorklogFormProps = {
   projectId: string;
   workOrderId: string;
   onCreated: (workLog: WorkLog) => void;
+  initialWorkLog?: WorkLog;
+  onUpdated?: (workLog: WorkLog) => void;
 };
 
 function toDatetimeLocal(date: Date): string {
@@ -26,13 +28,13 @@ function toDatetimeLocal(date: Date): string {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
-export default function AddWorklogForm({ projectId, workOrderId, onCreated }: AddWorklogFormProps) {
+export default function AddWorklogForm({ projectId, workOrderId, onCreated, initialWorkLog, onUpdated }: AddWorklogFormProps) {
   const api = useApiClient();
-  const [date, setDate] = useState(toDatetimeLocal(new Date()));
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [timePlannedMinutes, setTimePlannedMinutes] = useState<number | ''>('');
-  const [timeSpentMinutes, setTimeSpentMinutes] = useState<number | ''>('');
+  const [date, setDate] = useState(initialWorkLog ? toDatetimeLocal(new Date(initialWorkLog.date)) : toDatetimeLocal(new Date()));
+  const [title, setTitle] = useState(initialWorkLog?.title ?? '');
+  const [description, setDescription] = useState(initialWorkLog?.description ?? '');
+  const [timePlannedMinutes, setTimePlannedMinutes] = useState<number | ''>(initialWorkLog?.timePlannedMinutes ?? '');
+  const [timeSpentMinutes, setTimeSpentMinutes] = useState<number | ''>(initialWorkLog?.timeSpentMinutes ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -42,7 +44,13 @@ export default function AddWorklogForm({ projectId, workOrderId, onCreated }: Ad
     setSubmitting(true);
 
     try {
-      const response = await api.post('/worklogs', {
+      const response = initialWorkLog
+        ? await api.put(`/worklogs/${initialWorkLog.id}`, {
+          date, title: title.trim() || undefined, description: description.trim() || undefined,
+          timePlannedMinutes: timePlannedMinutes === '' ? undefined : timePlannedMinutes,
+          timeSpentMinutes: timeSpentMinutes === '' ? undefined : timeSpentMinutes,
+        })
+        : await api.post('/worklogs', {
         projectId,
         workOrderId,
         date,
@@ -50,11 +58,12 @@ export default function AddWorklogForm({ projectId, workOrderId, onCreated }: Ad
         description: description.trim() || undefined,
         timePlannedMinutes: timePlannedMinutes === '' ? undefined : timePlannedMinutes,
         timeSpentMinutes: timeSpentMinutes === '' ? undefined : timeSpentMinutes,
-      });
+        });
       if (!response.ok) throw new Error('Erreur');
 
       const workLog: WorkLog = await response.json();
-      onCreated(workLog);
+      if (initialWorkLog) onUpdated?.(workLog); else onCreated(workLog);
+      if (initialWorkLog) return;
       setDate(toDatetimeLocal(new Date()));
       setTitle('');
       setDescription('');
@@ -77,7 +86,7 @@ export default function AddWorklogForm({ projectId, workOrderId, onCreated }: Ad
         <label className="flex flex-col gap-1 text-sm"><span>Temps prévu (minutes)</span><input min="0" type="number" className="rounded border border-zinc-300 px-3 py-2" value={timePlannedMinutes} onChange={(event) => setTimePlannedMinutes(event.target.valueAsNumber || '')} /></label>
         <label className="flex flex-col gap-1 text-sm"><span>Temps passé (minutes)</span><input min="0" type="number" className="rounded border border-zinc-300 px-3 py-2" value={timeSpentMinutes} onChange={(event) => setTimeSpentMinutes(event.target.valueAsNumber || '')} /></label>
       </div>
-      <button type="submit" disabled={submitting} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Création...' : 'Créer la fiche de suivi'}</button>
+      <button type="submit" disabled={submitting} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Enregistrement...' : initialWorkLog ? 'Enregistrer les modifications' : 'Créer la fiche de suivi'}</button>
     </form>
   );
 }

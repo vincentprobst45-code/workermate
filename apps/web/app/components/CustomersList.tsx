@@ -33,9 +33,12 @@ interface CustomersListProps {
   onDelete?: ((id: string) => void | Promise<void>) | null;
   onEdit?: ((customer: Customer) => void) | null;
   handleSelectedCustomer?: ((customer: Customer) => void | Promise<void>) | null;
+  initialCustomerId?: string;
+  initialCustomerMode?: 'view' | 'edit';
+  syncUrl?: boolean;
 }
 
-export default function CustomersList({ customers, onDelete = null, onEdit = null, handleSelectedCustomer = null }: CustomersListProps) {
+export default function CustomersList({ customers, onDelete = null, onEdit = null, handleSelectedCustomer = null, initialCustomerId, initialCustomerMode = 'view', syncUrl = false }: CustomersListProps) {
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customersPerPage, setCustomersPerPage] = useState(5);
@@ -46,6 +49,70 @@ export default function CustomersList({ customers, onDelete = null, onEdit = nul
   const [deletionError, setDeletionError] = useState('');
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const [sortBy, setSortBy] = useState<'createdAtDesc' | 'createdAtAsc' | 'lastNameAsc' | 'lastNameDesc'>('createdAtDesc');
+  const openedCustomerIdRef = useRef<string | null>(null);
+
+  function updateCustomerUrl(customerId?: string, mode: 'view' | 'edit' = 'view', replace = false) {
+    if (!syncUrl) return;
+    const url = new URL(window.location.href);
+    if (customerId) {
+      url.searchParams.set('customer', customerId);
+      if (mode === 'edit') url.searchParams.set('edit', '1');
+      else url.searchParams.delete('edit');
+    } else {
+      url.searchParams.delete('customer');
+      url.searchParams.delete('edit');
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  }
+
+  function openCustomer(customer: Customer) {
+    if (handleSelectedCustomer) {
+      void handleSelectedCustomer(customer);
+    } else {
+      setSelectedCustomer(customer);
+      setShowCustomerDetails(true);
+      updateCustomerUrl(customer.id);
+    }
+  }
+
+  useEffect(() => {
+    if (!syncUrl) return;
+    if (!initialCustomerId) {
+      openedCustomerIdRef.current = null;
+      return;
+    }
+    if (openedCustomerIdRef.current === initialCustomerId) return;
+    const customer = customers.find((item) => item.id === initialCustomerId);
+    if (!customer) return;
+    const timer = window.setTimeout(() => {
+      openedCustomerIdRef.current = initialCustomerId;
+      setSelectedCustomer(customer);
+      if (initialCustomerMode === 'edit' && onEdit) onEdit(customer);
+      else setShowCustomerDetails(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [customers, initialCustomerId, initialCustomerMode, onEdit, syncUrl]);
+
+  useEffect(() => {
+    if (!syncUrl) return;
+    const handleHistoryChange = () => {
+      const url = new URL(window.location.href);
+      const customer = customers.find((item) => item.id === url.searchParams.get('customer'));
+      if (!customer) {
+        setShowCustomerDetails(false);
+        setSelectedCustomer(null);
+        return;
+      }
+      openedCustomerIdRef.current = customer.id;
+      setSelectedCustomer(customer);
+      if (url.searchParams.get('edit') === '1' && onEdit) {
+        setShowCustomerDetails(false);
+        onEdit(customer);
+      } else setShowCustomerDetails(true);
+    };
+    window.addEventListener('popstate', handleHistoryChange);
+    return () => window.removeEventListener('popstate', handleHistoryChange);
+  }, [customers, onEdit, syncUrl]);
 
   const filteredAndSortedCustomers = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('fr');
@@ -162,7 +229,7 @@ export default function CustomersList({ customers, onDelete = null, onEdit = nul
               {currentCustomers.map((customer) => (
                 <tr key={customer.id} className="transition hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => { if (handleSelectedCustomer) void handleSelectedCustomer(customer); else { setShowCustomerDetails(true); setSelectedCustomer(customer); } }} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le client ${customer.firstName} ${customer.lastName || ''}`}>Ouvrir</button>
+                    <button type="button" onClick={() => openCustomer(customer)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le client ${customer.firstName} ${customer.lastName || ''}`}>Ouvrir</button>
                   </td>
                   <td className="max-w-[16rem] px-4 py-3">
                     <p className="truncate font-semibold text-slate-900">{customer.firstName} {customer.lastName}</p>
@@ -202,7 +269,7 @@ export default function CustomersList({ customers, onDelete = null, onEdit = nul
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-              <button type="button" onClick={() => { if (handleSelectedCustomer) void handleSelectedCustomer(customer); else { setShowCustomerDetails(true); setSelectedCustomer(customer); } }} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le client ${customer.firstName} ${customer.lastName || ''}`}>Ouvrir</button>
+              <button type="button" onClick={() => openCustomer(customer)} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={`Ouvrir le client ${customer.firstName} ${customer.lastName || ''}`}>Ouvrir</button>
               {onDelete && <button type="button" onClick={() => setCustomerToDelete(customer)} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2" aria-label={`Supprimer le client ${customer.firstName} ${customer.lastName || ''}`}>Supprimer</button>}
             </div>
           </div>
@@ -268,14 +335,16 @@ export default function CustomersList({ customers, onDelete = null, onEdit = nul
           onClick={() => {
             setShowCustomerDetails(false);
             setSelectedCustomer(null);
+            updateCustomerUrl(undefined, 'view', true);
           }}
         >
           <CustomersDetails
             customer={selectedCustomer}
-            onEdit={onEdit ? (customer) => { setShowCustomerDetails(false); setSelectedCustomer(null); onEdit(customer); } : undefined}
+            onEdit={onEdit ? (customer) => { setShowCustomerDetails(false); setSelectedCustomer(null); updateCustomerUrl(customer.id, 'edit'); onEdit(customer); } : undefined}
             onClose={() => {
               setShowCustomerDetails(false);
               setSelectedCustomer(null);
+              updateCustomerUrl(undefined, 'view', true);
             }}
           />
         </div>

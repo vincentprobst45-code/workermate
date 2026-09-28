@@ -67,4 +67,8 @@ export class CreateCompanyExpenseDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 }

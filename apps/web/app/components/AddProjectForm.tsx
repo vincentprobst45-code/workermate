@@ -38,6 +38,8 @@ export interface ProjectCustomerLink {
     firstName?: string;
     lastName?: string;
     company?: string;
+    email?: string;
+    phone?: string;
   };
 }
 

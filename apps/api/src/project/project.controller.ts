@@ -34,6 +34,18 @@ export class ProjectController {
     return this.projectService.findAll(tenantId);
   }
 
+  @Get('profitability')
+  async findProfitabilityOverview(@Req() req: AuthenticatedRequest) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.findProfitabilityOverview(tenantId);
+  }
+
+  @Get(':id/profitability')
+  async findProfitability(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.findProfitability(tenantId, id);
+  }
+
   @Get(':id')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenantId = requireTenantContext(req).tenant.id;
@@ -49,6 +61,28 @@ export class ProjectController {
   ) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.projectService.associateQuote(tenantId, id, quoteId);
+  }
+
+  @Post(':id/customers/:customerId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async associateCustomer(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.associateCustomer(tenantId, id, customerId);
+  }
+
+  @Delete(':id/customers/:customerId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async disassociateCustomer(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.disassociateCustomer(tenantId, id, customerId);
   }
 
   @Delete(':id/quotes/:quoteId')
@@ -93,6 +127,28 @@ export class ProjectController {
   ) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.projectService.associateWorkOrder(tenantId, id, workOrderId);
+  }
+
+  @Delete(':id/work-orders/:workOrderId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async disassociateWorkOrder(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('workOrderId') workOrderId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.disassociateWorkOrder(tenantId, id, workOrderId);
+  }
+
+  @Delete(':id/calendar-events/:eventId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  async disassociateCalendarEvent(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.projectService.disassociateCalendarEvent(tenantId, id, eventId);
   }
 
   @Put(':id')

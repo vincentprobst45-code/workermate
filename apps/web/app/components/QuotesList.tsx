@@ -81,6 +81,7 @@ export interface Quote {
   notes?: string;
 
   depositAmount?: number;
+  depositRate?: number;
   
   pdfFileId?: string;
   
@@ -104,6 +105,9 @@ interface QuotesListProps {
   onDelete: ((id: string) => void | Promise<void>) | null;
   onDisassociate?: ((id: string) => void | Promise<void>) | null;
   handleSelectedQuote?: ((quote: Quote) => void | Promise<void>) | null;
+  initialQuoteId?: string;
+  initialQuoteMode?: 'view' | 'edit';
+  syncUrl?: boolean;
 }
 
 type SortBy = 'createdAtDesc' | 'createdAtAsc' | 'numberAsc' | 'numberDesc';
@@ -150,7 +154,7 @@ function StatusBadge({ status }: { status: QuoteStatus }) {
 }
 
 
-export default function QuotesList({ quotes, onDelete, onDisassociate = null, handleSelectedQuote = null }: QuotesListProps) {
+export default function QuotesList({ quotes, onDelete, onDisassociate = null, handleSelectedQuote = null, initialQuoteId, initialQuoteMode = 'view', syncUrl = false }: QuotesListProps) {
   const [showQuoteDetails, setShowQuoteDetails] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [quoteBeingEdited, setQuoteBeingEdited] = useState<Quote | null>(null);
@@ -163,6 +167,61 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
   const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null);
   const [deletionError, setDeletionError] = useState('');
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const openedQuoteIdRef = useRef<string | null>(null);
+
+  const updateQuoteUrl = (quoteId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
+    if (!syncUrl) return;
+    const url = new URL(window.location.href);
+    if (quoteId) {
+      url.searchParams.set('quote', quoteId);
+      if (mode === 'edit') url.searchParams.set('edit', '1');
+      else url.searchParams.delete('edit');
+    } else {
+      url.searchParams.delete('quote');
+      url.searchParams.delete('edit');
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  };
+
+  useEffect(() => {
+    if (!syncUrl || !initialQuoteId || showQuoteDetails || quoteBeingEdited || openedQuoteIdRef.current === initialQuoteId) return;
+    const quote = quotes.find((item) => item.id === initialQuoteId);
+    if (quote) {
+      const timer = window.setTimeout(() => {
+        openedQuoteIdRef.current = initialQuoteId;
+        setSelectedQuote(quote);
+        if (initialQuoteMode === 'edit') setQuoteBeingEdited(quote);
+        else setShowQuoteDetails(true);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [initialQuoteId, initialQuoteMode, quoteBeingEdited, quotes, showQuoteDetails, syncUrl]);
+
+  useEffect(() => {
+    if (!syncUrl) return;
+    const handleHistoryChange = () => {
+      const url = new URL(window.location.href);
+      const quoteId = url.searchParams.get('quote');
+      const quote = quoteId ? quotes.find((item) => item.id === quoteId) : null;
+      if (!quote) {
+        setShowQuoteDetails(false);
+        setQuoteBeingEdited(null);
+        setSelectedQuote(null);
+        return;
+      }
+      openedQuoteIdRef.current = quote.id;
+      setSelectedQuote(quote);
+      if (url.searchParams.get('edit') === '1') {
+        setShowQuoteDetails(false);
+        setQuoteBeingEdited(quote);
+      } else {
+        setQuoteBeingEdited(null);
+        setShowQuoteDetails(true);
+      }
+    };
+    window.addEventListener('popstate', handleHistoryChange);
+    return () => window.removeEventListener('popstate', handleHistoryChange);
+  }, [quotes, syncUrl]);
 
   const sortedQuotes = useMemo(() => [...quotes].filter((quote) => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('fr');
@@ -194,6 +253,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
     } else {
       setShowQuoteDetails(true);
       setSelectedQuote(quote);
+      updateQuoteUrl(quote.id);
     }
   };
 
@@ -447,6 +507,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
           onClick={() => {
             setShowQuoteDetails(false);
             setSelectedQuote(null);
+            updateQuoteUrl(undefined, 'view', true);
           }}
         >
           <div
@@ -462,6 +523,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                 onClick={() => {
                   setShowQuoteDetails(false);
                   setSelectedQuote(null);
+                  updateQuoteUrl(undefined, 'view', true);
                 }}
               >
                 Fermer X
@@ -474,6 +536,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                 onClick={() => {
                   setQuoteBeingEdited(selectedQuote);
                   setIsPreviewCollapsed(false);
+                  updateQuoteUrl(selectedQuote.id, 'edit');
                 }}
               >
                 Modifier le devis
@@ -502,7 +565,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
             <p>sous-total HT : {formatMoney(selectedQuote.taxExclusiveAmount ?? selectedQuote.subtotal, selectedQuote.currency)}</p>
             <p>TVA : {formatMoney(selectedQuote.vatAmount, selectedQuote.currency)}</p>
             {/* <p>remise : {formatMoney(selectedQuote.discountAmount || 0, selectedQuote.currency)}</p> */}
-            <p>acompte : {formatMoney(selectedQuote.depositAmount || 0, selectedQuote.currency)}</p>
+            <p>{selectedQuote.depositRate !== undefined && selectedQuote.depositRate !== null ? `acompte : ${selectedQuote.depositRate}% (${formatMoney(selectedQuote.depositAmount || 0, selectedQuote.currency)})` : selectedQuote.depositAmount ? `acompte : ${formatMoney(selectedQuote.depositAmount, selectedQuote.currency)}` : 'aucun acompte'}</p>
             <p>total TTC : {formatMoney(selectedQuote.taxInclusiveAmount ?? selectedQuote.total, selectedQuote.currency)}</p>
 
             <p className="mt-4">conditions de paiement : {selectedQuote.paymentTerms || '-'}</p>
@@ -539,7 +602,11 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
       {quoteBeingEdited && (
         <div
           className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
-          onClick={() => setQuoteBeingEdited(null)}
+          onClick={() => {
+            setQuoteBeingEdited(null);
+            setShowQuoteDetails(true);
+            updateQuoteUrl(selectedQuote?.id, 'view', true);
+          }}
         >
           <div
             className="flex w-full max-w-7xl flex-col gap-6 xl:flex-row xl:items-start"
@@ -548,7 +615,7 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
             <div className="min-w-0 flex-1 rounded-xl bg-white p-5 shadow-xl">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h3 className="text-xl font-semibold text-zinc-900">Modifier le devis</h3>
-                <button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => setQuoteBeingEdited(null)}>
+                <button type="button" className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100" onClick={() => { setQuoteBeingEdited(null); setShowQuoteDetails(true); updateQuoteUrl(selectedQuote?.id, 'view', true); }}>
                   Fermer
                 </button>
               </div>
@@ -558,6 +625,8 @@ export default function QuotesList({ quotes, onDelete, onDisassociate = null, ha
                 onUpdated={(updatedQuote) => {
                   setQuoteBeingEdited(null);
                   setSelectedQuote(updatedQuote);
+                  setShowQuoteDetails(true);
+                  updateQuoteUrl(updatedQuote.id, 'view', true);
                 }}
               />
             </div>

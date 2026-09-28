@@ -1,11 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
 import AddCustomerForm from '../components/AddCustomerForm';
 import CustomersList, { type Customer } from '../components/CustomersList';
 
 export default function CustomersPage() {
+  const searchParams = useSearchParams();
   const api = useApiClient();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +16,31 @@ export default function CustomersPage() {
   const [showAddCustomerForm, setShowAddCustomerForm] = useState(false);
   const [customerFormWasOpened, setCustomerFormWasOpened] = useState(false);
   const [customerBeingEdited, setCustomerBeingEdited] = useState<Customer | null>(null);
+
+  function updateCreateUrl(open: boolean, replace = false) {
+    const url = new URL(window.location.href);
+    if (open) url.searchParams.set('create', 'customer');
+    else url.searchParams.delete('create');
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  }
+
+  useEffect(() => {
+    function syncCreateForm() {
+      const open = new URLSearchParams(window.location.search).get('create') === 'customer';
+      setShowAddCustomerForm(open);
+      setCustomerFormWasOpened(open);
+    }
+    syncCreateForm();
+    window.addEventListener('popstate', syncCreateForm);
+    return () => window.removeEventListener('popstate', syncCreateForm);
+  }, []);
+
+  function clearCustomerUrl() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('customer');
+    url.searchParams.delete('edit');
+    window.history.replaceState({}, '', url.toString());
+  }
 
   async function handleDelete(id: string) {
     try {
@@ -68,7 +95,7 @@ export default function CustomersPage() {
           <button
             type="button"
             className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-            onClick={() => { setCustomerBeingEdited(null); setShowAddCustomerForm(!showAddCustomerForm); setCustomerFormWasOpened(true); }}
+            onClick={() => { setCustomerBeingEdited(null); setShowAddCustomerForm(!showAddCustomerForm); setCustomerFormWasOpened(true); updateCreateUrl(!showAddCustomerForm); }}
           >
             {showAddCustomerForm ? 'Fermer le formulaire' : customerFormWasOpened ? 'Reprendre le formulaire' : 'Nouveau client'}
           </button>
@@ -81,7 +108,7 @@ export default function CustomersPage() {
         <button
           type="button"
           className="mb-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-          onClick={() => {setCustomerBeingEdited(null); setShowAddCustomerForm(false);setCustomerFormWasOpened(false);}}>
+          onClick={() => {setCustomerBeingEdited(null); setShowAddCustomerForm(false);setCustomerFormWasOpened(false); updateCreateUrl(false, true);}}>
             Réinitialiser le formulaire
         </button>
         }
@@ -100,6 +127,7 @@ export default function CustomersPage() {
               setCustomers((currentCustomers) => currentCustomers.map((customer) => customer.id === data.id ? data : customer));
               setCustomerBeingEdited(null);
               setSuccess('Client modifié avec succès');
+              clearCustomerUrl();
             }}
           />
           </div>
@@ -111,7 +139,7 @@ export default function CustomersPage() {
             <p className="text-sm text-slate-500">Chargement des clients...</p>
           </div>
         ) : (
-          <CustomersList customers={customers} onDelete={handleDelete} onEdit={(customer) => {
+          <CustomersList customers={customers} onDelete={handleDelete} initialCustomerId={searchParams.get('customer') || undefined} initialCustomerMode={searchParams.get('edit') === '1' ? 'edit' : 'view'} syncUrl onEdit={(customer) => {
             setCustomerBeingEdited(customer);
             setShowAddCustomerForm(true);
             setCustomerFormWasOpened(true);

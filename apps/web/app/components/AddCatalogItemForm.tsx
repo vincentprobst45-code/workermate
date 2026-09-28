@@ -3,29 +3,7 @@
 import { LineItemType as WorkOrderItemType, VatCategory } from '@prisma/client';
 import { type FormEvent, useState } from 'react';
 import { useApiClient } from '../api-client';
-
-export interface CatalogItem {
-  id: string;
-  tenantId: string;
-  type: WorkOrderItemType;
-  title: string;
-  reference?: string;
-  isActive: boolean;
-  description?: string;
-  defaultQuantity: number;
-  unit?: string;
-  unitCode: string;
-  unitLabel?: string;
-  baseQuantity?: number;
-  baseQuantityUnitCode?: string;
-  unitPrice: number;
-  unitCost?: number;
-  purchaseVatRate?: number;
-  vatRate: number;
-  vatCategory: VatCategory;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { CatalogItem } from './CatalogItemList';
 
 export interface AddCatalogItemFormData {
   type: WorkOrderItemType;
@@ -33,6 +11,7 @@ export interface AddCatalogItemFormData {
   description: string;
   reference: string;
   isActive: boolean;
+  trackStock: boolean;
   defaultQuantity: number;
   unit: string;
   unitCode: string;
@@ -51,6 +30,7 @@ export interface CreateCatalogItemDto {
   title: string;
   reference?: string;
   isActive?: boolean;
+  trackStock?: boolean;
   description?: string;
   defaultQuantity?: number;
   unit?: string;
@@ -67,9 +47,9 @@ export interface CreateCatalogItemDto {
 
 const catalogItemTypeOptions: Array<{ value: WorkOrderItemType; label: string }> = [
   { value: 'LABOR', label: 'Travaux' },
-  { value: 'MATERIAL', label: 'Materiel' },
-  { value: 'EQUIPMENT', label: 'Equipement' },
-  { value: 'TRAVEL', label: 'Deplacement' },
+  { value: 'MATERIAL', label: 'Matériel' },
+  { value: 'EQUIPMENT', label: 'Équipement' },
+  { value: 'TRAVEL', label: 'Déplacement' },
   { value: 'SERVICE', label: 'Service' },
   { value: 'OTHER', label: 'Autre' },
 ];
@@ -80,6 +60,7 @@ function createEmptyCatalogItem(): AddCatalogItemFormData {
     title: '',
     reference: '',
     isActive: true,
+    trackStock: false,
     description: '',
     defaultQuantity: 1,
     unit: '',
@@ -95,6 +76,28 @@ function createEmptyCatalogItem(): AddCatalogItemFormData {
   };
 }
 
+function formDataFromCatalogItem(item: CatalogItem): AddCatalogItemFormData {
+  return {
+    type: item.type,
+    title: item.title,
+    reference: item.reference ?? '',
+    isActive: item.isActive,
+    trackStock: item.trackStock ?? Boolean(item.stockItem),
+    description: item.description ?? '',
+    defaultQuantity: Number(item.defaultQuantity) || 1,
+    unit: item.unit ?? item.unitLabel ?? '',
+    unitCode: item.unitCode,
+    unitLabel: item.unitLabel ?? '',
+    baseQuantity: Number(item.baseQuantity) || 1,
+    baseQuantityUnitCode: item.baseQuantityUnitCode ?? 'C62',
+    unitPrice: Number(item.unitPrice) || 0,
+    unitCost: item.unitCost == null ? '' : Number(item.unitCost),
+    purchaseVatRate: item.purchaseVatRate == null ? '' : Number(item.purchaseVatRate),
+    vatRate: Number(item.vatRate) || 0,
+    vatCategory: item.vatCategory,
+  };
+}
+
 function trimToUndefined(value?: string | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -102,6 +105,9 @@ function trimToUndefined(value?: string | null): string | undefined {
 
 type AddCatalogItemFormProps = {
   onCreated: (catalogItem: CatalogItem) => void;
+  onUpdated: (catalogItem: CatalogItem) => void;
+  onCancel?: () => void;
+  initialCatalogItem?: CatalogItem | null;
   show: boolean;
 };
 
@@ -113,17 +119,19 @@ const labelClass = 'text-xs font-semibold uppercase tracking-wide text-stone-500
 const underlineInputClass =
   'w-full border-0 border-b-2 border-stone-300 bg-transparent px-0.5 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-600';
 
-export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFormProps) {
+export default function AddCatalogItemForm({ onCreated, onUpdated, onCancel, initialCatalogItem = null, show }: AddCatalogItemFormProps) {
   const api = useApiClient();
   const [newCatalogItem, setNewCatalogItem] =
-    useState<AddCatalogItemFormData>(createEmptyCatalogItem());
+    useState<AddCatalogItemFormData>(() => initialCatalogItem ? formDataFromCatalogItem(initialCatalogItem) : createEmptyCatalogItem());
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleAddCatalogItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setSuccess('');
+    setIsSubmitting(true);
 
     try {
       if (!newCatalogItem.title.trim()) {
@@ -136,6 +144,7 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
         title: newCatalogItem.title.trim(),
         reference: trimToUndefined(newCatalogItem.reference),
         isActive: newCatalogItem.isActive,
+        trackStock: newCatalogItem.trackStock,
         description: trimToUndefined(newCatalogItem.description),
         defaultQuantity: Number.isFinite(newCatalogItem.defaultQuantity)
           ? newCatalogItem.defaultQuantity
@@ -152,17 +161,26 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
         vatCategory: newCatalogItem.vatCategory,
       };
 
-      const response = await api.post('/catalogitems', payload);
+      const response = initialCatalogItem
+        ? await api.put(`/catalogitems/${initialCatalogItem.id}`, payload)
+        : await api.post('/catalogitems', payload);
       if (!response.ok) {
         throw new Error('Erreur');
       }
 
       const data: CatalogItem = await response.json();
-      onCreated(data);
-      setNewCatalogItem(createEmptyCatalogItem());
-      setSuccess('Article catalogue ajoute avec succes');
+      if (initialCatalogItem) {
+        onUpdated(data);
+        setSuccess('Article catalogue mis à jour avec succès');
+      } else {
+        onCreated(data);
+        setNewCatalogItem(createEmptyCatalogItem());
+        setSuccess('Article catalogue ajouté avec succès');
+      }
     } catch {
-      setError('Erreur lors de la creation de l\'article catalogue');
+      setError(initialCatalogItem ? 'Erreur lors de la mise à jour de l’article catalogue' : 'Erreur lors de la création de l’article catalogue');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -179,7 +197,9 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
       <div className="space-y-8 p-6 sm:p-8">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Catalogue</p>
-          <h3 className="mt-1 text-xl font-bold text-stone-900">Nouvel article ou prestation</h3>
+          <h3 className="mt-1 text-xl font-bold text-stone-900">
+            {initialCatalogItem ? 'Modifier l’article ou la prestation' : 'Nouvel article ou prestation'}
+          </h3>
         </div>
 
         {error && (
@@ -272,6 +292,31 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
                   ? 'Article actif — visible dans les devis et factures'
                   : 'Article inactif — masqué des nouveaux documents'}
               </span>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className={sectionHeaderClass}>
+            <span>Stock</span>
+            <span className={ruleClass} />
+          </div>
+          <div className="mt-4 flex items-start gap-3 rounded-lg bg-stone-50 px-4 py-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={newCatalogItem.trackStock}
+              aria-label="Suivre cet article en stock"
+              onClick={() => setNewCatalogItem({ ...newCatalogItem, trackStock: !newCatalogItem.trackStock })}
+              className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition ${newCatalogItem.trackStock ? 'bg-emerald-600' : 'bg-stone-300'}`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${newCatalogItem.trackStock ? 'left-5' : 'left-0.5'}`} />
+            </button>
+            <div>
+              <p className="text-sm font-semibold text-stone-800">Suivi de stock</p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                {newCatalogItem.trackStock ? 'Les quantités disponibles seront suivies pour cet article.' : 'À activer pour les matériaux et équipements gérés en stock.'}
+              </p>
             </div>
           </div>
         </section>
@@ -440,12 +485,22 @@ export default function AddCatalogItemForm({ onCreated, show }: AddCatalogItemFo
           </div>
         </section>
 
-        <div className="flex justify-end border-t border-stone-100 pt-6">
+        <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-stone-100 bg-white/95 pt-6 backdrop-blur">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-lg border border-stone-300 px-5 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              Annuler
+            </button>
+          )}
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+            disabled={isSubmitting}
+            className="rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60"
           >
-            Ajouter au catalogue
+            {isSubmitting ? 'Enregistrement...' : initialCatalogItem ? 'Enregistrer les modifications' : 'Ajouter au catalogue'}
           </button>
         </div>
       </div>

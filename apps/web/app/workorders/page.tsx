@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApiClient } from '../api-client';
 import { ProtectedRoute } from '../protected-route';
 import AddWorkOrderForm from '../components/AddWorkOrderForm';
@@ -37,12 +38,31 @@ export function createEmptyWorkOrder(): WorkOrder {
 }
 
 export default function WorkOrdersPage() {
+  const searchParams = useSearchParams();
   const api = useApiClient();
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddWorkOrderForm, setShowAddWorkOrderForm] = useState(false);
   const [workOrderFormWasOpened, setWorkOrderFormWasOpened] = useState(false);
+
+  function updateCreateUrl(open: boolean, replace = false) {
+    const url = new URL(window.location.href);
+    if (open) url.searchParams.set('create', 'workOrder');
+    else url.searchParams.delete('create');
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  }
+
+  useEffect(() => {
+    function syncCreateForm() {
+      const open = new URLSearchParams(window.location.search).get('create') === 'workOrder';
+      setShowAddWorkOrderForm(open);
+      setWorkOrderFormWasOpened(open);
+    }
+    syncCreateForm();
+    window.addEventListener('popstate', syncCreateForm);
+    return () => window.removeEventListener('popstate', syncCreateForm);
+  }, []);
   // const [newWorkOrder, setNewWorkOrder] = useState<WorkOrder>(createEmptyWorkOrder());
   // const [addressMode, setAddressMode] = useState<AddressMode>('new');
   // const [selectedAddressId, setSelectedAddressId] = useState('');
@@ -150,7 +170,7 @@ export default function WorkOrdersPage() {
           <button
             type="button"
             className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-            onClick={() => { setShowAddWorkOrderForm(!showAddWorkOrderForm); setWorkOrderFormWasOpened(true); }}
+            onClick={() => { setShowAddWorkOrderForm(!showAddWorkOrderForm); setWorkOrderFormWasOpened(true); updateCreateUrl(!showAddWorkOrderForm); }}
           >
             {showAddWorkOrderForm ? 'Fermer le formulaire' : workOrderFormWasOpened ? 'Reprendre le formulaire' : 'Nouveau chantier'}
           </button>
@@ -162,7 +182,7 @@ export default function WorkOrdersPage() {
         <button
           type="button"
           className="mb-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-          onClick={() => {setShowAddWorkOrderForm(false);setWorkOrderFormWasOpened(false);}}>
+          onClick={() => {setShowAddWorkOrderForm(false);setWorkOrderFormWasOpened(false); updateCreateUrl(false, true);}}>
             Réinitialiser le formulaire
         </button>
         }
@@ -171,7 +191,7 @@ export default function WorkOrdersPage() {
           ...data,
           startDate: data.startDate ?? data.plannedStartDate,
           endDate: data.endDate ?? data.plannedEndDate,
-        }, ...currentWorkOrders])}} />
+        }, ...currentWorkOrders]); updateCreateUrl(false, true);}} />
         }
         {/* <form onSubmit={handleAddWorkOrder} className="mb-8 p-5 bg-white rounded-lg shadow border-2">
           <h3 className="font-semibold mb-4">Ajouter un chantier</h3>
@@ -383,7 +403,7 @@ export default function WorkOrdersPage() {
             <p className="text-sm text-slate-500">Chargement des chantiers...</p>
           </div>
         ) : (
-          <WorkOrdersList workOrders={workOrders} onDelete={handleDelete} />
+          <WorkOrdersList workOrders={workOrders} onDelete={handleDelete} initialWorkOrderId={searchParams.get('workOrder') || undefined} initialWorkOrderMode={searchParams.get('edit') === '1' ? 'edit' : 'view'} syncUrl />
         )}
       </main>
     </ProtectedRoute>

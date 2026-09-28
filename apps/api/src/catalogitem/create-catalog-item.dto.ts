@@ -21,6 +21,10 @@ export class CreateCatalogItemDto {
   @IsBoolean()
   isActive?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  trackStock?: boolean;
+
   @IsString()
   title!: string;
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { LineItemType as WorkOrderItemType, WorkOrderStatus } from '@prisma/client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Project } from '../AddProjectForm';
 import { useApiClient } from '../../api-client';
 import AddWorkOrderForm from '../AddWorkOrderForm';
@@ -11,6 +11,9 @@ import { CardHeader, WorkOrderStatusBadge, alertError, btnGhost, btnPrimary, car
 
 type ProjectDetailsWorkOrdersProps = {
 	project: Project;
+	onRequestAssociate: () => void;
+	onRequestCreate: () => void;
+	onChanged: () => void;
 };
 
 type WorkOrderDetails = {
@@ -21,8 +24,8 @@ type WorkOrderDetails = {
 	title: string;
 	description?: string | null;
 	status: WorkOrderStatus;
-	startDate?: string | null;
-	endDate?: string | null;
+		plannedStartDate?: string | null;
+		plannedEndDate?: string | null;
 	customer?: {
 		firstName?: string | null;
 		lastName?: string | null;
@@ -56,12 +59,6 @@ type ProjectDetailsResponse = {
 	workOrders: WorkOrderDetails[];
 };
 
-type WorkOrderSelection = {
-	id: string;
-	reference: string;
-	title: string;
-};
-
 function formatDate(value?: string | null): string {
 	if (!value) {
 		return '-';
@@ -82,22 +79,28 @@ function formatCustomerName(customer: WorkOrderDetails['customer']): string {
 		.join(' ') || '-';
 }
 
-export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWorkOrdersProps) {
+export default function ProjectDetailsWorkOrders({ project, onRequestAssociate, onRequestCreate, onChanged }: ProjectDetailsWorkOrdersProps) {
 	const api = useApiClient();
 	const [workOrders, setWorkOrders] = useState<WorkOrderDetails[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState('');
 	const [reloadVersion, setReloadVersion] = useState(0);
-	const [showAddWorkOrderModal, setShowAddWorkOrderModal] = useState(false);
-	const [addMode, setAddMode] = useState<'existing' | 'new'>('existing');
-	const [availableWorkOrders, setAvailableWorkOrders] = useState<WorkOrderSelection[]>([]);
-	const [availableWorkOrdersLoading, setAvailableWorkOrdersLoading] = useState(false);
-	const [selectedWorkOrderId, setSelectedWorkOrderId] = useState('');
-	const [associationError, setAssociationError] = useState('');
 	const [associating, setAssociating] = useState(false);
 	const [workOrderForNewLog, setWorkOrderForNewLog] = useState<WorkOrderDetails | null>(null);
 	const [workOrderForEdit, setWorkOrderForEdit] = useState<WorkOrderDetails | null>(null);
 	const [workLogsRefreshKey, setWorkLogsRefreshKey] = useState(0);
+	const [statusFilter, setStatusFilter] = useState<'ALL' | WorkOrderStatus>('ALL');
+	const [workLogCounts, setWorkLogCounts] = useState<Record<string, number>>({});
+	const handleWorkLogCountChange = useCallback((workOrderId: string, count: number) => {
+		setWorkLogCounts((current) => ({ ...current, [workOrderId]: count }));
+	}, []);
+
+	useEffect(() => {
+		if (!workOrderForNewLog && !workOrderForEdit) return;
+		function handleKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') { setWorkOrderForNewLog(null); setWorkOrderForEdit(null); } }
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [workOrderForEdit, workOrderForNewLog]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -112,11 +115,7 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 
 				const data: ProjectDetailsResponse = await response.json();
 				if (!cancelled) {
-					setWorkOrders(data.workOrders.map((workOrder) => ({
-						...workOrder,
-						startDate: workOrder.startDate ?? null,
-						endDate: workOrder.endDate ?? null,
-					})));
+					setWorkOrders(data.workOrders);
 					setError('');
 				}
 			} catch {
@@ -138,92 +137,58 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 		};
 	}, [api, project.id, reloadVersion]);
 
-	useEffect(() => {
-		if (!showAddWorkOrderModal || addMode !== 'existing') {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadAvailableWorkOrders() {
-			setAvailableWorkOrdersLoading(true);
-			try {
-				const response = await api.get('/workOrders');
-				if (!response.ok) {
-					throw new Error('Erreur');
-				}
-
-				const data: WorkOrderSelection[] = await response.json();
-				if (!cancelled) {
-					setAvailableWorkOrders(data);
-				}
-			} catch {
-				if (!cancelled) {
-					setAssociationError('Erreur lors de la récupération des chantiers.');
-				}
-			} finally {
-				if (!cancelled) {
-					setAvailableWorkOrdersLoading(false);
-				}
-			}
-		}
-
-		void loadAvailableWorkOrders();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [addMode, api, showAddWorkOrderModal]);
-
-	function closeAddWorkOrderModal() {
-		setShowAddWorkOrderModal(false);
-		setSelectedWorkOrderId('');
-		setAssociationError('');
-	}
-
-	async function associateWorkOrder(workOrderId: string) {
+	async function disassociateWorkOrder(workOrderId: string) {
+		if (!window.confirm('Désassocier ce chantier du projet ?')) return;
 		setAssociating(true);
-		setAssociationError('');
-
 		try {
-			const associationResponse = await api.post(
-				`/projects/${project.id}/work-orders/${workOrderId}`,
-			);
-			if (!associationResponse.ok) {
-				throw new Error('Erreur');
-			}
-
-			closeAddWorkOrderModal();
+			const response = await api.delete(`/projects/${project.id}/work-orders/${workOrderId}`);
+			if (!response.ok) throw new Error('Erreur');
 			setReloadVersion((currentVersion) => currentVersion + 1);
+			onChanged();
 		} catch {
-			setAssociationError('Erreur lors de l’association du chantier au projet.');
+			setError('Erreur lors de la désassociation du chantier.');
 		} finally {
 			setAssociating(false);
 		}
 	}
 
+	const visibleWorkOrders = statusFilter === 'ALL' ? workOrders : workOrders.filter((workOrder) => workOrder.status === statusFilter);
+
 	return (
 		<div className="space-y-4">
-			<div className={cardClass}>
-				<CardHeader title="Chantiers" />
+			<div className={`${cardClass} flex flex-wrap items-center justify-between gap-3`}>
+				<CardHeader title={`Chantiers (${workOrders.length})`} />
+				<div className="flex flex-wrap items-center gap-2">
+					<label className="flex items-center gap-2 text-sm text-slate-600"><span className="sr-only">Filtrer les chantiers par statut</span><select aria-label="Filtrer les chantiers par statut" className="rounded-lg border border-slate-300 bg-white px-3 py-2" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'ALL' | WorkOrderStatus)}><option value="ALL">Tous les statuts</option><option value="DRAFT">Brouillons</option><option value="PLANNED">Planifiés</option><option value="IN_PROGRESS">En cours</option><option value="COMPLETED">Terminés</option><option value="CANCELLED">Annulés</option></select></label>
 				<button
 					type="button"
 					className={btnPrimary}
-					onClick={() => setShowAddWorkOrderModal(true)}
+					onClick={onRequestAssociate}
 				>
 					Ajouter un chantier
 				</button>
+					<button type="button" className={btnGhost} onClick={onRequestCreate}>Créer un chantier</button>
+				</div>
 			</div>
 			{loading && <p className="text-sm text-slate-500">Chargement des chantiers...</p>}
 			{error && <div className={alertError}>{error}</div>}
 			{!loading && !error && !workOrders.length && (
 				<p className="text-sm text-slate-500">Aucun chantier associé à ce projet.</p>
 			)}
-			{!loading && !error && workOrders.length > 0 && (
+			{!loading && !error && workOrders.length > 0 && !visibleWorkOrders.length && (
+				<p className="text-sm text-slate-500">Aucun chantier ne correspond à ce filtre.</p>
+			)}
+			{!loading && !error && visibleWorkOrders.length > 0 && (
 				<div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
-					{workOrders.map((workOrder) => (
-						<article key={workOrder.id} className={`grid gap-4 lg:grid-cols-[minmax(12rem,0.8fr)_minmax(20rem,1.5fr)_minmax(14rem,0.9fr)] ${cardClass}`}>
-							<div className="space-y-2 text-sm">
+					{visibleWorkOrders.map((workOrder) => (
+						<article key={workOrder.id} className={cardClass}>
+							<div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+								<div className="min-w-0">
+									<p className="font-medium text-slate-900">{workOrder.reference}</p>
+									<h4 className="text-base font-semibold text-slate-900">{workOrder.title}</h4>
+									<div className="mt-2"><WorkOrderStatusBadge status={workOrder.status} /></div>
+								</div>
+								<div className="flex flex-wrap gap-2">
 								<button
 									type="button"
 									className={btnGhost}
@@ -231,79 +196,42 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 								>
 									Modifier le chantier
 								</button>
-								<p className="font-medium text-slate-900">{workOrder.reference}</p>
-								<h4 className="text-base font-semibold text-slate-900">{workOrder.title}</h4>
-								<div><WorkOrderStatusBadge status={workOrder.status} /></div>
-								<p className="whitespace-pre-wrap text-slate-600">{workOrder.description || 'Aucune description.'}</p>
-								<div className="border-t border-slate-200 pt-3">
-									<h5 className="mb-2 font-medium text-slate-900">Étapes</h5>
-									{workOrder.items.length ? (
-										<ol className="space-y-2">
-											{workOrder.items.map((item) => (
-												<li key={item.id} className="border-l-2 border-slate-300 pl-2">
-													<p className="font-medium text-slate-900">{item.title}</p>
-													{item.description && <p className="text-slate-600">{item.description}</p>}
-													<p className="mt-1 text-xs text-slate-500">{item.quantity} {item.unit || 'unité'}</p>
-												</li>
-											))}
-										</ol>
-									) : <p className="text-slate-600">Aucune étape.</p>}
+								<button type="button" className={btnGhost} disabled={associating} onClick={() => void disassociateWorkOrder(workOrder.id)}>
+									{associating ? 'Retrait...' : 'Retirer du projet'}
+								</button>
 								</div>
 							</div>
-							<div className="min-w-0 border-y border-slate-200 py-4 lg:border-x lg:border-y-0 lg:px-4 lg:py-0">
+							<div className="grid gap-4 py-4 text-sm md:grid-cols-3">
+								<p className="whitespace-pre-wrap text-slate-600 md:col-span-2">{workOrder.description || 'Aucune description.'}</p>
+								<div className="space-y-1 text-slate-600"><p><strong className="text-slate-900">Client:</strong> {formatCustomerName(workOrder.customer)}</p><p><strong className="text-slate-900">Adresse:</strong> {workOrder.address ? <>{workOrder.address.street1}, {workOrder.address.postalCode} {workOrder.address.city}</> : '-'}</p><p><strong className="text-slate-900">Dates:</strong> {formatDate(workOrder.plannedStartDate)} → {formatDate(workOrder.plannedEndDate)}</p></div>
+							</div>
+			<div className="border-t border-slate-200 pt-4">
+				<h4 className="mb-3 text-sm font-medium text-slate-900">Étapes ({workOrder.items.length})</h4>
+				{workOrder.items.length ? <>
+					<div className="hidden overflow-x-auto md:block">
+						<table className="w-full border-collapse text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="border border-slate-200 px-3 py-2">Étape</th><th className="border border-slate-200 px-3 py-2">Type</th><th className="border border-slate-200 px-3 py-2 text-right">Quantité</th><th className="border border-slate-200 px-3 py-2">Unité</th><th className="border border-slate-200 px-3 py-2 text-right">Total HT</th></tr></thead><tbody>{workOrder.items.map((item) => <tr key={item.id}><td className="border border-slate-200 px-3 py-2 font-medium text-slate-900">{item.title}</td><td className="border border-slate-200 px-3 py-2 text-slate-600">{item.type}</td><td className="border border-slate-200 px-3 py-2 text-right">{item.quantity}</td><td className="border border-slate-200 px-3 py-2">{item.unitLabel || item.unit || item.unitCode || '-'}</td><td className="border border-slate-200 px-3 py-2 text-right">{Number(item.subtotal || 0).toFixed(2)} €</td></tr>)}</tbody></table>
+					</div>
+					<ul className="space-y-2 md:hidden">{workOrder.items.map((item) => <li key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-medium text-slate-900">{item.title}</p><p className="mt-1 text-xs text-slate-600">{item.type} · {item.quantity} {item.unitLabel || item.unit || item.unitCode || 'unité'}</p><p className="mt-1 text-xs text-slate-600">Total HT: {Number(item.subtotal || 0).toFixed(2)} €</p>{item.description && <p className="mt-2 text-sm text-slate-600">{item.description}</p>}</li>)}</ul>
+				</> : <p className="text-sm text-slate-600">Aucune étape.</p>}
+			</div>
+							<div className="border-t border-slate-200 pt-4">
 								<div className="mb-3 flex items-center justify-between gap-3">
-									<h4 className="text-sm font-medium text-slate-900">Fiches de suivi</h4>
+									<h4 className="text-sm font-medium text-slate-900">Fiches de suivi ({workLogCounts[workOrder.id] ?? 0})</h4>
 									<button type="button" className={btnPrimary} onClick={() => setWorkOrderForNewLog(workOrder)}>
 										Ajouter une fiche de suivi
 									</button>
 								</div>
-								<WorkLogsList workOrderId={workOrder.id} refreshKey={workLogsRefreshKey} />
-							</div>
-							<div className="space-y-2 text-sm text-slate-600">
-								<p><strong className="text-slate-900">Client:</strong> {formatCustomerName(workOrder.customer)}</p>
-								<p><strong className="text-slate-900">Adresse:</strong> {workOrder.address ? <><br />{workOrder.address.street1}<br />{workOrder.address.postalCode} {workOrder.address.city}</> : '-'}</p>
-								<p><strong className="text-slate-900">Début:</strong> {formatDate(workOrder.startDate)}</p>
-								<p><strong className="text-slate-900">Fin:</strong> {formatDate(workOrder.endDate)}</p>
+								<WorkLogsList workOrderId={workOrder.id} refreshKey={workLogsRefreshKey} onCountChange={(count) => handleWorkLogCountChange(workOrder.id, count)} />
 							</div>
 						</article>
 					))}
 				</div>
 			)}
-			{showAddWorkOrderModal && (
-				<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={closeAddWorkOrderModal}>
-					<div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
-						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-slate-900">Ajouter un chantier au projet</h4>
-							<button type="button" className={btnGhost} onClick={closeAddWorkOrderModal}>Fermer</button>
-						</div>
-						<div className="mb-4 flex gap-2 border-b border-slate-200">
-							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'existing' ? 'border-indigo-600 font-medium text-indigo-700' : 'border-transparent text-slate-500'}`} onClick={() => setAddMode('existing')}>Chantier existant</button>
-							<button type="button" className={`border-b-2 px-3 py-2 text-sm ${addMode === 'new' ? 'border-indigo-600 font-medium text-indigo-700' : 'border-transparent text-slate-500'}`} onClick={() => setAddMode('new')}>Nouveau chantier</button>
-						</div>
-						{associationError && <div className={`mb-4 ${alertError}`}>{associationError}</div>}
-						{addMode === 'existing' ? (
-							<div className="space-y-4">
-								{availableWorkOrdersLoading ? <p className="text-sm text-slate-500">Chargement des chantiers...</p> : (
-									<select className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" value={selectedWorkOrderId} onChange={(event) => setSelectedWorkOrderId(event.target.value)}>
-										<option value="">-- Sélectionner un chantier --</option>
-										{availableWorkOrders.map((workOrder) => <option key={workOrder.id} value={workOrder.id}>{workOrder.reference} - {workOrder.title}</option>)}
-									</select>
-								)}
-								<button type="button" disabled={!selectedWorkOrderId || associating} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-50`} onClick={() => void associateWorkOrder(selectedWorkOrderId)}>
-									{associating ? 'Association...' : 'Associer au projet'}
-								</button>
-							</div>
-						) : (
-							<AddWorkOrderForm show={true} onCreated={(workOrder) => void associateWorkOrder(workOrder.id)} />
-						)}
-					</div>
-				</div>
-			)}
 			{workOrderForNewLog && (
 				<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setWorkOrderForNewLog(null)}>
-					<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="new-worklog-title" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-lg font-semibold text-slate-900">Nouvelle fiche de suivi: {workOrderForNewLog.title}</h4>
+							<h4 id="new-worklog-title" className="text-lg font-semibold text-slate-900">Nouvelle fiche de suivi: {workOrderForNewLog.title}</h4>
 							<button type="button" className={btnGhost} onClick={() => setWorkOrderForNewLog(null)}>Fermer</button>
 						</div>
 						<AddWorklogForm
@@ -319,9 +247,9 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 			)}
 			{workOrderForEdit && (
 				<div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4" onClick={() => setWorkOrderForEdit(null)}>
-					<div className="w-full max-w-6xl rounded-2xl bg-white p-5 shadow-xl" onClick={(event) => event.stopPropagation()}>
+					<div className="w-full max-w-6xl rounded-2xl bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="edit-workorder-title" onClick={(event) => event.stopPropagation()}>
 						<div className="mb-4 flex items-center justify-between gap-3">
-							<h4 className="text-xl font-semibold text-slate-900">Modifier le chantier</h4>
+							<h4 id="edit-workorder-title" className="text-xl font-semibold text-slate-900">Modifier le chantier</h4>
 							<button type="button" className={btnGhost} onClick={() => setWorkOrderForEdit(null)}>Fermer</button>
 						</div>
 						<AddWorkOrderForm
@@ -331,8 +259,8 @@ export default function ProjectDetailsWorkOrders({ project }: ProjectDetailsWork
 								description: workOrderForEdit.description ?? '',
 								customerId: workOrderForEdit.customerId ?? undefined,
 								addressId: workOrderForEdit.addressId ?? undefined,
-								startDate: workOrderForEdit.startDate ?? undefined,
-								endDate: workOrderForEdit.endDate ?? undefined,
+								startDate: workOrderForEdit.plannedStartDate ?? undefined,
+								endDate: workOrderForEdit.plannedEndDate ?? undefined,
 								items: workOrderForEdit.items.map((item) => ({
 									...item,
 									description: item.description ?? '',

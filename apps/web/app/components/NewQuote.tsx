@@ -78,6 +78,7 @@ export interface QuotePreviewData {
   notes?: string;
 
   depositAmount?: number;
+    depositRate?: number;
   
   pdfFileId?: string;
   
@@ -233,16 +234,16 @@ export default function NewQuote({
                             <strong>-{formatMoney(quote.discountAmount, locale, currency)}</strong>
                         </div>
                     )} */}
-                    {!!quote.depositAmount && (
-                        <div className={styles.invoiceTotalLine}>
-                            <span>Acompte</span>
-                            <strong>-{formatMoney(quote.depositAmount, locale, currency)}</strong>
-                        </div>
-                    )}
                     <div className={`${styles.invoiceTotalLine} ${styles.invoiceTotalMain}`}>
                         <span>Total TTC</span>
                         <strong>{formatMoney(quote.taxInclusiveAmount ?? quote.total, locale, currency)}</strong>
                     </div>
+                    {!!quote.depositAmount && (
+                        <div className={styles.invoiceTotalLine}>
+                            <span>Acompte demandé</span>
+                            <strong>{quote.depositRate !== undefined && quote.depositRate !== null ? `${quote.depositRate}% (${formatMoney(quote.depositAmount, locale, currency)})` : formatMoney(quote.depositAmount, locale, currency)}</strong>
+                        </div>
+                    )}
                 </div>
             </section>
 

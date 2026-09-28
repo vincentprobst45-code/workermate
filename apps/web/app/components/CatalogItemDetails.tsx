@@ -1,11 +1,15 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { CatalogItem } from './CatalogItemList';
 
 type CatalogItemDetailsProps = {
   catalogItem: CatalogItem;
   onClose?: () => void;
   onSelect?: (catalogItem: CatalogItem) => void | Promise<void>;
+  onEdit?: () => void;
+  onToggleActive?: () => void | Promise<void>;
+  onDelete?: () => void | Promise<void>;
 };
 
 function toNumber(value: unknown): number {
@@ -33,17 +37,38 @@ function displayValue(value?: string | null): string {
   return value?.trim() || '-';
 }
 
+function stockStatus(catalogItem: CatalogItem): { label: string; className: string } {
+  if (!catalogItem.trackStock) return { label: 'Stock non suivi', className: 'bg-stone-100 text-stone-600' };
+  if (!catalogItem.stockItem) return { label: 'Stock suivi', className: 'bg-sky-50 text-sky-700' };
+  const quantity = toNumber(catalogItem.stockItem.quantityOnHand);
+  if (quantity <= 0) return { label: 'Hors stock', className: 'bg-red-50 text-red-700' };
+  if (quantity <= 5) return { label: 'Stock faible', className: 'bg-amber-50 text-amber-700' };
+  return { label: 'En stock', className: 'bg-emerald-50 text-emerald-700' };
+}
+
 export default function CatalogItemDetails({
   catalogItem,
   onClose,
   onSelect,
+  onEdit,
+  onToggleActive,
+  onDelete,
 }: CatalogItemDetailsProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+  }, []);
+
   const quantity = toNumber(catalogItem.defaultQuantity);
   const unit = displayValue(catalogItem.unitLabel || catalogItem.unitCode || catalogItem.unit);
   const unitPrice = toNumber(catalogItem.unitPrice);
   const unitCost = catalogItem.unitCost == null ? null : toNumber(catalogItem.unitCost);
   const purchaseVatRate = catalogItem.purchaseVatRate == null ? null : toNumber(catalogItem.purchaseVatRate);
   const salesVatRate = toNumber(catalogItem.vatRate);
+  const margin = unitCost === null ? null : unitPrice - unitCost;
+  const itemStockStatus = stockStatus(catalogItem);
+  const stockQuantity = catalogItem.stockItem ? toNumber(catalogItem.stockItem.quantityOnHand) : null;
 
   return (
     <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -54,9 +79,9 @@ export default function CatalogItemDetails({
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
               <span>Article catalogue</span>
               <span className="text-slate-500">/</span>
-              <span>{catalogItem.type}</span>
+              <span>{catalogItem.type === 'LABOR' ? 'Travaux' : catalogItem.type === 'MATERIAL' ? 'Matériel' : catalogItem.type === 'EQUIPMENT' ? 'Équipement' : catalogItem.type === 'TRAVEL' ? 'Déplacement' : catalogItem.type === 'SERVICE' ? 'Service' : 'Autre'}</span>
             </div>
-            <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">{catalogItem.title}</h3>
+            <h3 id="catalog-item-details-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">{catalogItem.title}</h3>
             <p className="mt-2 text-sm text-slate-300">
               Référence: {displayValue(catalogItem.reference)}
             </p>
@@ -79,18 +104,28 @@ export default function CatalogItemDetails({
           <div className="rounded-xl bg-cyan-50 p-4 ring-1 ring-cyan-100">
             <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Prix de vente</p>
             <p className="mt-2 text-2xl font-semibold text-slate-950">{formatMoney(unitPrice)}</p>
-            <p className="mt-1 text-xs text-slate-500">par unité</p>
+            <p className="mt-1 text-xs text-slate-500">par {unit}</p>
           </div>
           <div className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Coût d&apos;achat</p>
             <p className="mt-2 text-2xl font-semibold text-slate-950">{unitCost === null ? '-' : formatMoney(unitCost)}</p>
-            <p className="mt-1 text-xs text-slate-500">par unité</p>
+            <p className="mt-1 text-xs text-slate-500">par {unit}</p>
           </div>
           <div className="rounded-xl bg-amber-50 p-4 ring-1 ring-amber-100">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">TVA vente</p>
             <p className="mt-2 text-2xl font-semibold text-slate-950">{salesVatRate.toFixed(2)}%</p>
-            <p className="mt-1 text-xs text-slate-500">catégorie {catalogItem.vatCategory}</p>
+            <p className="mt-1 text-xs text-slate-500">catégorie {catalogItem.vatCategory === 'STANDARD' ? 'Standard' : catalogItem.vatCategory === 'EXEMPT' ? 'Exonérée' : catalogItem.vatCategory === 'ZERO' ? 'Taux zéro' : 'Autoliquidation'}</p>
           </div>
+        </section>
+
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stock</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {itemStockStatus.label}{stockQuantity !== null ? ` · ${stockQuantity} ${unit}` : ''}
+            </p>
+          </div>
+          {margin !== null && <div className="text-right"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Marge estimée</p><p className={`mt-1 text-sm font-bold ${margin >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(margin)}</p></div>}
         </section>
 
         <section className="grid gap-x-8 gap-y-4 border-y border-slate-200 py-5 sm:grid-cols-2">
@@ -117,11 +152,27 @@ export default function CatalogItemDetails({
           <span>Mis à jour le {formatDate(catalogItem.updatedAt)}</span>
         </footer>
 
-        {(onClose || onSelect) && (
+        {(onClose || onSelect || onEdit || onToggleActive || onDelete) && (
           <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-5">
+            {onDelete && (
+              <button type="button" className="mr-auto rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => void onDelete()}>
+                Supprimer
+              </button>
+            )}
+            {onToggleActive && (
+              <button type="button" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => void onToggleActive()}>
+                {catalogItem.isActive ? 'Désactiver' : 'Réactiver'}
+              </button>
+            )}
+            {onEdit && (
+              <button type="button" className="rounded-lg border border-cyan-300 px-4 py-2.5 text-sm font-semibold text-cyan-800 hover:bg-cyan-50" onClick={onEdit}>
+                Modifier
+              </button>
+            )}
             {onClose && (
               <button
                 type="button"
+                ref={closeButtonRef}
                 className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 onClick={onClose}
               >

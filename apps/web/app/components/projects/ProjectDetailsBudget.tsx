@@ -136,6 +136,13 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
   const [selectedBudgetRow, setSelectedBudgetRow] = useState<BudgetRow | null>(null);
 
   useEffect(() => {
+    if (!selectedBudgetRow) return;
+    function handleKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') setSelectedBudgetRow(null); }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBudgetRow]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadProjectData() {
@@ -374,10 +381,11 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
         >
           <div
             className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            role="dialog" aria-modal="true" aria-labelledby="budget-detail-title"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h4 className="text-xl font-semibold text-zinc-900">Détail du calcul: {selectedBudgetRow.label}</h4>
+              <h4 id="budget-detail-title" className="text-xl font-semibold text-zinc-900">Détail du calcul: {selectedBudgetRow.label}</h4>
               <button
                 type="button"
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"

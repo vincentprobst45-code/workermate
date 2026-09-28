@@ -53,4 +53,11 @@ export class InvoiceController {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.invoiceService.delete(tenantId, id);
   }
+
+  @Post(':id/delete-with-payments')
+  @UseGuards(new RequireRoleGuard(['OWNER']))
+  async deleteWithPayments(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    return this.invoiceService.deleteDraftWithPayments(tenantId, id);
+  }
 }

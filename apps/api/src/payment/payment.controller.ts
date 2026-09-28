@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
 import { CreatePaymentDto } from './create-payment.dto';
@@ -27,5 +27,11 @@ export class PaymentController {
   @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
   delete(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.paymentService.delete(requireTenantContext(req).tenant.id, id);
+  }
+
+  @Patch(':id/cancel')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) {
+    return this.paymentService.cancel(requireTenantContext(req).tenant.id, id, body.reason);
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Param, Req, UseGuards } from '@nestjs/common';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
 import { CreateSupplierInvoiceDto } from './create-supplier-invoice.dto';
@@ -9,4 +9,5 @@ export class SupplierInvoiceController {
   constructor(private readonly service: SupplierInvoiceService) {}
   @Get() findAll(@Req() req: AuthenticatedRequest) { return this.service.findAll(requireTenantContext(req).tenant.id); }
   @Post() @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN'])) create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSupplierInvoiceDto) { return this.service.create(requireTenantContext(req).tenant.id, dto); }
+  @Put(':id') @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN'])) update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: CreateSupplierInvoiceDto) { return this.service.update(requireTenantContext(req).tenant.id, id, dto); }
 }

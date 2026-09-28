@@ -44,21 +44,50 @@ export class CatalogItemService {
         dto.purchaseVatRate !== undefined ? this.toNumber(dto.purchaseVatRate, 0) : undefined,
       vatRate: dto.vatRate !== undefined ? this.toNumber(dto.vatRate, 0) : undefined,
       vatCategory: dto.vatCategory ?? 'STANDARD',
+      trackStock: dto.trackStock ?? false,
     };
 
     return this.prisma.catalogItem.create({ data });
   }
 
-  async findAll(tenantId: string) {
+  async findAll(tenantId: string, options: {
+    search?: string;
+    type?: string;
+    isActive?: boolean;
+    trackStock?: boolean;
+    page?: number;
+    limit?: number;
+  } = {}) {
+    const search = options.search?.trim();
+    const where: Prisma.CatalogItemWhereInput = {
+      tenantId,
+      ...(options.type ? { type: options.type as Prisma.CatalogItemWhereInput['type'] } : {}),
+      ...(options.isActive === undefined ? {} : { isActive: options.isActive }),
+      ...(options.trackStock === undefined ? {} : { trackStock: options.trackStock }),
+      ...(search ? {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { reference: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      } : {}),
+    };
+    const page = Math.max(1, Math.floor(options.page || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(options.limit || 100)));
+
     return this.prisma.catalogItem.findMany({
-      where: { tenantId },
+      where,
+      include: { stockItem: true },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
   }
 
   async findOne(tenantId: string, id: string) {
     const item = await this.prisma.catalogItem.findFirst({
       where: { id, tenantId },
+      include: { stockItem: true },
     });
 
     if (!item) {
@@ -75,6 +104,7 @@ export class CatalogItemService {
       title: dto.title?.trim(),
       description: dto.description !== undefined ? this.normalizeOptionalString(dto.description) : undefined,
       isActive: dto.isActive,
+      trackStock: dto.trackStock,
       defaultQuantity:
         dto.defaultQuantity !== undefined ? this.toNumber(dto.defaultQuantity, 1) : undefined,
       unitCode: dto.unitCode?.trim() || (dto.unit !== undefined ? 'C62' : undefined),
@@ -93,10 +123,16 @@ export class CatalogItemService {
       vatCategory: dto.vatCategory,
     };
 
-    return this.prisma.catalogItem.updateMany({
+    const result = await this.prisma.catalogItem.updateMany({
       where: { id, tenantId },
       data,
     });
+
+    if (result.count === 0) {
+      throw new NotFoundException('Article catalogue introuvable pour ce tenant.');
+    }
+
+    return this.findOne(tenantId, id);
   }
 
   async delete(tenantId: string, id: string) {

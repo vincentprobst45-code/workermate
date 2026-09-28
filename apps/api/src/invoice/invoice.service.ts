@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceAdjustmentType, InvoiceKind, InvoiceOperationCategory, LineItemType, Prisma, VatCategory } from '@prisma/client';
+import { InvoiceAdjustmentType, InvoiceKind, InvoiceOperationCategory, InvoiceStatus, LineItemType, PaymentMethod, PaymentStatus, Prisma, VatCategory } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceItemDto } from './create-invoice-item.dto';
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
+import { AddDepositDto } from '../quote/add-deposit.dto';
 
 // export class CreateInvoiceDto {
 //   number!: string;
@@ -29,6 +30,85 @@ export class InvoiceService {
 
   private roundMoney(value: number): number {
     return Number(value.toFixed(2));
+  }
+
+  async addQuoteDeposit(tenantId: string, quoteId: string, dto: AddDepositDto) {
+    const amount = this.roundMoney(this.toNumber(dto.amount));
+    if (amount <= 0) throw new BadRequestException('Le montant de l’acompte doit être supérieur à 0.');
+    const paidAt = new Date(dto.paidAt);
+    if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('La date du règlement est invalide.');
+
+    return this.prisma.$transaction(async (tx) => {
+      const quote = await tx.quote.findFirst({
+        where: { id: quoteId, tenantId },
+        include: { tenant: { include: { address: true } }, customer: { include: { address: true } }, items: { orderBy: { position: 'asc' } }, workOrderAddress: true },
+      });
+      if (!quote) throw new NotFoundException('Devis introuvable pour ce tenant.');
+
+      const requested = this.roundMoney(this.toNumber(quote.depositAmount));
+      if (requested <= 0) throw new BadRequestException('Ce devis ne demande aucun acompte.');
+      let invoice = await tx.invoice.findFirst({ where: { tenantId, quoteId, kind: InvoiceKind.DEPOSIT }, include: { payments: true } });
+      const alreadyReceived = this.roundMoney(invoice?.payments
+        .filter((payment) => payment.status === PaymentStatus.RECORDED)
+        .reduce((sum, payment) => sum + this.toNumber(payment.amount), 0) ?? 0);
+      if (alreadyReceived + amount > requested) throw new BadRequestException('Le montant dépasse le solde de l’acompte demandé.');
+
+      if (!invoice) {
+        const invoiceNumber = await this.generateInvoiceNumber(tx, tenantId);
+        invoice = await tx.invoice.create({
+          data: {
+            tenantId,
+            customerId: quote.customerId,
+            quoteId: quote.id,
+            workOrderId: quote.workOrderId,
+            number: invoiceNumber,
+            kind: InvoiceKind.DEPOSIT,
+            status: 'DRAFT',
+            operationCategory: InvoiceOperationCategory.SERVICES,
+            currency: quote.currency,
+            tenantName: quote.tenantLegalName,
+            tenantSirenNumber: quote.tenantSirenNumber,
+            tenantSiretNumber: quote.tenantSiretNumber,
+            tenantVatNumber: quote.tenantVatNumber,
+            tenantStreet1: quote.tenantStreet1,
+            tenantStreet2: quote.tenantStreet2,
+            tenantPostalCode: quote.tenantPostalCode,
+            tenantCity: quote.tenantCity,
+            tenantCountryCode: quote.tenantCountryCode,
+            tenantEmail: quote.tenantEmail,
+            tenantPhoneNumber: quote.tenantPhoneNumber,
+            customerName: quote.customerName,
+            customerVatNumber: quote.customerVatNumber,
+            customerStreet1: quote.customerStreet1,
+            customerStreet2: quote.customerStreet2,
+            customerPostalCode: quote.customerPostalCode,
+            customerCity: quote.customerCity,
+            customerCountryCode: quote.customerCountryCode,
+            customerEmail: quote.customerEmail,
+            customerPhoneNumber: quote.customerPhoneNumber,
+            workOrderReference: quote.workOrderReference,
+            workOrderTitle: quote.workOrderTitle,
+            lineNetTotal: requested,
+            taxExclusiveAmount: requested,
+            vatAmount: 0,
+            taxInclusiveAmount: requested,
+            prepaidAmount: 0,
+            amountDue: requested,
+            paidAmount: 0,
+            paymentStatus: 'UNPAID',
+            items: { create: [{ type: LineItemType.SERVICE, position: 0, lineIdentifier: '1', title: `Acompte - ${quote.number}`, description: `Acompte demandé sur le devis ${quote.number}`, quantity: 1, unitCode: 'C62', unitLabel: 'forfait', unitPrice: requested, subtotal: requested, vatCategory: VatCategory.OUTSIDE_SCOPE, vatRate: 0 }] },
+          },
+          include: { payments: true },
+        });
+      }
+
+      if (!invoice) throw new BadRequestException('Impossible de créer la facture d’acompte.');
+      await tx.payment.create({ data: { tenantId, invoiceId: invoice.id, customerId: quote.customerId, amount, paidAt, method: dto.method as PaymentMethod } });
+      const paidAmount = this.roundMoney(alreadyReceived + amount);
+      await tx.invoice.update({ where: { id: invoice.id }, data: { paidAmount, paymentStatus: paidAmount >= requested ? 'PAID' : 'PARTIALLY_PAID' } });
+      await tx.quote.update({ where: { id: quote.id }, data: { status: 'ACCEPTED', acceptedAt: quote.acceptedAt ?? paidAt } });
+      return { invoiceId: invoice.id, invoiceNumber: invoice.number, paidAmount, remainingAmount: this.roundMoney(requested - paidAmount) };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   private normalizeAdjustments(adjustments: CreateInvoiceDto['adjustments'] | undefined) {
@@ -473,7 +553,7 @@ export class InvoiceService {
               });
 
               const paymentTotal = await tx.payment.aggregate({
-                where: { invoiceId: createdInvoice.id },
+                where: { invoiceId: createdInvoice.id, status: PaymentStatus.RECORDED },
                 _sum: { amount: true },
               });
               const paidAmount = this.roundMoney(this.toNumber(paymentTotal._sum.amount));
@@ -960,8 +1040,35 @@ export class InvoiceService {
   }
 
   async delete(tenantId: string, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, tenantId },
+      select: { id: true, status: true, _count: { select: { payments: true } } },
+    });
+    if (!invoice) return { count: 0 };
+    if (invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException('Une facture émise ne peut pas être supprimée.');
+    }
+    if (invoice._count.payments > 0) {
+      throw new BadRequestException('Cette facture possède des paiements. Supprimez-les explicitement avant de supprimer la facture.');
+    }
     return this.prisma.invoice.deleteMany({
       where: { id, tenantId },
+    });
+  }
+
+  async deleteDraftWithPayments(tenantId: string, id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: { id, tenantId },
+        select: { id: true, status: true },
+      });
+      if (!invoice) return { count: 0 };
+      if (invoice.status !== InvoiceStatus.DRAFT) {
+        throw new BadRequestException('Seule une facture brouillon peut être supprimée avec ses paiements.');
+      }
+
+      await tx.payment.deleteMany({ where: { invoiceId: id, status: PaymentStatus.RECORDED } });
+      return tx.invoice.deleteMany({ where: { id, tenantId } });
     });
   }
 }

@@ -19,6 +19,15 @@ export class PurchaseService {
     return this.prisma.purchase.findMany({ where: { tenantId }, include: { supplier: true, items: { include: { catalogItem: true } } }, orderBy: { purchaseDate: 'desc' } });
   }
 
+  async findOne(tenantId: string, id: string) {
+    const purchase = await this.prisma.purchase.findFirst({
+      where: { id, tenantId },
+      include: { supplier: true, items: { include: { catalogItem: true, stockMovements: true } } },
+    });
+    if (!purchase) throw new NotFoundException('Achat introuvable.');
+    return purchase;
+  }
+
   async create(tenantId: string, dto: CreatePurchaseDto) {
     const items = dto.items ?? [];
     const supplier = dto.supplierId ? await this.prisma.supplier.findFirst({ where: { id: dto.supplierId, tenantId, archivedAt: null } }) : null;

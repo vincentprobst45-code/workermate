@@ -2,7 +2,6 @@ import { IsEmail, IsOptional, IsString } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString() name!: string;
-  @IsOptional() @IsString() reference?: string;
   @IsOptional() @IsString() legalName?: string;
   @IsOptional() @IsString() sirenNumber?: string;
   @IsOptional() @IsString() siretNumber?: string;

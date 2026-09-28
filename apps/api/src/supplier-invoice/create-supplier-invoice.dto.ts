@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
-import { LineItemType, SupplierInvoiceKind, SupplierInvoiceStatus } from '@prisma/client';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { LineItemType, SupplierInvoiceKind, SupplierInvoiceStatus, VatCategory } from '@prisma/client';
 
 export class CreateSupplierInvoiceItemDto {
   @IsString() title!: string;
@@ -18,11 +18,19 @@ export class CreateSupplierInvoiceItemDto {
   @IsNumber() @Min(0) taxInclusiveAmount!: number;
 }
 
+export class CreateSupplierInvoiceVatBreakdownDto {
+  @IsOptional() @IsEnum(VatCategory) vatCategory?: VatCategory;
+  @IsOptional() @IsNumber() @Min(0) vatRate?: number;
+  @IsNumber() @Min(0) taxableAmount!: number;
+  @IsNumber() @Min(0) vatAmount!: number;
+  @IsOptional() @IsNumber() @Min(0) deductibleVatAmount?: number;
+}
+
 export class CreateSupplierInvoiceDto {
   @IsString() supplierId!: string;
   @IsOptional() @IsEnum(SupplierInvoiceKind) kind?: SupplierInvoiceKind;
   @IsOptional() @IsEnum(SupplierInvoiceStatus) status?: SupplierInvoiceStatus;
-  @IsString() supplierInvoiceNumber!: string;
+  @IsString() @IsNotEmpty() supplierInvoiceNumber!: string;
   @Type(() => Date) @IsDate() issueDate!: Date;
   @IsOptional() @Type(() => Date) @IsDate() receivedDate?: Date;
   @IsOptional() @Type(() => Date) @IsDate() dueDate?: Date;
@@ -37,4 +45,5 @@ export class CreateSupplierInvoiceDto {
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() internalNotes?: string;
   @IsOptional() @ValidateNested({ each: true }) @Type(() => CreateSupplierInvoiceItemDto) items?: CreateSupplierInvoiceItemDto[];
+  @IsOptional() @ValidateNested({ each: true }) @Type(() => CreateSupplierInvoiceVatBreakdownDto) vatBreakdowns?: CreateSupplierInvoiceVatBreakdownDto[];
 }

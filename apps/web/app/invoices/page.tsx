@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InvoiceKind } from '@prisma/client';
 import { useApiClient } from '../api-client';
 import AddInvoiceForm from '../components/AddInvoiceForm';
@@ -19,6 +20,7 @@ const invoiceKindOptions: Array<{ value: InvoiceKind; label: string }> = [
 ];
 
 export default function InvoicesPage() {
+  const searchParams = useSearchParams();
   const api = useApiClient();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +31,35 @@ export default function InvoicesPage() {
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [isCreatingRecurringInvoice, setIsCreatingRecurringInvoice] = useState(false);
   const [recurringInvoicesRefreshKey, setRecurringInvoicesRefreshKey] = useState(0);
+
+  function updateCreateUrl(open: boolean, kind?: InvoiceKind, replace = false) {
+    const url = new URL(window.location.href);
+    if (open) {
+      url.searchParams.set('create', 'invoice');
+      url.searchParams.set('kind', kind ?? selectedInvoiceKind ?? InvoiceKind.STANDARD);
+    } else {
+      url.searchParams.delete('create');
+      url.searchParams.delete('kind');
+    }
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+  }
+
+  useEffect(() => {
+    function syncCreateForm() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('create') !== 'invoice') {
+        setIsCreatingInvoice(false);
+        return;
+      }
+      const queryKind = params.get('kind') as InvoiceKind | null;
+      const kind = invoiceKindOptions.some((option) => option.value === queryKind) ? queryKind : InvoiceKind.STANDARD;
+      setSelectedInvoiceKind(kind);
+      setIsCreatingInvoice(true);
+    }
+    syncCreateForm();
+    window.addEventListener('popstate', syncCreateForm);
+    return () => window.removeEventListener('popstate', syncCreateForm);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,14 +91,29 @@ export default function InvoicesPage() {
   }, [api]);
 
   async function handleDelete(id: string) {
-    if (!confirm('Confirmer la suppression?')) return;
+    const invoice = invoices.find((item) => item.id === id);
+    if (!invoice) return;
+    const hasPayments = (invoice.payments ?? []).length > 0 || Number(invoice.paidAmount ?? 0) > 0;
+    const message = hasPayments
+      ? 'Cette facture brouillon possède déjà des paiements. Tous ses paiements enregistrés seront supprimés dans la même opération. Voulez-vous continuer ?'
+      : 'Confirmer la suppression de cette facture brouillon ?';
+    if (!confirm(message)) return;
     try {
-      const res = await api.delete(`/invoices/${id}`);
+      const res = hasPayments
+        ? await api.post(`/invoices/${id}/delete-with-payments`)
+        : await api.delete(`/invoices/${id}`);
       if (!res.ok) throw new Error('Erreur');
       setInvoices((currentInvoices) => currentInvoices.filter((invoice) => invoice.id !== id));
     } catch {
       setError('Erreur lors de la suppression');
     }
+  }
+
+  function handleCorrect(invoice: Invoice, kind: 'CREDIT_NOTE' | 'CORRECTIVE') {
+    setSelectedInvoiceKind(kind as InvoiceKind);
+    setIsCreatingInvoice(true);
+    updateCreateUrl(true, kind as InvoiceKind);
+    setError(`Sélectionnez la facture source ${invoice.number} dans le formulaire pour créer ${kind === 'CREDIT_NOTE' ? 'un avoir' : 'une facture corrective'}.`);
   }
 
   return (
@@ -102,6 +148,7 @@ export default function InvoicesPage() {
                 onClick={() => {
                   if (isCreatingInvoice) {
                     setIsCreatingInvoice(false);
+                    updateCreateUrl(false, undefined, true);
                   } else {
                     setIsChoosingInvoiceKind((current) => !current);
                     setSelectedInvoiceKind(null);
@@ -122,6 +169,7 @@ export default function InvoicesPage() {
                         setSelectedInvoiceKind(option.value);
                         setIsChoosingInvoiceKind(false);
                         setIsCreatingInvoice(true);
+                        updateCreateUrl(true, option.value);
                       }}
                     >
                       {option.label}
@@ -173,6 +221,7 @@ export default function InvoicesPage() {
                 invoiceKind={selectedInvoiceKind!}
                 onCreated={(invoice) => {
                   setInvoices((current) => [invoice, ...current]);
+                  updateCreateUrl(false, undefined, true);
                 }}
               />
           </div>
@@ -221,7 +270,11 @@ export default function InvoicesPage() {
         ) : (
           <InvoicesList
             invoices={invoices}
+            initialInvoiceId={searchParams.get('invoice') || undefined}
+            initialInvoiceMode={searchParams.get('edit') === '1' ? 'edit' : 'view'}
+            syncUrl
             onDelete={handleDelete}
+            onCorrect={handleCorrect}
             onUpdated={(updatedInvoice) => {
               setInvoices((currentInvoices) => currentInvoices.map((invoice) => invoice.id === updatedInvoice.id ? updatedInvoice : invoice));
             }}

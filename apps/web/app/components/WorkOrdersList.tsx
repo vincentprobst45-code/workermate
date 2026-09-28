@@ -57,9 +57,12 @@ interface WorkOrdersListProps {
 	workOrders: WorkOrder[];
 	onDelete: ((id: string) => void | Promise<void>) | null ;
 	handleSelectedWorkOrder?: ((workOrder: WorkOrder) => void | Promise<void>) | null ;
+	initialWorkOrderId?: string;
+	initialWorkOrderMode?: 'view' | 'edit';
+	syncUrl?: boolean;
 }
 
-export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWorkOrder }: WorkOrdersListProps) {
+export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWorkOrder, initialWorkOrderId, initialWorkOrderMode = 'view', syncUrl = false }: WorkOrdersListProps) {
 	const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
 	const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
 	const [showEditWorkOrder, setShowEditWorkOrder] = useState(false);
@@ -73,6 +76,61 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 	const [deletingWorkOrderId, setDeletingWorkOrderId] = useState<string | null>(null);
 	const [deletionError, setDeletionError] = useState('');
 	const deleteCancelRef = useRef<HTMLButtonElement>(null);
+	const openedWorkOrderIdRef = useRef<string | null>(null);
+
+	const updateWorkOrderUrl = (workOrderId?: string, mode: 'view' | 'edit' = 'view', replace = false) => {
+		if (!syncUrl) return;
+		const url = new URL(window.location.href);
+		if (workOrderId) {
+			url.searchParams.set('workOrder', workOrderId);
+			if (mode === 'edit') url.searchParams.set('edit', '1');
+			else url.searchParams.delete('edit');
+		} else {
+			url.searchParams.delete('workOrder');
+			url.searchParams.delete('edit');
+		}
+		window.history[replace ? 'replaceState' : 'pushState']({}, '', url.toString());
+	};
+
+	useEffect(() => {
+		if (!syncUrl || !initialWorkOrderId || showWorkOrderDetails || showEditWorkOrder || openedWorkOrderIdRef.current === initialWorkOrderId) return;
+		const workOrder = workOrders.find((item) => item.id === initialWorkOrderId);
+		if (workOrder) {
+			const timer = window.setTimeout(() => {
+				openedWorkOrderIdRef.current = initialWorkOrderId;
+				setSelectedWorkOrder(workOrder);
+				if (initialWorkOrderMode === 'edit') setShowEditWorkOrder(true);
+				else setShowWorkOrderDetails(true);
+			}, 0);
+			return () => window.clearTimeout(timer);
+		}
+	}, [initialWorkOrderId, initialWorkOrderMode, showEditWorkOrder, showWorkOrderDetails, syncUrl, workOrders]);
+
+	useEffect(() => {
+		if (!syncUrl) return;
+		const handleHistoryChange = () => {
+			const url = new URL(window.location.href);
+			const workOrderId = url.searchParams.get('workOrder');
+			const workOrder = workOrderId ? workOrders.find((item) => item.id === workOrderId) : null;
+			if (!workOrder) {
+				setShowWorkOrderDetails(false);
+				setShowEditWorkOrder(false);
+				setSelectedWorkOrder(null);
+				return;
+			}
+			openedWorkOrderIdRef.current = workOrder.id;
+			setSelectedWorkOrder(workOrder);
+			if (url.searchParams.get('edit') === '1') {
+				setShowWorkOrderDetails(false);
+				setShowEditWorkOrder(true);
+			} else {
+				setShowEditWorkOrder(false);
+				setShowWorkOrderDetails(true);
+			}
+		};
+		window.addEventListener('popstate', handleHistoryChange);
+		return () => window.removeEventListener('popstate', handleHistoryChange);
+	}, [syncUrl, workOrders]);
 	const filteredWorkOrders = useMemo(() => workOrders.filter((workOrder) => {
 		const now = new Date();
 		const normalizedSearch = searchTerm.trim().toLocaleLowerCase('fr');
@@ -153,6 +211,7 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 		}
 		setShowWorkOrderDetails(true);
 		setSelectedWorkOrder(workOrder);
+		updateWorkOrderUrl(workOrder.id);
 	}
 
 	const statusLabels: Record<WorkOrderStatus, string> = {
@@ -353,14 +412,19 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 					onClick={() => {
 						setShowWorkOrderDetails(false);
 						setSelectedWorkOrder(null);
+						updateWorkOrderUrl(undefined, 'view', true);
 					}}
 				>
 					<WorkOrderDetails
 						workOrder={selectedWorkOrder}
-						onEdit={() => setShowEditWorkOrder(true)}
+						onEdit={() => {
+							setShowEditWorkOrder(true);
+							updateWorkOrderUrl(selectedWorkOrder.id, 'edit');
+						}}
 						onClose={() => {
 							setShowWorkOrderDetails(false);
 							setSelectedWorkOrder(null);
+							updateWorkOrderUrl(undefined, 'view', true);
 						}}
 						onSelect={handleSelectedWorkOrder ? () => void handleSelectedWorkOrder(selectedWorkOrder) : undefined}
 					/>
@@ -370,7 +434,11 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 			{showEditWorkOrder && selectedWorkOrder && (
 				<div
 					className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4"
-					onClick={() => setShowEditWorkOrder(false)}
+					onClick={() => {
+						setShowEditWorkOrder(false);
+						setShowWorkOrderDetails(true);
+						updateWorkOrderUrl(selectedWorkOrder?.id, 'view', true);
+					}}
 				>
 					<div
 						className="w-full max-w-6xl rounded-lg bg-white p-5 shadow-xl"
@@ -378,7 +446,7 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 					>
 						<div className="mb-4 flex items-center justify-between gap-3">
 							<h3 className="text-xl font-semibold text-zinc-900">Modifier le chantier</h3>
-							<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setShowEditWorkOrder(false)}>
+							<button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => { setShowEditWorkOrder(false); setShowWorkOrderDetails(true); updateWorkOrderUrl(selectedWorkOrder?.id, 'view', true); }}>
 								Fermer
 							</button>
 						</div>
@@ -389,6 +457,8 @@ export default function WorkOrdersList({ workOrders, onDelete, handleSelectedWor
 							onUpdated={(updatedWorkOrder) => {
 								setSelectedWorkOrder(updatedWorkOrder);
 								setShowEditWorkOrder(false);
+								setShowWorkOrderDetails(true);
+								updateWorkOrderUrl(updatedWorkOrder.id, 'view', true);
 							}}
 						/>
 					</div>

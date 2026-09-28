@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
 import { CreateWorkLogDto } from './create-worklog.dto';
@@ -23,6 +23,30 @@ export class WorkLogController {
     @Body() dto: CreateWorkLogItemDto,
   ) {
     return this.workLogService.createItem(requireTenantContext(req).tenant.id, id, dto);
+  }
+
+  @Put(':id')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: Partial<CreateWorkLogDto>) {
+    return this.workLogService.update(requireTenantContext(req).tenant.id, id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.workLogService.delete(requireTenantContext(req).tenant.id, id);
+  }
+
+  @Put(':id/items/:itemId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  updateItem(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: Partial<CreateWorkLogItemDto>) {
+    return this.workLogService.updateItem(requireTenantContext(req).tenant.id, id, itemId, dto);
+  }
+
+  @Delete(':id/items/:itemId')
+  @UseGuards(new RequireRoleGuard(['OWNER', 'ADMIN']))
+  deleteItem(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.workLogService.deleteItem(requireTenantContext(req).tenant.id, id, itemId);
   }
 
   @Get()

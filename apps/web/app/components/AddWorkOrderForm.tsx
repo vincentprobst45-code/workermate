@@ -691,6 +691,7 @@ export default function AddWorkOrderForm({ onCreated, onUpdated, initialWorkOrde
           position: nextPosition,
           type: selectedCatalogItem.type,
           title: selectedCatalogItem.title,
+          sellerItemIdentifier: selectedCatalogItem.reference,
           description: selectedCatalogItem.description ?? '',
           quantity: Number(selectedCatalogItem.defaultQuantity) || 1,
           unit: selectedCatalogItem.unit ?? '',
