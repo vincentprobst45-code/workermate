@@ -12,15 +12,53 @@ type DocumentData = {
   number?: string | null;
   title?: string | null;
   customerName: string;
+  customerVatNumber?: string | null;
+  customerEmail?: string | null;
+  customerPhoneNumber?: string | null;
+  customerStreet1?: string | null;
+  customerStreet2?: string | null;
+  customerPostalCode?: string | null;
+  customerCity?: string | null;
   total?: unknown;
   amountDue?: unknown;
   taxInclusiveAmount?: unknown;
+  taxExclusiveAmount?: unknown;
+  vatAmount?: unknown;
+  prepaidAmount?: unknown;
+  depositAmount?: unknown;
+  allowanceTotal?: unknown;
+  chargeTotal?: unknown;
   currency?: string;
   tenantName: string;
+  tenantStreet1?: string | null;
+  tenantStreet2?: string | null;
+  tenantPostalCode?: string | null;
+  tenantCity?: string | null;
+  tenantSiretNumber?: string | null;
+  tenantVatNumber?: string | null;
+  tenantEmail?: string | null;
+  tenantPhoneNumber?: string | null;
+  tenantIban?: string | null;
+  tenantBic?: string | null;
+  kind?: string | null;
+  status?: string | null;
+  paymentTerms?: string | null;
+  legalMentions?: string | null;
+  internalNotes?: string | null;
+  notes?: string | Array<{ text?: string | null }> | null;
+  workOrderReference?: string | null;
+  workOrderTitle?: string | null;
+  workOrderStartDate?: Date | string | null;
+  workOrderEndDate?: Date | string | null;
+  workOrderAddress?: string | null;
+  workOrderPostalCode?: string | null;
+  workOrderCity?: string | null;
+  adjustments?: Array<{ type?: string; amount?: unknown; percentage?: unknown; reason?: string | null }>;
+  vatBreakdowns?: Array<{ vatAmount?: unknown; vatCategory?: string | null; vatRate?: unknown }>;
   validUntil?: Date | string | null;
   dueDate?: Date | string | null;
   issueDate?: Date | string | null;
-  items?: Array<{ description?: string | null; quantity?: unknown; unitPrice?: unknown; total?: unknown; subtotal?: unknown }>;
+  items?: Array<{ position?: number; title?: string | null; description?: string | null; quantity?: unknown; unit?: string | null; unitCode?: string | null; unitLabel?: string | null; unitPrice?: unknown; vatRate?: unknown; vatCategory?: string | null; vatExemptionReason?: string | null; total?: unknown; subtotal?: unknown; adjustments?: Array<{ type?: string; amount?: unknown; percentage?: unknown; reason?: string | null }> }>;
 };
 
 const REMINDER_LOCK_MS = 15 * 60 * 1000;
@@ -54,6 +92,10 @@ export class EmailService {
       reminderStage,
       reminder: true,
     });
+  }
+
+  async getInvoicePdf(tenantId: string, invoice: DocumentData) {
+    return this.getOrCreatePdf(tenantId, EmailDocumentType.INVOICE, invoice);
   }
 
   async listHistory(tenantId: string, type: EmailDocumentType, documentId: string) {
@@ -165,17 +207,9 @@ export class EmailService {
     }
 
     const pdf = await this.pdfService.createDocumentPdf({
-      type,
-      number: document.number,
-      title: document.title,
-      customerName: document.customerName,
-      tenantName: document.tenantName,
+      ...document,
+      type: type === EmailDocumentType.QUOTE ? 'QUOTE' : 'INVOICE',
       total: type === EmailDocumentType.INVOICE ? document.amountDue ?? document.taxInclusiveAmount : document.total ?? document.taxInclusiveAmount,
-      currency: document.currency,
-      date: document.issueDate,
-      dueDate: document.dueDate,
-      validUntil: document.validUntil,
-      items: document.items,
     });
     const storageKey = `${tenantId}/documents/${type.toLowerCase()}/${document.id}.pdf`;
     await this.storage.putObject(storageKey, pdf, 'application/pdf');

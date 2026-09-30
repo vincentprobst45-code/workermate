@@ -105,6 +105,11 @@ export default function MarketingHomePage() {
             </div>
           ))}
         </div>
+        <div className="mt-8 text-center">
+          <Link href="/fonctionnalites" className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700 hover:underline">
+            Voir toutes les fonctionnalités <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
       </section>
 
       <section className="bg-slate-50 py-16 sm:py-20">

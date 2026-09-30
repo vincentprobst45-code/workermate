@@ -229,6 +229,8 @@ export default function InvoicesList({
   const [emailHistory, setEmailHistory] = useState<EmailHistoryEntry[]>([]);
   const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
   const [emailHistoryError, setEmailHistoryError] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [pdfDownloadError, setPdfDownloadError] = useState(false);
 
   useEffect(() => {
     if (!showInvoiceDetails || !selectedInvoice) return;
@@ -344,6 +346,29 @@ export default function InvoicesList({
       setShowInvoiceDetails(true);
       setSelectedInvoice(invoice);
       updateInvoiceUrl(invoice.id);
+    }
+  };
+
+  const downloadInvoicePdf = async () => {
+    if (!selectedInvoice || pdfDownloading) return;
+    setPdfDownloading(true);
+    setPdfDownloadError(false);
+    try {
+      const response = await api.get(`/invoices/${selectedInvoice.id}/pdf`);
+      if (!response.ok) throw new Error('pdf-download');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `facture-${selectedInvoice.number || selectedInvoice.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setPdfDownloadError(true);
+    } finally {
+      setPdfDownloading(false);
     }
   };
 
@@ -566,6 +591,14 @@ export default function InvoicesList({
                 Envoyer par email
               </button>}
                 <button
+                  type="button"
+                  className="mr-2 rounded-lg border border-indigo-600 px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void downloadInvoicePdf()}
+                  disabled={pdfDownloading}
+                >
+                  {pdfDownloading ? 'Génération...' : 'Télécharger la facture'}
+                </button>
+                <button
                 type="button"
                   className="ml-auto mr-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
                 onClick={() => {
@@ -590,6 +623,7 @@ export default function InvoicesList({
                 <NewInvoice invoice={selectedInvoice} />
                 <InvoicePaymentsList invoice={selectedInvoice} onChanged={updateSelectedInvoice} />
             <section className="mt-6 border-t border-slate-200 pt-4">
+              {pdfDownloadError && <p className="mb-3 text-sm text-red-600">Téléchargement du PDF impossible.</p>}
               <h4 className="font-semibold text-slate-900">Historique des envois</h4>
               {emailHistoryLoading && <p className="mt-2 text-sm text-slate-500">Chargement...</p>}
               {emailHistoryError && <p className="mt-2 text-sm text-red-600">Historique indisponible.</p>}

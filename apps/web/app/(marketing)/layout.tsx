@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 const navLinks = [
   { href: '/', label: 'Accueil' },
+  { href: '/fonctionnalites', label: 'Fonctionnalités' },
   { href: '/pricing', label: 'Tarifs' },
   { href: '/contact', label: 'Contact' },
 ];
@@ -44,7 +45,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Produit</p>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li><Link href="/" className="transition hover:text-indigo-700">Fonctionnalités</Link></li>
+                <li><Link href="/fonctionnalites" className="transition hover:text-indigo-700">Fonctionnalités</Link></li>
                 <li><Link href="/pricing" className="transition hover:text-indigo-700">Tarifs</Link></li>
               </ul>
             </div>

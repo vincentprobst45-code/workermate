@@ -11,8 +11,8 @@ export class StorageService {
     region: process.env.MINIO_REGION ?? 'us-east-1',
     forcePathStyle: true,
     credentials: {
-      accessKeyId: process.env.MINIO_ACCESS_KEY ?? process.env.MINIO_ROOT_USER ?? 'artisano',
-      secretAccessKey: process.env.MINIO_SECRET_KEY ?? process.env.MINIO_ROOT_PASSWORD ?? 'artisano-dev-password',
+      accessKeyId: process.env.MINIO_ACCESS_KEY ?? process.env.MINIO_ROOT_USER ?? 'artisanos',
+      secretAccessKey: process.env.MINIO_SECRET_KEY ?? process.env.MINIO_ROOT_PASSWORD ?? 'artisanos-dev-password',
     },
   });
 
@@ -45,7 +45,11 @@ export class StorageService {
   private async ensureBucket() {
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
-    } catch {
+    } catch (error) {
+      const code = error instanceof Error ? error.name : undefined;
+      if (code && !['NotFound', 'NoSuchBucket'].includes(code)) {
+        throw error;
+      }
       try {
         await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
       } catch (error) {

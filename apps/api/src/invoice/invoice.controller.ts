@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Req, Res, UseGuards, NotFoundException } from '@nestjs/common';
+import type { Response } from 'express';
 import { InvoiceService } from './invoice.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
@@ -53,6 +54,32 @@ export class InvoiceController {
     }
     const result = await this.emailService.sendInvoice(requireTenantContext(req).tenant.id, invoice.customerEmail, invoice);
     return result;
+  }
+
+  @Get(':id/pdf')
+  async downloadPdf(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Res() response: Response) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    const invoice = await this.invoiceService.findOne(tenantId, id);
+    if (!invoice) {
+      throw new NotFoundException('Facture introuvable.');
+    }
+
+    const customerName = invoice.customer?.company?.trim() || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(' ') || 'Client';
+    const pdf = await this.emailService.getInvoicePdf(tenantId, {
+      ...invoice,
+      customerName,
+      tenantName: invoice.tenantName,
+      total: invoice.amountDue ?? invoice.taxInclusiveAmount,
+    });
+    const filename = `facture-${(invoice.number ?? invoice.id).replace(/[^a-zA-Z0-9._-]/g, '-')}.pdf`;
+
+    response.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': String(pdf.length),
+      'Cache-Control': 'private, no-store',
+    });
+    response.send(pdf);
   }
 
   @Get(':id/email-history')
