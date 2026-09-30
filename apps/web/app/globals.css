@@ -12,6 +12,27 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* used by the /fonctionnalites/stock neumorphic pipeline (dashed "conveyor belt" + floating chips) */
+@keyframes flow-line {
+  from { background-position: 0 0; }
+  to { background-position: 0 24px; }
+}
+
+@keyframes flow-line-x {
+  from { background-position: 0 0; }
+  to { background-position: 24px 0; }
+}
+
+@keyframes float-chip {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

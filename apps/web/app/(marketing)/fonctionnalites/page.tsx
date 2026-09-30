@@ -19,6 +19,20 @@ import {
   Truck,
   Users,
 } from 'lucide-react';
+import SectionNav from './SectionNav';
+
+const sections = [
+  { id: 'hero', label: 'Introduction' },
+  { id: 'projet', label: 'Projet central' },
+  { id: 'creation', label: 'Création rapide' },
+  { id: 'association', label: 'Association' },
+  { id: 'planning', label: 'Planning' },
+  { id: 'equipe', label: 'Équipe' },
+  { id: 'stock', label: 'Stock & achats' },
+  { id: 'tresorerie', label: 'Trésorerie' },
+  { id: 'chantier', label: 'Suivi mobile' },
+  { id: 'cta', label: 'Essayer' },
+];
 
 const transformations = [
   { code: '01', title: 'Devis → Facture', description: 'Créez une facture à partir de ce devis : client, lignes et adresse repris automatiquement, sans ressaisie.' },
@@ -57,7 +71,8 @@ const siteTrackingFeatures = [
 export default function FeaturesPage() {
   return (
     <>
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-950 via-blue-900 to-blue-800 text-blue-50">
+      <SectionNav sections={sections} />
+      <section id="hero" className="relative scroll-mt-24 overflow-hidden bg-gradient-to-b from-blue-950 via-blue-900 to-blue-800 text-blue-50">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-28">
           <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">
             <span>Fonctionnalités</span>
@@ -93,7 +108,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-28">
+      <section id="projet" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-6 sm:py-28">
         <div className="grid gap-14 lg:grid-cols-2 lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Fonctionnalité centrale</p>
@@ -104,6 +119,9 @@ export default function FeaturesPage() {
             <p className="mt-3 text-slate-600">
               Vous ouvrez un projet une seule fois, et retrouvez ensuite tout son historique — devis envoyés, chantiers en cours, factures émises — au même endroit.
             </p>
+            <Link href="/fonctionnalites/projets" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline">
+              En savoir plus <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
           <div className="flex flex-col items-center gap-8 sm:flex-row sm:justify-center">
             <div className="flex flex-col items-center">
@@ -127,7 +145,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="bg-blue-50/60 py-20 sm:py-28">
+      <section id="creation" className="scroll-mt-24 bg-blue-50/60 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-5 sm:px-6">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Gain de temps</p>
@@ -148,7 +166,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-28">
+      <section id="association" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-6 sm:py-28">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Association automatique</p>
@@ -167,7 +185,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="bg-blue-950 py-20 text-blue-50 sm:py-28">
+      <section id="planning" className="scroll-mt-24 bg-blue-950 py-20 text-blue-50 sm:py-28">
         <div className="mx-auto max-w-6xl px-5 sm:px-6">
           <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
             <div>
@@ -215,7 +233,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-28">
+      <section id="equipe" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-6 sm:py-28">
         <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <div className="order-2 flex flex-col gap-4 lg:order-1">
             <div className="flex items-center gap-4 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
@@ -240,12 +258,15 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="bg-blue-50/60 py-20 sm:py-28">
+      <section id="stock" className="scroll-mt-24 bg-blue-50/60 py-20 sm:py-28">
         <div className="mx-auto max-w-6xl px-5 sm:px-6">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Stock &amp; achats</p>
             <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Du catalogue au fournisseur</h2>
             <p className="mt-4 text-slate-600">Suivez vos articles, vos stocks et vos achats fournisseurs sans quitter Workermate.</p>
+            <Link href="/fonctionnalites/stock" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline">
+              En savoir plus <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {backOfficeFeatures.map(({ icon: Icon, title, description }) => (
@@ -259,11 +280,14 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-6 sm:py-28">
+      <section id="tresorerie" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-6 sm:py-28">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Trésorerie</p>
           <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">Une trésorerie claire et anticipée</h2>
           <p className="mt-4 text-slate-600">Prévisions budgétaires, plusieurs comptes bancaires et rapprochement automatique : gardez une vision précise de votre trésorerie à tout instant.</p>
+          <Link href="/fonctionnalites/tresorerie" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline">
+            En savoir plus <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         </div>
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {treasuryFeatures.map(({ icon: Icon, title, description }) => (
@@ -276,7 +300,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="bg-blue-950 py-20 text-blue-50 sm:py-28">
+      <section id="chantier" className="scroll-mt-24 bg-blue-950 py-20 text-blue-50 sm:py-28">
         <div className="mx-auto max-w-6xl px-5 sm:px-6">
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-300">Sur le terrain</p>
@@ -295,7 +319,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-20 text-center sm:px-6 sm:py-28">
+      <section id="cta" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 text-center sm:px-6 sm:py-28">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Fonctionnalités</p>
         <h2 className="mt-3 text-3xl font-bold text-slate-900 sm:text-4xl">
           <ScrollText className="mx-auto mb-4 h-10 w-10 text-blue-600" aria-hidden="true" />
