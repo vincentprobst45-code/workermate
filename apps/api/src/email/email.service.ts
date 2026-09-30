@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { EmailDeliveryKind, EmailDeliveryStatus, EmailDocumentType, Prisma } from '@prisma/client';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -22,6 +22,8 @@ type DocumentData = {
   issueDate?: Date | string | null;
   items?: Array<{ description?: string | null; quantity?: unknown; unitPrice?: unknown; total?: unknown; subtotal?: unknown }>;
 };
+
+const REMINDER_LOCK_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class EmailService {
@@ -79,14 +81,33 @@ export class EmailService {
   ) {
     const number = document.number || (type === EmailDocumentType.QUOTE ? 'devis' : 'facture');
     const subject = `${options.reminder ? 'Relance facture' : type === EmailDocumentType.QUOTE ? 'Devis' : 'Facture'} ${number} - ${document.tenantName}`;
-    let history: { id: string; status: EmailDeliveryStatus } | null | undefined;
+    let history: { id: string; status: EmailDeliveryStatus; processingUntil: Date | null; claimToken: string | null } | null | undefined;
+    let claimToken: string | undefined;
     if (options.dedupeKey) {
+      const now = new Date();
+      const processingUntil = new Date(now.getTime() + REMINDER_LOCK_MS);
+      claimToken = randomUUID();
       history = await this.prisma.emailDelivery.findUnique({ where: { dedupeKey: options.dedupeKey } });
-      if (history?.status === EmailDeliveryStatus.SENT || history?.status === EmailDeliveryStatus.PENDING) {
+      if (history?.status === EmailDeliveryStatus.SENT) {
         return { success: false, duplicate: true };
       }
-      if (history?.status === EmailDeliveryStatus.FAILED) {
-        history = await this.prisma.emailDelivery.update({ where: { id: history.id }, data: { status: EmailDeliveryStatus.PENDING, errorMessage: null, sentAt: null } });
+      if (history?.status === EmailDeliveryStatus.PENDING && history.processingUntil && history.processingUntil > now) {
+        return { success: false, duplicate: true };
+      }
+      if (history) {
+        const claimed = await this.prisma.emailDelivery.updateMany({
+          where: {
+            id: history.id,
+            OR: [
+              { status: EmailDeliveryStatus.FAILED },
+              { status: EmailDeliveryStatus.PENDING, processingUntil: { lte: now } },
+              { status: EmailDeliveryStatus.PENDING, processingUntil: null },
+            ],
+          },
+          data: { status: EmailDeliveryStatus.PENDING, errorMessage: null, sentAt: null, claimToken, processingUntil },
+        });
+        if (claimed.count === 0) return { success: false, duplicate: true };
+        history = { ...history, status: EmailDeliveryStatus.PENDING, claimToken, processingUntil };
       }
     }
     if (!history) {
@@ -100,6 +121,8 @@ export class EmailService {
             reminderStage: options.reminderStage,
             recipient: to,
             subject,
+            claimToken,
+            processingUntil: options.dedupeKey ? new Date(Date.now() + REMINDER_LOCK_MS) : undefined,
             ...(type === EmailDocumentType.QUOTE ? { quoteId: document.id } : { invoiceId: document.id }),
           },
         });
@@ -114,7 +137,7 @@ export class EmailService {
     try {
       const pdf = await this.getOrCreatePdf(tenantId, type, document);
       if (document.pdfFileId) {
-        await this.prisma.emailDelivery.update({ where: { id: history.id }, data: { fileId: document.pdfFileId } });
+        await this.prisma.emailDelivery.updateMany({ where: { id: history.id, ...(claimToken ? { claimToken } : {}) }, data: { fileId: document.pdfFileId } });
       }
       const result = await this.send({
         to,
@@ -122,14 +145,15 @@ export class EmailService {
         html: this.documentHtml(type, document, options.reminder),
         attachments: [{ filename: `${type === EmailDocumentType.QUOTE ? 'devis' : 'facture'}-${number}.pdf`, content: pdf }],
       });
-      await this.prisma.emailDelivery.update({
-        where: { id: history.id },
-        data: { status: EmailDeliveryStatus.SENT, providerMessageId: result?.id, sentAt: new Date() },
+      const completed = await this.prisma.emailDelivery.updateMany({
+        where: { id: history.id, ...(claimToken ? { claimToken } : {}) },
+        data: { status: EmailDeliveryStatus.SENT, providerMessageId: result?.id, sentAt: new Date(), processingUntil: null },
       });
+      if (claimToken && completed.count === 0) return { success: false, duplicate: true };
       return { success: true, historyId: history.id };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
-      await this.prisma.emailDelivery.update({ where: { id: history.id }, data: { status: EmailDeliveryStatus.FAILED, errorMessage: message } });
+      await this.prisma.emailDelivery.updateMany({ where: { id: history.id, ...(claimToken ? { claimToken } : {}) }, data: { status: EmailDeliveryStatus.FAILED, errorMessage: message, processingUntil: null } });
       throw error;
     }
   }

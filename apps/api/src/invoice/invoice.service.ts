@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceAdjustmentType, InvoiceKind, InvoiceOperationCategory, InvoiceStatus, LineItemType, PaymentMethod, PaymentStatus, Prisma, VatCategory } from '@prisma/client';
+import { InvoiceAdjustmentType, InvoiceKind, InvoiceOperationCategory, InvoiceStatus, LineItemType, PaymentStatus, Prisma, VatCategory } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceItemDto } from './create-invoice-item.dto';
@@ -326,8 +326,6 @@ export class InvoiceService {
     }
 
     let subtotal = 0;
-    let vatAmount = 0;
-
     const items = dto.invoiceItems.map((item, index) => {
       if (!item.title?.trim()) {
         throw new BadRequestException('Chaque ligne de la facture doit avoir un titre.');
@@ -338,11 +336,7 @@ export class InvoiceService {
       const vatRate = this.toNumber(item.vatRate);
       const itemAdjustments = this.normalizeItemAdjustments(item, quantity, unitPrice);
       const lineSubtotal = this.calculateItemSubtotal(quantity, unitPrice, itemAdjustments);
-      const lineVat = item.vatCategory === VatCategory.STANDARD
-        ? this.roundMoney(lineSubtotal * (vatRate / 100))
-        : 0;
       subtotal += lineSubtotal;
-      vatAmount += lineVat;
 
       return {
         type: item.type ?? LineItemType.OTHER,
@@ -363,7 +357,6 @@ export class InvoiceService {
     });
 
     subtotal = this.roundMoney(subtotal);
-    vatAmount = this.roundMoney(vatAmount);
     const adjustments = this.normalizeAdjustments(dto.adjustments);
     const adjustmentTotals = this.calculateAdjustmentTotals(adjustments);
     const depositAmount = this.roundMoney(this.toNumber(dto.depositAmount));

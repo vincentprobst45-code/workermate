@@ -456,7 +456,6 @@ export default function AddProjectForm({ onCreated, show }: AddProjectFormProps)
 
       return [
         {
-          id: customer.id,
           ...customer,
           firstName: customer.firstName,
           lastName: customer.lastName,

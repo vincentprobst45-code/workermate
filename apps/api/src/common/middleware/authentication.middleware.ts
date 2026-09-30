@@ -25,7 +25,7 @@ export class AuthenticationMiddleware implements NestMiddleware {
 			'/auth/logout',
 		]);
 
-		if (publicRoutes.has(req.path) || req.path === '/health') {
+		if (publicRoutes.has(req.path) || req.path === '/health' || req.path.startsWith('/health/') || req.path === '/metrics') {
 			next();
 			return;
 		}

@@ -141,13 +141,18 @@ export default function AddWorkLogItemForm({ workLogId, workOrderId, onCreated, 
       <label className="flex flex-col gap-1 text-sm"><span>Titre</span><input required className="rounded border border-zinc-300 px-3 py-2" value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm sm:col-span-2"><span>Description</span><textarea className="min-h-20 rounded border border-zinc-300 px-3 py-2" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Quantité</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={quantity} onChange={(event) => setQuantity(event.target.valueAsNumber || 0)} /></label>
-      <label className="flex flex-col gap-1 text-sm"><span>Référence</span><input className="rounded border border-zinc-300 px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} /></label>
       <label className="flex flex-col gap-1 text-sm"><span>Unité</span><input className="rounded border border-zinc-300 px-3 py-2" value={unit} onChange={(event) => setUnit(event.target.value)} /></label>
-      <label className="flex flex-col gap-1 text-sm"><span>Code unité</span><input required className="rounded border border-zinc-300 px-3 py-2" value={unitCode} onChange={(event) => setUnitCode(event.target.value)} /></label>
-      <label className="flex flex-col gap-1 text-sm"><span>Quantité de base</span><input required min="0.000001" step="0.000001" type="number" className="rounded border border-zinc-300 px-3 py-2" value={baseQuantity} onChange={(event) => setBaseQuantity(event.target.valueAsNumber || 1)} /></label>
-      <label className="flex flex-col gap-1 text-sm"><span>Coût unitaire</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={unitCost} onChange={(event) => setUnitCost(event.target.valueAsNumber || 0)} /></label>
-      <label className="flex flex-col gap-1 text-sm"><span>TVA achat (%)</span><input min="0" step="0.01" type="number" className="rounded border border-zinc-300 px-3 py-2" value={purchaseVatRate} onChange={(event) => setPurchaseVatRate(Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber)} /></label>
     </div>
-    <button type="submit" disabled={submitting} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{submitting ? 'Enregistrement...' : initialItem ? 'Enregistrer les modifications' : 'Ajouter l’élément'}</button>
+    <details className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+      <summary className="cursor-pointer text-sm font-semibold text-zinc-800">Options avancées</summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-sm"><span>Référence</span><input className="rounded border border-zinc-300 bg-white px-3 py-2" value={reference} onChange={(event) => setReference(event.target.value)} /></label>
+        <label className="flex flex-col gap-1 text-sm"><span>Code unité</span><input required className="rounded border border-zinc-300 bg-white px-3 py-2" value={unitCode} onChange={(event) => setUnitCode(event.target.value)} /></label>
+        <label className="flex flex-col gap-1 text-sm"><span>Quantité de base</span><input required min="0.000001" step="0.000001" type="number" className="rounded border border-zinc-300 bg-white px-3 py-2" value={baseQuantity} onChange={(event) => setBaseQuantity(event.target.valueAsNumber || 1)} /></label>
+        <label className="flex flex-col gap-1 text-sm"><span>Coût unitaire HT</span><input required min="0" step="0.01" type="number" className="rounded border border-zinc-300 bg-white px-3 py-2" value={unitCost} onChange={(event) => setUnitCost(event.target.valueAsNumber || 0)} /></label>
+        <label className="flex flex-col gap-1 text-sm"><span>TVA achat (%)</span><input min="0" step="0.01" type="number" className="rounded border border-zinc-300 bg-white px-3 py-2" value={purchaseVatRate} onChange={(event) => setPurchaseVatRate(Number.isNaN(event.target.valueAsNumber) ? '' : event.target.valueAsNumber)} /></label>
+      </div>
+    </details>
+    <button type="submit" disabled={submitting} className="w-full rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 sm:w-auto">{submitting ? 'Enregistrement...' : initialItem ? 'Enregistrer les modifications' : 'Ajouter une consommation'}</button>
   </form>;
 }

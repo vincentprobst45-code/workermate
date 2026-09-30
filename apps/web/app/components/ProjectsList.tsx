@@ -204,7 +204,7 @@ export default function ProjectsList({ projects, onDelete, handleSelectedProject
         <div className="flex flex-wrap items-center justify-between gap-4">
           <nav aria-label="Fil d'ariane" className="flex items-center gap-2 text-sm text-slate-500">
             <Link
-              href="/"
+              href="/dashboard"
               className="font-medium text-slate-600 transition hover:text-indigo-600 hover:underline"
             >
               Accueil

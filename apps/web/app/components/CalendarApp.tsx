@@ -10,6 +10,7 @@ import {
 } from '@schedule-x/calendar'
 import { createEventsServicePlugin } from '@schedule-x/events-service'
 import { translations, mergeLocales } from '@schedule-x/translations'
+import { Temporal } from 'temporal-polyfill'
 import 'temporal-polyfill/global'
 import '@schedule-x/theme-default/dist/index.css'
 import { useEffect,useState } from "react";

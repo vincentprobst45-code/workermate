@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { InvoiceKind, InvoicePdpStatus, InvoiceStatus, PaymentMethod } from '@prisma/client';
+import { InvoiceKind, InvoicePdpStatus, InvoiceStatus, PaymentMethod, VatCategory } from '@prisma/client';
 import NewInvoice from './NewInvoice';
 import AddInvoiceForm from './AddInvoiceForm';
 import type { Payment } from './AddPaymentForm';
@@ -45,7 +45,7 @@ export interface InvoiceAdjustment {
   amount: number;
   baseAmount?: number;
   percentage?: number;
-  vatCategory: string;
+  vatCategory: VatCategory;
   vatRate?: number;
   reason?: string;
   reasonCode?: string;

@@ -21,6 +21,7 @@ export default function FocusTrap({ children, onEscape, className }: FocusTrapPr
     (firstFocusable ?? container).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (!container) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onEscape?.();

@@ -13,7 +13,7 @@ type NavigationItem = {
 };
 
 const navigationItems: NavigationItem[] = [
-  { href: '/', label: 'Accueil', icon: Home },
+  { href: '/dashboard', label: 'Accueil', icon: Home },
   { href: '/user', label: 'Mon profil', icon: UserRound },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/tenant', label: 'Entreprise', icon: Building2 },

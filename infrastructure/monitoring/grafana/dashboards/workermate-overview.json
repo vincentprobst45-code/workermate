@@ -1,0 +1,20 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {"type": "stat", "title": "API availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "up{job=\"workermate-api\"}", "legendFormat": "API"}], "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}},
+    {"type": "stat", "title": "5xx rate", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "sum(rate(workermate_http_requests_total{status_code=~\"5..\"}[5m]))", "legendFormat": "5xx/s"}], "fieldConfig": {"defaults": {"unit": "reqps"}}},
+    {"type": "timeseries", "title": "API request rate", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "sum by (status_code) (rate(workermate_http_requests_total[5m]))", "legendFormat": "{{status_code}}"}]},
+    {"type": "timeseries", "title": "API p95 latency", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(workermate_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"}], "fieldConfig": {"defaults": {"unit": "s"}}},
+    {"type": "timeseries", "title": "Host CPU", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "targets": [{"expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "{{instance}}"}], "fieldConfig": {"defaults": {"unit": "percent"}}},
+    {"type": "timeseries", "title": "Host memory", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "targets": [{"expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100", "legendFormat": "memory"}], "fieldConfig": {"defaults": {"unit": "percent"}}}
+  ],
+  "schemaVersion": 39,
+  "tags": ["workermate", "production"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Workermate Overview",
+  "uid": "workermate-overview",
+  "version": 1
+}

@@ -117,7 +117,7 @@ function formatCurrency(amount: number): string {
 function sumQuoteLines(quote: QuoteItem): { ht: number; tva: number; ttc: number } {
   return quote.items.reduce(
     (totals, item) => {
-      const lineHt = Number(item.subtotal ?? Number(item.quantity || 0) * Number(item.unitPrice || 0));
+      const lineHt = Number(item.quantity || 0) * Number(item.unitPrice || 0);
       const lineTva = lineHt * Number(item.vatRate || 0) / 100;
       totals.ht += lineHt;
       totals.tva += lineTva;
@@ -492,13 +492,13 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
             {selectedBudgetRow.label === 'CA facturé' && data && (
               <div className="space-y-4">
                 {(data.invoices || [])
-                  .filter((invoice) => invoice.status === 'SENT' || invoice.status === 'PAID')
+                  .filter((invoice) => invoice.status === 'ISSUED' || invoice.paymentStatus === 'PAID')
                   .map((invoice) => (
                     <section key={invoice.id} className="border border-zinc-200 bg-zinc-50 p-4">
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <h5 className="font-semibold text-zinc-900">Facture {invoice.number}</h5>
-                          <p className="text-sm text-zinc-600">Statut: {invoice.status === 'PAID' ? 'Payée' : 'Envoyée'}</p>
+                          <p className="text-sm text-zinc-600">Statut: {invoice.paymentStatus === 'PAID' ? 'Payée' : 'Envoyée'}</p>
                         </div>
                         <p className="text-sm font-medium text-zinc-700">{formatCurrency(Number(invoice.total || 0))} TTC</p>
                       </div>
@@ -550,7 +550,7 @@ export default function ProjectDetailsBudget({ project }: ProjectDetailsBudgetPr
             {selectedBudgetRow.label === 'CA encaissé' && data && (
               <div className="space-y-4">
                 {(data.invoices || [])
-                  .filter((invoice) => invoice.status === 'PAID')
+                  .filter((invoice) => invoice.paymentStatus === 'PAID')
                   .map((invoice) => (
                     <section key={invoice.id} className="border border-zinc-200 bg-zinc-50 p-4">
                       <div className="mb-3 flex items-start justify-between gap-3">

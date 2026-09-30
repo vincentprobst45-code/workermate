@@ -84,13 +84,7 @@ interface CustomerOption {
 	};
 }
 
-interface WorkOrderOption extends WorkOrderBase {
-	address?: {
-		street1?: string;
-		postalCode?: string;
-		city?: string;
-	};
-}
+type WorkOrderOption = WorkOrderBase;
 
 interface AddInvoiceItemFormData {
 	rowId: string;
@@ -161,6 +155,7 @@ export interface AddInvoiceFormData {
 	subtotal: number;
 	vatAmount: number;
 	vatBreakdowns: InvoiceVatBreakdownFormData[];
+	vatRate: number;
 	total: number;
 	allowanceTotal: number;
 	chargeTotal: number;
@@ -407,6 +402,7 @@ function createEmptyInvoiceItem(position: number): AddInvoiceItemFormData {
 		quantity: 1,
 		unit: '',
 		unitPrice: 0,
+		vatRate: 20,
 		vatCategory: VatCategory.STANDARD,
 		total: 0,
 		adjustments: [],
@@ -956,7 +952,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				unit: item.unit ?? '',
 				unitPrice: Number(item.unitPrice) || 0,
 				vatRate: Number(item.vatRate) || 0,
-				vatCategory: item.vatCategory ?? VatCategory.STANDARD,
+				vatCategory: (item.vatCategory as VatCategory | undefined) ?? VatCategory.STANDARD,
 				total: roundMoney(
 					Number(item.subtotal ?? Number(item.quantity) * Number(item.unitPrice)) *
 					(1 + (item.vatCategory === VatCategory.STANDARD ? Number(item.vatRate || 0) : 0) / 100),
@@ -992,7 +988,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				reason: adjustment.reason ?? '',
 				reasonCode: adjustment.reasonCode ?? '',
 			})),
-		};
+		} as AddInvoiceFormData;
 	});
 	const [customers, setCustomers] = useState<CustomerOption[]>([]);
 	const [workOrders, setWorkOrders] = useState<WorkOrderOption[]>([]);
@@ -1166,7 +1162,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 		return () => {
 			cancelled = true;
 		};
-	}, [api]);
+	}, [api, initialInvoice]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -1425,7 +1421,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				unit: quoteItem.unit ?? '',
 				unitPrice: Number(quoteItem.unitPrice) || 0,
 				vatRate: Number(quoteItem.vatRate) || 0,
-				vatCategory: quoteItem.vatCategory,
+				vatCategory: quoteItem.vatCategory as VatCategory | undefined,
 				type: 'type' in quoteItem ? (quoteItem.type as WorkOrderItemType | undefined) : 'OTHER',
 			})),
 		);
@@ -1525,7 +1521,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 				unit: workOrderItem.unit ?? '',
 				unitPrice: Number(workOrderItem.unitPrice) || 0,
 				vatRate: Number(workOrderItem.vatRate) || 0,
-				vatCategory: workOrderItem.vatCategory,
+				vatCategory: workOrderItem.vatCategory as VatCategory,
 				type: workOrderItem.type,
 			})),
 		);
@@ -1747,7 +1743,7 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			return;
 		}
 
-		const submitter = event.nativeEvent.submitter as HTMLButtonElement | null;
+		const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
 		const submitIntent: SubmitIntent = submitter?.dataset.submitIntent === 'draft' ? 'draft' : 'issue';
 		const errors: string[] = [];
 

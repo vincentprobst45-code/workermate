@@ -23,7 +23,6 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['app/**/*.spec.ts', 'app/**/*.spec.tsx'],
     pool: 'threads',
-    singleThread: true,
     fileParallelism: false,
   },
 });

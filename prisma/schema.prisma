@@ -1348,6 +1348,8 @@ model EmailDelivery {
   status            EmailDeliveryStatus @default(PENDING)
   providerMessageId String?
   errorMessage      String?
+  claimToken        String?
+  processingUntil   DateTime?
   sentAt            DateTime?
   createdAt         DateTime            @default(now())
 

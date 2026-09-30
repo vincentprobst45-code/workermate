@@ -56,6 +56,8 @@ interface CustomerOption {
   email?: string;
   phone?: string;
   mobile?: string;
+  siret?: string;
+  notes?: string;
   vatNumber?: string;
   addressId?: string;
   address?: AddressSummary;
@@ -716,6 +718,8 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
       validUntil: form.validUntil,
       workOrderReference: form.workOrderReference,
       workOrderTitle: form.workOrderTitle,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       tenantName: tenantDefaults?.name || 'Entreprise non configurée',
       tenantStreet1: tenantAddress?.street1 || '',
       tenantStreet2: tenantAddress?.street2,

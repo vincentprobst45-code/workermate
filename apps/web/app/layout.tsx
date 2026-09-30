@@ -43,7 +43,6 @@ import { getSession } from "./lib/auth";
 import { AuthProvider } from "./auth.context";
 import QueryProvider from "./query-provider";
 import "./globals.css";
-import AppShell from "./components/AppShell";
 
 export default async function RootLayout({
   children,
@@ -57,7 +56,7 @@ export default async function RootLayout({
       <body>
         <AuthProvider session={session}>
           <QueryProvider>
-            <AppShell>{children}</AppShell>
+            {children}
           </QueryProvider>
         </AuthProvider>
       </body>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Calendar, dayjsLocalizer, type SlotInfo, type View } from 'react-big-calendar';
+import { Calendar, dayjsLocalizer, type CalendarProps, type SlotInfo, type View } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -22,7 +22,7 @@ import type { CalendarEvent, CalendarEventApi, CalendarRange } from './calendar.
  dayjs.extend(localizedFormat);
  dayjs.locale('fr');
 const localizer = dayjsLocalizer(dayjs);
-const DragAndDropCalendar = withDragAndDrop(Calendar);
+const DragAndDropCalendar = withDragAndDrop<CalendarEvent>(Calendar as React.ComponentType<CalendarProps<CalendarEvent>>);
 const VIEW_KEY = 'workermate.calendar.view';
 const DATE_KEY = 'workermate.calendar.date';
 const START_HOUR_KEY = 'workermate.calendar.start-hour';

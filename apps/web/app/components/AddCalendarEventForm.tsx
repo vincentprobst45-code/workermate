@@ -227,7 +227,7 @@ export default function AddCalendarEventForm({ onCreated, event, onUpdated, onCa
         projectId: projectid || (projectMode === 'existing' ? selectedProject : ''),
       };
       const res = isEditMode
-        ? await api.put(`/calendarevents/${event.id}`, basePayload)
+        ? await api.put(`/calendarevents/${event?.id}`, basePayload)
         : await api.post('/calendarevents', basePayload);
       if (!res.ok) throw new Error('Erreur');
       const data = await res.json();

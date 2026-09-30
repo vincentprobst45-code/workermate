@@ -181,6 +181,11 @@ export default function AddCustomerForm({ onCreated, onUpdated, initialCustomer 
       return;
     }
 
+    if (isEditing && !initialCustomer) {
+      setError('Le client à modifier est introuvable.');
+      return;
+    }
+
     try {
       const customerToSave: CreateCustomerDto =
         addressMode === 'new'
@@ -190,7 +195,7 @@ export default function AddCustomerForm({ onCreated, onUpdated, initialCustomer 
             : { ...newCustomer };
 
       const res = isEditing
-        ? await api.put(`/customers/${initialCustomer.id}`, {
+        ? await api.put(`/customers/${initialCustomer!.id}`, {
             firstName: customerToSave.firstName,
             lastName: customerToSave.lastName,
             company: customerToSave.company,
@@ -209,14 +214,14 @@ export default function AddCustomerForm({ onCreated, onUpdated, initialCustomer 
         ? {
             ...initialCustomer,
             ...customerToSave,
-            addressId: addressMode === 'existing' ? selectedAddressId : initialCustomer.addressId,
+            addressId: addressMode === 'existing' ? selectedAddressId : initialCustomer!.addressId,
           }
         : await res.json();
 
-      if (isEditing && addressMode === 'new' && initialCustomer.addressId) {
-        const addressResponse = await api.put(`/addresses/${initialCustomer.addressId}`, newCustomer.address);
+      if (isEditing && addressMode === 'new' && initialCustomer!.addressId) {
+        const addressResponse = await api.put(`/addresses/${initialCustomer!.addressId}`, newCustomer.address);
         if (!addressResponse.ok) throw new Error('La mise à jour de l’adresse a échoué');
-        data.address = { ...initialCustomer.address, ...newCustomer.address };
+        data.address = { ...initialCustomer!.address, ...newCustomer.address };
       }
 
       if (isEditing) {

@@ -44,7 +44,7 @@ function mockInitialRequests() {
   });
 }
 
-function renderForm(initialInvoice?: Invoice, invoiceKind = InvoiceKind.STANDARD) {
+function renderForm(initialInvoice?: Invoice, invoiceKind: InvoiceKind = InvoiceKind.STANDARD) {
   return render(
     <AuthProvider session={session}>
       <AddInvoiceForm
