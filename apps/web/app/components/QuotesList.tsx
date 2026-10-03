@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { QuoteStatus } from '@prisma/client';
+import { LineItemType as WorkOrderItemType, QuoteStatus } from '@prisma/client';
 import { Search, X } from 'lucide-react';
 import { useApiClient } from '../api-client';
 import NewQuote from './NewQuote';
@@ -11,6 +11,7 @@ export interface QuoteItem {
   id: string;
   quoteId: string;
   position: number;
+  type?: WorkOrderItemType;
   title: string;
   description: string;
   quantity: number;

@@ -72,7 +72,7 @@ describe('LoginPage', () => {
     });
   });
 
-  it('redirects to / on successful login', async () => {
+  it('redirects to /dashboard on successful login', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -88,7 +88,7 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Se connecter/i }));
 
     await waitFor(() => {
-      expect(assignMock).toHaveBeenCalledWith('/');
+      expect(assignMock).toHaveBeenCalledWith('/dashboard');
     });
   });
 

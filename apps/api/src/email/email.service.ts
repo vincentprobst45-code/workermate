@@ -4,9 +4,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { PdfService } from './pdf.service';
+import { InvoicePdfAppearance, PdfService } from './pdf.service';
 
-type DocumentData = {
+export type DocumentData = {
   id: string;
   pdfFileId?: string | null;
   number?: string | null;
@@ -96,6 +96,68 @@ export class EmailService {
 
   async getInvoicePdf(tenantId: string, invoice: DocumentData) {
     return this.getOrCreatePdf(tenantId, EmailDocumentType.INVOICE, invoice);
+  }
+
+  async previewInvoicePdf(tenantId: string, invoice: DocumentData) {
+    return this.pdfService.createDocumentPdf({
+      ...invoice,
+      type: 'INVOICE',
+      total: invoice.amountDue ?? invoice.taxInclusiveAmount,
+    }, await this.getInvoiceAppearance(tenantId));
+  }
+
+  async previewInvoiceAppearancePdf(
+    tenantId: string,
+    appearance: Pick<InvoicePdfAppearance, 'template' | 'primaryColor' | 'font'> & { logoFileId?: string | null },
+  ) {
+    return this.pdfService.createDocumentPdf({
+      type: 'INVOICE',
+      number: 'FAC-2026-001',
+      tenantName: 'Votre entreprise',
+      customerName: 'Client exemple',
+      issueDate: new Date(),
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      currency: 'EUR',
+      items: [{ title: 'Prestation de service', description: 'Exemple de ligne de facture', quantity: 1, unitPrice: 850, vatRate: 20 }],
+      total: 1020,
+      taxExclusiveAmount: 850,
+      vatAmount: 170,
+      taxInclusiveAmount: 1020,
+    }, await this.getInvoiceAppearance(tenantId, appearance));
+  }
+
+  private async getInvoiceAppearance(
+    tenantId: string,
+    overrides?: Partial<Pick<InvoicePdfAppearance, 'template' | 'primaryColor' | 'font' | 'logoFileId'>>,
+  ): Promise<InvoicePdfAppearance> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { invoiceTemplate: true, invoicePrimaryColor: true, invoiceFont: true, logoFileId: true },
+    });
+
+    let logo: Buffer | undefined;
+    const logoFileId = overrides?.logoFileId !== undefined ? overrides.logoFileId : tenant?.logoFileId;
+    if (logoFileId) {
+      const logoFile = await this.prisma.storedFile.findFirst({
+        where: { id: logoFileId, tenantId },
+        select: { storageKey: true },
+      });
+      if (logoFile) {
+        try {
+          logo = await this.storage.getObject(logoFile.storageKey);
+        } catch (error) {
+          this.logger.warn(`Logo de facture introuvable: ${logoFileId}`);
+        }
+      }
+    }
+
+    return {
+      template: overrides?.template ?? (tenant?.invoiceTemplate as InvoicePdfAppearance['template'] | undefined) ?? 'STANDARD',
+      primaryColor: overrides?.primaryColor ?? tenant?.invoicePrimaryColor ?? '#274c77',
+      font: overrides?.font ?? (tenant?.invoiceFont as InvoicePdfAppearance['font'] | undefined) ?? 'Helvetica',
+      logoFileId,
+      logo,
+    };
   }
 
   async listHistory(tenantId: string, type: EmailDocumentType, documentId: string) {
@@ -210,7 +272,7 @@ export class EmailService {
       ...document,
       type: type === EmailDocumentType.QUOTE ? 'QUOTE' : 'INVOICE',
       total: type === EmailDocumentType.INVOICE ? document.amountDue ?? document.taxInclusiveAmount : document.total ?? document.taxInclusiveAmount,
-    });
+    }, await this.getInvoiceAppearance(tenantId));
     const storageKey = `${tenantId}/documents/${type.toLowerCase()}/${document.id}.pdf`;
     await this.storage.putObject(storageKey, pdf, 'application/pdf');
     const file = await this.prisma.storedFile.create({

@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCustomerDto } from './create-customer.dto'
-import { CreateAddressDto } from 'src/address/create-address.dto';
+import { CreateAddressDto } from '../address/create-address.dto';
 import { Prisma, User } from '@prisma/client';
+
+export { CreateCustomerDto };
 
 @Injectable()
 export class CustomerService {

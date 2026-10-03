@@ -42,5 +42,6 @@ describe('PdfService', () => {
 
     expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
     expect(pdf.length).toBeGreaterThan(1000);
+    expect([...pdf.toString('latin1').matchAll(/\/Type \/Page(?!s)/g)]).toHaveLength(1);
   });
 });

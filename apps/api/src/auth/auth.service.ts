@@ -10,6 +10,10 @@ import { ACCESS_TOKEN_TTL_SECONDS, REFRESH_TOKEN_TTL_SECONDS } from './auth.cons
 
 const scrypt = promisify(scryptCallback);
 
+function hashRefreshToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
   const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
@@ -98,11 +102,14 @@ export class AuthService {
     };
   }
 
-  private buildTokens(session: SessionData): AuthTokens {
+  private async buildTokens(session: SessionData, refreshTokenFamilyId?: string): Promise<{ tokens: AuthTokens; refreshSessionId: string }> {
+    const jti = randomBytes(16).toString('hex');
+    const familyId = refreshTokenFamilyId ?? randomBytes(16).toString('hex');
     const accessToken = this.jwtService.sign(
       {
         sub: session.user.id,
         email: session.user.email,
+        type: 'access',
         user: session.user,
         activeTenant: {
           id: session.activeTenant.tenantId,
@@ -118,21 +125,36 @@ export class AuthService {
     const refreshToken = this.jwtService.sign(
       {
         sub: session.user.id,
+        jti,
+        type: 'refresh',
       },
       {
         expiresIn: '7d',
       },
     );
 
+    const refreshSession = await this.prisma.refreshTokenSession.create({
+      data: {
+        userId: session.user.id,
+        tokenHash: hashRefreshToken(refreshToken),
+        jti,
+        familyId,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
+      },
+    });
+
     return {
-      accessToken,
-      refreshToken,
-      accessTokenMaxAge: ACCESS_TOKEN_TTL_SECONDS,
-      refreshTokenMaxAge: REFRESH_TOKEN_TTL_SECONDS,
+      tokens: {
+        accessToken,
+        refreshToken,
+        accessTokenMaxAge: ACCESS_TOKEN_TTL_SECONDS,
+        refreshTokenMaxAge: REFRESH_TOKEN_TTL_SECONDS,
+      },
+      refreshSessionId: refreshSession.id,
     };
   }
 
-  private async buildAuthResult(user: User): Promise<AuthResult> {
+  private async buildAuthResult(user: User, refreshTokenFamilyId?: string, replacedTokenId?: string): Promise<AuthResult> {
     const memberships = await this.prisma.membership.findMany({
       where: { userId: user.id },
       include: { tenant: true },
@@ -145,7 +167,13 @@ export class AuthService {
     }));
 
     const session = this.buildSession(user, tenants);
-    const tokens = this.buildTokens(session);
+    const { tokens, refreshSessionId } = await this.buildTokens(session, refreshTokenFamilyId);
+    if (replacedTokenId) {
+      await this.prisma.refreshTokenSession.update({
+        where: { id: replacedTokenId },
+        data: { replacedById: refreshSessionId },
+      });
+    }
 
     return { tokens, session };
   }
@@ -217,7 +245,7 @@ export class AuthService {
   async refreshAccessToken(refreshToken: string): Promise<AuthResult> {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken);
-      if (!payload.sub) {
+      if (!payload.sub || !payload.jti || payload.type !== 'refresh') {
         throw new Error('Invalid refresh payload');
       }
 
@@ -226,9 +254,53 @@ export class AuthService {
       });
       if (!user) throw new Error('User not found');
 
-      return this.buildAuthResult(user);
+      const storedToken = await this.prisma.refreshTokenSession.findUnique({
+        where: { tokenHash: hashRefreshToken(refreshToken) },
+      });
+      if (
+        !storedToken ||
+        storedToken.userId !== user.id ||
+        storedToken.jti !== payload.jti ||
+        storedToken.expiresAt.getTime() <= Date.now()
+      ) {
+        throw new Error('Invalid refresh token');
+      }
+
+      if (storedToken.revokedAt) {
+        await this.prisma.refreshTokenSession.updateMany({
+          where: { familyId: storedToken.familyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new Error('Refresh token reuse detected');
+      }
+
+      const revoked = await this.prisma.refreshTokenSession.updateMany({
+        where: { id: storedToken.id, revokedAt: null },
+        data: { revokedAt: new Date(), lastUsedAt: new Date() },
+      });
+      if (revoked.count !== 1) {
+        await this.prisma.refreshTokenSession.updateMany({
+          where: { familyId: storedToken.familyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        throw new Error('Refresh token reuse detected');
+      }
+
+      return this.buildAuthResult(user, storedToken.familyId, storedToken.id);
     } catch {
       throw new Error('Invalid refresh token');
+    }
+  }
+
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    try {
+      this.jwtService.verify<JwtPayload>(refreshToken);
+      await this.prisma.refreshTokenSession.updateMany({
+        where: { tokenHash: hashRefreshToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    } catch {
+      // Logout is idempotent even when the cookie is expired or malformed.
     }
   }
 
@@ -274,6 +346,10 @@ export class AuthService {
       this.prisma.user.update({ where: { id: resetToken.userId }, data: { password: hashedPassword } }),
       this.prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
       this.prisma.passwordResetToken.deleteMany({ where: { userId: resetToken.userId, id: { not: resetToken.id } } }),
+      this.prisma.refreshTokenSession.updateMany({
+        where: { userId: resetToken.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
     ]);
 
     return { message: 'Mot de passe modifié. Vous pouvez vous connecter.' };

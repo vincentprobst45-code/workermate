@@ -17,10 +17,10 @@ export interface WorkOrderItem {
 	purchaseVatRate?: number;
 	unit?: string;
 	sellerItemIdentifier?: string;
-	unitCode: string;
+	unitCode?: string;
 	unitLabel?: string;
-	subtotal: number;
-	vatCategory: string;
+	subtotal?: number;
+	vatCategory?: string;
 	unitPrice: number;
 	vatRate: number;
 }

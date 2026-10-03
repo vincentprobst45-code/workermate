@@ -1,0 +1,4 @@
+ALTER TABLE "Tenant"
+ADD COLUMN "invoiceTemplate" TEXT NOT NULL DEFAULT 'STANDARD',
+ADD COLUMN "invoicePrimaryColor" TEXT NOT NULL DEFAULT '#274c77',
+ADD COLUMN "invoiceFont" TEXT NOT NULL DEFAULT 'Helvetica';

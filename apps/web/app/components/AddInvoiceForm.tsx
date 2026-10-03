@@ -33,7 +33,7 @@ import AddInvoiceAdjustmentForm, { type InvoiceAdjustmentFormData } from './AddI
 import AddInvoiceItemAdjustmentForm, { type InvoiceItemAdjustmentFormData } from './AddInvoiceItemAdjustmentForm';
 import CustomersList, { type Customer as CustomerRecord } from './CustomersList';
 import InvoicesList, { type Invoice as CreatedInvoice } from './InvoicesList';
-import NewInvoice, { type Invoice as PreviewInvoice } from './NewInvoice';
+import type { Invoice as PreviewInvoice } from './NewInvoice';
 import QuotesList, { type Quote as QuoteOption } from './QuotesList';
 import WorkOrdersList, { type WorkOrder as WorkOrderBase } from './WorkOrdersList';
 
@@ -903,6 +903,9 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 	const mobilePreviewRef = useRef<HTMLElement>(null);
 	const [isDesktopPreviewExpanded, setIsDesktopPreviewExpanded] = useState(false);
 	const [tenantDefaults, setTenantDefaults] = useState<TenantInvoiceDefaults | null>(null);
+	const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+	const [previewPdfLoading, setPreviewPdfLoading] = useState(false);
+	const [previewPdfError, setPreviewPdfError] = useState('');
 	const [form, setForm] = useState<AddInvoiceFormData>(() => {
 		if (!initialInvoice) {
 			return createEmptyInvoice();
@@ -1124,6 +1127,53 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			: undefined,
 	));
 	}, [displayedInvoiceNumber, form, initialInvoice, invoiceKind, onChange, selectedSourceInvoice]);
+
+	useEffect(() => {
+		let cancelled = false;
+		const previewInvoice = createDraftPreviewInvoice(
+			{ ...form, number: displayedInvoiceNumber },
+			selectedSourceInvoice,
+			invoiceKind,
+			initialInvoice?.kind === invoiceKind
+				? {
+					number: invoiceKind === InvoiceKind.CORRECTIVE
+						? initialInvoice.correctedInvoiceNumber
+						: initialInvoice.references?.[0]?.referencedInvoiceNumber,
+					issueDate: invoiceKind === InvoiceKind.CORRECTIVE
+						? initialInvoice.correctedInvoiceIssueDate
+						: initialInvoice.references?.[0]?.referencedInvoiceIssueDate,
+				}
+				: undefined,
+		);
+
+		const timer = window.setTimeout(() => {
+			setPreviewPdfLoading(true);
+			setPreviewPdfError('');
+			void api.post('/invoices/preview-pdf', previewInvoice).then(async (response) => {
+				if (!response.ok) throw new Error('Impossible de générer l’aperçu PDF.');
+				const blob = await response.blob();
+				if (cancelled) return;
+				const nextUrl = URL.createObjectURL(blob);
+				setPreviewPdfUrl((currentUrl) => {
+					if (currentUrl) URL.revokeObjectURL(currentUrl);
+					return nextUrl;
+				});
+		}).catch((previewError: unknown) => {
+			if (!cancelled) setPreviewPdfError(previewError instanceof Error ? previewError.message : 'Impossible de générer l’aperçu PDF.');
+		}).finally(() => {
+			if (!cancelled) setPreviewPdfLoading(false);
+		});
+		}, 350);
+
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
+	}, [api, displayedInvoiceNumber, form, initialInvoice, invoiceKind, selectedSourceInvoice]);
+
+	useEffect(() => () => {
+		if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
+	}, [previewPdfUrl]);
 
 
 	useEffect(() => {
@@ -2555,15 +2605,13 @@ export default function AddInvoiceForm({ onCreated, onUpdated, initialInvoice, i
 			<aside ref={mobilePreviewRef} className={`${showMobilePreview ? 'block' : 'hidden'} min-w-0 xl:sticky xl:top-6 xl:block xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto`} aria-label="Aperçu de la facture">
 				<div className="flex items-start gap-2">
 					<div className={`${isDesktopPreviewExpanded ? 'block' : 'block xl:hidden'} min-w-0 flex-1 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-sm sm:p-4`}>
-						<NewInvoice invoice={createDraftPreviewInvoice(
-							{ ...form, number: displayedInvoiceNumber },
-							selectedSourceInvoice,
-							invoiceKind,
-							initialInvoice?.kind === invoiceKind ? {
-								number: invoiceKind === InvoiceKind.CORRECTIVE ? initialInvoice.correctedInvoiceNumber : initialInvoice.references?.[0]?.referencedInvoiceNumber,
-								issueDate: invoiceKind === InvoiceKind.CORRECTIVE ? initialInvoice.correctedInvoiceIssueDate : initialInvoice.references?.[0]?.referencedInvoiceIssueDate,
-							} : undefined,
-						)} />
+						{previewPdfUrl ? (
+							<iframe title="Aperçu PDF de la facture" src={previewPdfUrl} className="h-[min(78vh,1120px)] min-h-[720px] w-[210mm] max-w-none border-0 bg-white" />
+						) : (
+							<div className="flex min-h-[720px] w-[210mm] items-center justify-center bg-white p-8 text-center text-sm text-slate-500">
+								{previewPdfLoading ? 'Génération de l’aperçu PDF...' : previewPdfError || 'L’aperçu PDF apparaîtra ici.'}
+							</div>
+						)}
 					</div>
 					<div className="hidden shrink-0 flex-col gap-2 xl:flex">
 						{!isDesktopPreviewExpanded ? (

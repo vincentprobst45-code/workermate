@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCalendarEventDto } from './create-calendarEvent.dto'
-import { CreateAddressDto } from 'src/address/create-address.dto';
+import { CreateAddressDto } from '../address/create-address.dto';
 import { Prisma, User } from '@prisma/client';
 
 @Injectable()
@@ -194,9 +194,18 @@ export class CalendarEventService {
   //       );
   //     }
   if (addressId) {
+    const existingAddress = await this.prisma.address.findFirst({
+      where: this.tenantScopedAddressWhere(tenantId, addressId),
+      select: { id: true },
+    });
+
+    if (!existingAddress) {
+      throw new BadRequestException('Adresse introuvable pour ce tenant.');
+    }
+
     data.address = {
       connect: {
-        id: addressId,
+        id: existingAddress.id,
       },
     };
   } else if (this.hasAddress(address)) {

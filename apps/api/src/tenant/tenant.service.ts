@@ -2,12 +2,38 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { UpdateTenantDto } from './update-tenant.dto';
+import { UpdateInvoiceAppearanceDto } from './update-invoice-appearance.dto';
 import { CreateAddressDto } from '../address/create-address.dto';
 import { CreateTenantDto } from './create-tenant.dto';
+import { StorageService } from '../storage/storage.service';
+import { createHash, randomUUID } from 'node:crypto';
 
 @Injectable()
 export class TenantService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private storage: StorageService) {}
+
+  async uploadLogo(tenantId: string, file: { buffer: Buffer; originalname: string; mimetype: string; size: number }) {
+    if (!file.mimetype.startsWith('image/')) throw new BadRequestException('Le logo doit être une image.');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Le logo ne doit pas dépasser 5 Mo.');
+
+    const fileId = randomUUID();
+    const fileName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120) || 'logo';
+    const storageKey = `tenants/${tenantId}/logos/${fileId}-${fileName}`;
+    await this.storage.putObject(storageKey, file.buffer, file.mimetype);
+    await this.prisma.storedFile.create({
+      data: {
+        id: fileId,
+        tenantId,
+        storageKey,
+        fileName,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        sha256: createHash('sha256').update(file.buffer).digest('hex'),
+      },
+    });
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { logoFileId: fileId } });
+    return { fileId };
+  }
 
   async create(creatorId: string, dto: CreateTenantDto) {
     const currentYear = new Date().getFullYear();
@@ -126,6 +152,46 @@ export class TenantService {
     });
   }
 
+  async findCurrentInvoiceAppearance(tenantId: string) {
+    return this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: {
+        logoFileId: true,
+        invoiceTemplate: true,
+        invoicePrimaryColor: true,
+        invoiceFont: true,
+      },
+    });
+  }
+
+  async updateCurrentInvoiceAppearance(tenantId: string, dto: UpdateInvoiceAppearanceDto) {
+    if (dto.logoFileId) {
+      const logo = await this.prisma.storedFile.findFirst({
+        where: { id: dto.logoFileId, tenantId },
+        select: { id: true },
+      });
+      if (!logo) {
+        throw new BadRequestException('Le logo sélectionné est invalide.');
+      }
+    }
+
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        logoFileId: dto.logoFileId === undefined ? undefined : dto.logoFileId || null,
+        invoiceTemplate: dto.invoiceTemplate,
+        invoicePrimaryColor: dto.invoicePrimaryColor?.trim().toLowerCase(),
+        invoiceFont: dto.invoiceFont,
+      },
+      select: {
+        logoFileId: true,
+        invoiceTemplate: true,
+        invoicePrimaryColor: true,
+        invoiceFont: true,
+      },
+    });
+  }
+
   async updateCurrent(tenantId: string, dto: UpdateTenantDto) {
     const { addressId, address, ...tenantData } = dto;
 
@@ -175,10 +241,6 @@ export class TenantService {
       nextInvoiceNumber:
         tenantData.nextInvoiceNumber !== undefined
           ? tenantData.nextInvoiceNumber
-          : undefined,
-      logoFileId:
-        tenantData.logoFileId !== undefined
-          ? this.normalizeOptionalString(tenantData.logoFileId)
           : undefined,
       defaultCurrency: tenantData.defaultCurrency?.trim(),
       defaultPaymentTerms:

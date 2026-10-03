@@ -57,10 +57,6 @@ export class UpdateTenantDto {
 
   @IsOptional()
   @IsString()
-  logoFileId?: string;
-
-  @IsOptional()
-  @IsString()
   defaultCurrency?: string;
 
   @IsOptional()

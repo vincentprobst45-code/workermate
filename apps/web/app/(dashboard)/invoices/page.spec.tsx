@@ -21,31 +21,31 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock('../auth.context', () => ({
+vi.mock('../../auth.context', () => ({
   useAuth: () => authState,
 }));
 
-vi.mock('../api-client', () => ({
+vi.mock('../../api-client', () => ({
   useApiClient: () => api,
 }));
 
-vi.mock('../protected-route', () => ({
+vi.mock('../../protected-route', () => ({
   ProtectedRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('../components/AddInvoiceForm', () => ({
+vi.mock('../../components/AddInvoiceForm', () => ({
   default: () => null,
 }));
 
-vi.mock('../components/AddReccuringInvoiceForm', () => ({
+vi.mock('../../components/AddReccuringInvoiceForm', () => ({
   default: () => null,
 }));
 
-vi.mock('../components/RecuringInvoicesList', () => ({
+vi.mock('../../components/RecuringInvoicesList', () => ({
   default: () => null,
 }));
 
-vi.mock('../components/AddPaymentForm', () => ({
+vi.mock('../../components/AddPaymentForm', () => ({
   default: ({ onCreated }: { onCreated: (payment: unknown) => void }) => (
     <button
       type="button"
@@ -57,7 +57,7 @@ vi.mock('../components/AddPaymentForm', () => ({
   ),
 }));
 
-vi.mock('../components/InvoicesList', () => ({
+vi.mock('../../components/InvoicesList', () => ({
   default: ({ invoices, onUpdated }: { invoices: Array<{ id: string; paymentStatus?: string }>; onUpdated?: (invoice: unknown) => void }) => (
     <div>
       <span data-testid="invoice-count">{invoices.length}</span>

@@ -38,6 +38,10 @@ model Tenant {
 
   logoFileId String?
 
+  invoiceTemplate     String @default("STANDARD")
+  invoicePrimaryColor String @default("#274c77")
+  invoiceFont         String @default("Helvetica")
+
   defaultCurrency String @default("EUR")
 
   defaultPaymentTerms  String?
@@ -82,6 +86,7 @@ model Tenant {
   payments                Payment[]
   companyExpenses         CompanyExpense[]
   bankTransactions        BankTransaction[]
+  bankImportBatches       BankImportBatch[]
   storedFiles             StoredFile[]
   emailDeliveries         EmailDelivery[]
   treasuryReconciliations TreasuryReconciliation[]
@@ -146,6 +151,7 @@ model PaymentAccount {
 
   recurringInvoices RecurringInvoice[]
   bankTransactions  BankTransaction[]
+  bankImportBatches BankImportBatch[]
   companyExpenses   CompanyExpense[]
   reconciliations   TreasuryReconciliation[]
   alerts            TreasuryAlert[]
@@ -180,6 +186,7 @@ model User {
   createdCalendarEvents         CalendarEvent[]        @relation("CalendarEventCreator")
   createdRecurringInvoices      RecurringInvoice[]     @relation("RecurringInvoiceCreator")
   passwordResetTokens           PasswordResetToken[]
+  refreshTokenSessions          RefreshTokenSession[]
   receivedNotifications         Notification[]         @relation("NotificationRecipient")
   sentNotifications             Notification[]         @relation("NotificationSender")
   membershipRequests            MembershipRequest[]
@@ -199,6 +206,24 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 
   @@index([userId, expiresAt])
+}
+
+model RefreshTokenSession {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  jti          String    @unique
+  familyId     String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([familyId, revokedAt])
+  @@index([expiresAt])
 }
 
 model Membership {
@@ -3590,6 +3615,28 @@ model EmployeeCost {
   endDate   DateTime?
 }
 
+model BankImportBatch {
+  id               String         @id @default(cuid())
+  tenantId         String
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentAccountId String
+  paymentAccount   PaymentAccount @relation(fields: [paymentAccountId], references: [id], onDelete: Restrict)
+
+  fileName       String
+  sourceFormat   String         @default("CSV")
+  status         String         @default("ACTIVE")
+  rowCount       Int
+  importedCount  Int      @default(0)
+  duplicateCount Int      @default(0)
+  importedAt     DateTime @default(now())
+  cancelledAt    DateTime?
+
+  transactions BankTransaction[]
+
+  @@index([tenantId, importedAt])
+  @@index([paymentAccountId, importedAt])
+}
+
 model BankTransaction {
   id String @id @default(cuid())
 
@@ -3609,6 +3656,8 @@ model BankTransaction {
 
   // identifiant fourni par la banque / agrégateur
   externalId       String?
+  importBatchId    String?
+  importBatch      BankImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   transactionType  BankTransactionType     @default(STANDARD)
   transferId       String?
   transfer         TreasuryTransfer?       @relation(fields: [transferId], references: [id], onDelete: SetNull)

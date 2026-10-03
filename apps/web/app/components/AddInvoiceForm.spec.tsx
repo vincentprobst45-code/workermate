@@ -113,7 +113,7 @@ describe('AddInvoiceForm', () => {
   it('recalculates the line total from Prisma subtotal and VAT when editing', async () => {
     renderForm(invoiceForEdit);
 
-    expect(await screen.findByText('100.00 EUR')).toBeInTheDocument();
+    expect(await screen.findByTitle('100.00 EUR')).toBeInTheDocument();
   });
 
   it('sends inline payments when creating an invoice', async () => {
@@ -146,7 +146,8 @@ describe('AddInvoiceForm', () => {
 
     renderForm();
     fireEvent.click(screen.getByRole('button', { name: 'Remplir depuis un client existant' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Jane Doe/ }));
+    const customerButtons = await screen.findAllByRole('button', { name: /Jane Doe/ });
+    fireEvent.click(customerButtons[0]);
     fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Ajouter un paiement' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Modifier' })[0]);
@@ -168,7 +169,7 @@ describe('AddInvoiceForm', () => {
     fireEvent.change(screen.getByLabelText('Montant *'), { target: { value: '25' } });
     fireEvent.change(screen.getByLabelText('Date du paiement *'), { target: { value: '2026-07-20T10:00' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Créer la facture' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Emettre la facture' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:4000/invoices',

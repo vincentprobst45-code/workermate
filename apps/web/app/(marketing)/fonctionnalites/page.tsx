@@ -199,6 +199,9 @@ export default function FeaturesPage() {
                 <li className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" /> Gestion et filtrage par employé</li>
                 <li className="flex items-center gap-3"><CheckCircle2 className="h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" /> Accès rapide aux données d’intérêt</li>
               </ul>
+              <Link href="/fonctionnalites/planning" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-blue-200 hover:underline">
+                En savoir plus <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
             </div>
             <div className="rounded-2xl border border-blue-800 bg-blue-900/60 p-6 shadow-lg">
               <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-300">

@@ -5,7 +5,8 @@ import { CreateInvoiceDto } from './create-invoice.dto'
 import { CreateInvoiceFromWorkOrderDto } from './create-invoice-from-workorder.dto';
 import { RequireRoleGuard } from '../common/guards/require-role.guard';
 import { requireTenantContext, type AuthenticatedRequest } from '../common/types/auth-request';
-import { EmailService } from '../email/email.service';
+import { EmailService, type DocumentData } from '../email/email.service';
+import { UpdateInvoiceAppearanceDto } from '../tenant/update-invoice-appearance.dto';
 import { EmailDocumentType } from '@prisma/client';
 
 @Controller('invoices')
@@ -36,10 +37,82 @@ export class InvoiceController {
     return result;
   }
 
+  @Get(':id/preview-pdf')
+  async previewSavedInvoicePdf(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Res() response: Response) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    const invoice = await this.invoiceService.findOne(tenantId, id);
+    if (!invoice) {
+      throw new NotFoundException('Facture introuvable.');
+    }
+
+    const customerName = invoice.customer?.company?.trim()
+      || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(' ')
+      || invoice.customerName
+      || 'Client';
+    const pdf = await this.emailService.previewInvoicePdf(tenantId, {
+      ...invoice,
+      customerName,
+      tenantName: invoice.tenantName,
+      total: invoice.amountDue ?? invoice.taxInclusiveAmount,
+    });
+
+    response.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="facture-${(invoice.number ?? invoice.id).replace(/[^a-zA-Z0-9._-]/g, '-')}-apercu.pdf"`,
+      'Content-Length': String(pdf.length),
+      'Cache-Control': 'no-store',
+    });
+    response.send(pdf);
+  }
+
   @Get(':id')
   async findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     const tenantId = requireTenantContext(req).tenant.id;
     return this.invoiceService.findOne(tenantId, id);
+  }
+
+  @Post('preview-pdf')
+  async previewPdf(@Req() req: AuthenticatedRequest, @Body() body: Record<string, unknown>, @Res() response: Response) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    const customerName = typeof body.customerName === 'string' && body.customerName.trim()
+      ? body.customerName
+      : [body.customerFirstName, body.customerLastName].filter((value): value is string => typeof value === 'string' && value.trim() !== '').join(' ') || 'Client';
+    const pdf = await this.emailService.previewInvoicePdf(tenantId, {
+      ...body,
+      customerName,
+      tenantName: typeof body.tenantName === 'string' ? body.tenantName : '',
+    } as DocumentData);
+
+    response.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="facture-apercu.pdf"',
+      'Content-Length': String(pdf.length),
+      'Cache-Control': 'no-store',
+    });
+    response.send(pdf);
+  }
+
+  @Post('preview-appearance-pdf')
+  async previewAppearancePdf(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateInvoiceAppearanceDto,
+    @Res() response: Response,
+  ) {
+    const tenantId = requireTenantContext(req).tenant.id;
+    const pdf = await this.emailService.previewInvoiceAppearancePdf(tenantId, {
+      template: dto.invoiceTemplate ?? 'STANDARD',
+      primaryColor: dto.invoicePrimaryColor ?? '#274c77',
+      font: dto.invoiceFont ?? 'Helvetica',
+      logoFileId: dto.logoFileId,
+    });
+
+    response.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="facture-apercu-personnalisation.pdf"',
+      'Content-Length': String(pdf.length),
+      'Cache-Control': 'no-store',
+    });
+    response.send(pdf);
   }
 
   @Post(':id/send-email')

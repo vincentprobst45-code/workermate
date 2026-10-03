@@ -4,6 +4,8 @@ import { UnauthorizedException } from '@nestjs/common';
 
 export interface JwtPayload {
   sub?: string;
+  jti?: string;
+  type?: 'access' | 'refresh';
   email?: string;
   user?: {
     id: string;

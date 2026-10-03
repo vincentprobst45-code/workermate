@@ -21,6 +21,9 @@ export interface TenantProfile {
   siretNumber?: string | null;
   vatNumber?: string | null;
   logoFileId?: string | null;
+  invoiceTemplate?: 'STANDARD' | 'MODERN' | 'COMPACT' | null;
+  invoicePrimaryColor?: string | null;
+  invoiceFont?: 'Helvetica' | 'Times-Roman' | 'Courier' | null;
   defaultCurrency: string;
   defaultPaymentTerms?: string | null;
   defaultLegalMentions?: string | null;

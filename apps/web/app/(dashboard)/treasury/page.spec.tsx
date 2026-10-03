@@ -17,19 +17,19 @@ const { api, authState } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../auth.context', () => ({
+vi.mock('../../auth.context', () => ({
   useAuth: () => authState,
 }));
 
-vi.mock('../api-client', () => ({
+vi.mock('../../api-client', () => ({
   useApiClient: () => api,
 }));
 
-vi.mock('../protected-route', () => ({
+vi.mock('../../protected-route', () => ({
   ProtectedRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('../components/AddBankAccountForm', () => ({
+vi.mock('../../components/AddBankAccountForm', () => ({
   default: ({ onCreated }: { onCreated: (account: unknown) => void }) => (
     <button
       type="button"
@@ -41,11 +41,11 @@ vi.mock('../components/AddBankAccountForm', () => ({
   ),
 }));
 
-vi.mock('../components/AddCompanyExpenseForm', () => ({ default: () => null }));
-vi.mock('../components/AddBankTransactionForm', () => ({ default: () => null }));
-vi.mock('../components/BankAccountDetails', () => ({ default: () => null }));
-vi.mock('../components/BankAccountsList', () => ({ default: () => null }));
-vi.mock('../components/ForecastBudgetGraph', () => ({ default: () => null }));
+vi.mock('../../components/AddCompanyExpenseForm', () => ({ default: () => null }));
+vi.mock('../../components/AddBankTransactionForm', () => ({ default: () => null }));
+vi.mock('../../components/BankAccountDetails', () => ({ default: () => null }));
+vi.mock('../../components/BankAccountsList', () => ({ default: () => null }));
+vi.mock('../../components/ForecastBudgetGraph', () => ({ default: () => null }));
 
 function response(data: unknown, ok = true) {
   return { ok, status: ok ? 200 : 500, json: async () => data };
@@ -70,6 +70,7 @@ describe('TreasuryPage TanStack Query migration', () => {
       if (endpoint === '/payment-accounts') return response([{ id: 'account-1', name: 'Compte principal', currency: 'EUR', openingBalance: 0 }]);
       if (endpoint === '/company-expenses') return response([]);
       if (endpoint === '/bank-transactions') return response([]);
+      if (endpoint === '/bank-transactions/imports') return response([]);
       if (endpoint === '/treasury/alerts') return response([]);
       if (endpoint === '/treasury/reconciliations') return response([]);
       if (endpoint === '/treasury/transfers') return response([]);

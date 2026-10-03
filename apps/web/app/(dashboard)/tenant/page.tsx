@@ -9,6 +9,7 @@ import AddTenantForm from '../../components/AddTenantForm';
 import EmployeesList from '../../components/EmployeesList';
 import TenantDetails, { type TenantProfile } from '../../components/TenantDetails';
 import UpdateTenantForm from '../../components/UpdateTenantForm';
+import InvoiceAppearanceSection from '../../components/InvoiceAppearanceSection';
 
 export default function TenantPage() {
   const { activeTenant } = useAuth();
@@ -49,7 +50,7 @@ export default function TenantPage() {
 
         {loading && <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Chargement...</p>}
         {!loading && error && <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-        {!loading && !error && tenant && <TenantDetails tenant={tenant} onEdit={() => setShowUpdateTenantForm(true)} />}
+        {!loading && !error && tenant && <><TenantDetails tenant={tenant} onEdit={() => setShowUpdateTenantForm(true)} /><div className="mt-6"><InvoiceAppearanceSection tenant={tenant} onSaved={(updatedTenant) => queryClient.setQueryData(tenantQueryKey, updatedTenant)} /></div></>}
 
         {showUpdateTenantForm && tenant && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4 sm:p-6" role="presentation" onClick={() => setShowUpdateTenantForm(false)}><div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="update-tenant-title" onClick={(event) => event.stopPropagation()}><UpdateTenantForm tenant={tenant} onCancel={() => setShowUpdateTenantForm(false)} onSaved={(updatedTenant) => { queryClient.setQueryData(tenantQueryKey, updatedTenant); setShowUpdateTenantForm(false); }} /></div></div>}
 

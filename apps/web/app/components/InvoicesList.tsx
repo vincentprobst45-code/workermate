@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { InvoiceKind, InvoicePdpStatus, InvoiceStatus, PaymentMethod, VatCategory } from '@prisma/client';
-import NewInvoice from './NewInvoice';
 import AddInvoiceForm from './AddInvoiceForm';
 import type { Payment } from './AddPaymentForm';
 import InvoicePaymentsList from './InvoicePaymentsList';
@@ -231,6 +230,51 @@ export default function InvoicesList({
   const [emailHistoryError, setEmailHistoryError] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [pdfDownloadError, setPdfDownloadError] = useState(false);
+  const [invoicePreviewUrl, setInvoicePreviewUrl] = useState<string | null>(null);
+  const [invoicePreviewId, setInvoicePreviewId] = useState<string | null>(null);
+  const [invoicePreviewLoading, setInvoicePreviewLoading] = useState(false);
+  const [invoicePreviewError, setInvoicePreviewError] = useState(false);
+
+  useEffect(() => {
+    if (!showInvoiceDetails || !selectedInvoice) {
+      return;
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setInvoicePreviewLoading(true);
+        setInvoicePreviewError(false);
+      }
+    });
+
+    void api.get(`/invoices/${selectedInvoice.id}/preview-pdf`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('invoice-preview');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setInvoicePreviewId(selectedInvoice.id);
+        setInvoicePreviewUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setInvoicePreviewError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setInvoicePreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, selectedInvoice, showInvoiceDetails]);
+
+  useEffect(() => () => {
+    if (invoicePreviewUrl) URL.revokeObjectURL(invoicePreviewUrl);
+  }, [invoicePreviewUrl]);
 
   useEffect(() => {
     if (!showInvoiceDetails || !selectedInvoice) return;
@@ -620,7 +664,17 @@ export default function InvoicesList({
                 Fermer X
               </button>
             </div>
-                <NewInvoice invoice={selectedInvoice} />
+                <section className="mb-6" aria-label="Aperçu PDF de la facture">
+                  {invoicePreviewLoading && <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">Génération de l&apos;aperçu...</p>}
+                  {invoicePreviewError && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Aperçu PDF indisponible.</p>}
+                  {invoicePreviewUrl && invoicePreviewId === selectedInvoice.id && !invoicePreviewLoading && (
+                    <iframe
+                      title={`Aperçu PDF de la facture ${selectedInvoice.number}`}
+                      src={invoicePreviewUrl}
+                      className="h-[70vh] min-h-[32rem] w-full rounded-lg border border-slate-200 bg-slate-100"
+                    />
+                  )}
+                </section>
                 <InvoicePaymentsList invoice={selectedInvoice} onChanged={updateSelectedInvoice} />
             <section className="mt-6 border-t border-slate-200 pt-4">
               {pdfDownloadError && <p className="mb-3 text-sm text-red-600">Téléchargement du PDF impossible.</p>}

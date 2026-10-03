@@ -20,23 +20,23 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock('../auth.context', () => ({
+vi.mock('../../auth.context', () => ({
   useAuth: () => authState,
 }));
 
-vi.mock('../api-client', () => ({
+vi.mock('../../api-client', () => ({
   useApiClient: () => api,
 }));
 
-vi.mock('../protected-route', () => ({
+vi.mock('../../protected-route', () => ({
   ProtectedRoute: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('../components/AddCustomerForm', () => ({
+vi.mock('../../components/AddCustomerForm', () => ({
   default: () => null,
 }));
 
-vi.mock('../components/CustomersList', () => ({
+vi.mock('../../components/CustomersList', () => ({
   default: ({ customers, onDelete }: { customers: Array<{ id: string }>; onDelete?: (id: string) => void }) => (
     <div>
       <span data-testid="customer-count">{customers.length}</span>

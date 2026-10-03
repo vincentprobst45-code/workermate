@@ -10,9 +10,8 @@ import type { TenantProfile } from './TenantDetails';
 type VatLiabilityRegime = 'FRANCHISE_BASE' | 'LIABLE';
 type VatReturnFrequency = 'MONTHLY' | 'QUARTERLY';
 type AddressMode = 'new' | 'existing';
-
 type TenantFormData = {
-  name: string; logoFileId: string; addressId: string; phoneNumber: string; email: string;
+  name: string; addressId: string; phoneNumber: string; email: string;
   siretNumber: string; vatNumber: string; defaultPaymentAccountId: string;
   defaultPaymentTerms: string; defaultLegalMentions: string; defaultInvoiceNotes: string;
   emailRemindersEnabled: boolean; emailReminderDelayDays: number; emailReminderRepeatDays: number; emailReminderMaxAttempts: number;
@@ -36,7 +35,7 @@ const CURRENCY_OPTIONS = [
 
 function mapTenantToForm(tenant: TenantProfile): TenantFormData {
   return {
-    name: tenant.name || '', logoFileId: tenant.logoFileId || '', addressId: tenant.addressId || '',
+    name: tenant.name || '', addressId: tenant.addressId || '',
     phoneNumber: tenant.phoneNumber || '', email: tenant.email || '', siretNumber: tenant.siretNumber || '',
     vatNumber: tenant.vatNumber || '', defaultPaymentAccountId: tenant.defaultPaymentAccountId || '',
     defaultPaymentTerms: tenant.defaultPaymentTerms || '', defaultLegalMentions: tenant.defaultLegalMentions || '',
@@ -66,7 +65,6 @@ export default function UpdateTenantForm({ tenant, onCancel, onSaved }: UpdateTe
     try {
       const response = await api.put('/tenants/current', {
         name: form.name,
-        logoFileId: form.logoFileId,
         addressId: addressMode === 'existing' ? form.addressId : undefined,
         address: addressMode === 'new' ? newAddress : undefined,
         phoneNumber: form.phoneNumber,
@@ -107,7 +105,6 @@ export default function UpdateTenantForm({ tenant, onCancel, onSaved }: UpdateTe
           <h3 className="font-semibold text-slate-900">Profil de l&apos;entreprise</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="sm:col-span-2 text-sm font-medium text-slate-700">Nom<input required className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-            <label className="sm:col-span-2 text-sm font-medium text-slate-700">Identifiant du logo principal<input className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.logoFileId} onChange={(e) => setForm({ ...form, logoFileId: e.target.value })} /></label>
             <label className="text-sm font-medium text-slate-700">Téléphone<input className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></label>
             <label className="text-sm font-medium text-slate-700">Email<input type="email" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
             <label className="text-sm font-medium text-slate-700">SIRET<span className="mt-1 block text-xs font-normal text-slate-500">14 chiffres, sans espaces.</span><input inputMode="numeric" className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2" value={form.siretNumber} onChange={(e) => setForm({ ...form, siretNumber: e.target.value })} /></label>

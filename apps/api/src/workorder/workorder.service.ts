@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LineItemType, Prisma, VatCategory } from '@prisma/client';
 import { CreateWorkOrderDto } from './create-workorder.dto';
-import { CreateAddressDto } from 'src/address/create-address.dto';
+import { CreateAddressDto } from '../address/create-address.dto';
 
 
 // export class CreateWorkOrderDto {

@@ -12,7 +12,7 @@ import {
 
 import { WorkOrderStatus } from '@prisma/client';
 import { CreateAddressDto } from '../address/create-address.dto';
-import { CreateWorkOrderItemDto } from 'src/workorderitem/create-workorder-item.dto';
+import { CreateWorkOrderItemDto } from '../workorderitem/create-workorder-item.dto';
 
 export class CreateWorkOrderDto {
   @IsString()

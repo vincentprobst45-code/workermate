@@ -93,7 +93,7 @@ export interface QuoteItem {
   lineIdentifier?: string;
   unitCode?: string;
   unitLabel?: string;
-  subtotal?: number;
+  subtotal: number;
   vatCategory?: string;
 }
 
@@ -135,9 +135,9 @@ export interface Quote {
   workOrderCity?: string;
   status: QuoteStatus;
   currency: string;
-  subtotal?: number;
-  vatAmount?: number;
-  total?: number;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
   paymentTerms?: string;
   legalMentions?: string;
   notes?: string;
@@ -2393,7 +2393,16 @@ export default function AddQuoteForm({ onCreated, show }: AddQuoteFormProps) {
             </button>
           </div>
           {customersLoading ? <p className="text-sm text-slate-500">Chargement des clients...</p> : (
-            <CustomersList customers={customers} onDelete={null} handleSelectedCustomer={handleSelectedCustomer} />
+            <CustomersList
+              customers={customers.map((customer) => ({
+                ...customer,
+                tenantId: '',
+                firstName: customer.firstName ?? '',
+                createdAt: '',
+              }))}
+              onDelete={null}
+              handleSelectedCustomer={handleSelectedCustomer}
+            />
           )}
         </section>
       </div>
